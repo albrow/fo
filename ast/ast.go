@@ -381,9 +381,10 @@ type (
 
 	// A StructType node represents a struct type.
 	StructType struct {
-		Struct     token.Pos  // position of "struct" keyword
-		Fields     *FieldList // list of field declarations
-		Incomplete bool       // true if (source) fields are missing in the Fields list
+		Struct     token.Pos     // position of "struct" keyword
+		GenParams  *GenParamList // list of generic parameters
+		Fields     *FieldList    // list of field declarations
+		Incomplete bool          // true if (source) fields are missing in the Fields list
 	}
 
 	// Pointer types are represented via StarExpr nodes.
@@ -417,6 +418,43 @@ type (
 		Value Expr      // value type
 	}
 )
+
+type (
+	// GenParamList is a list of generic parameters. For example:
+	//
+	//   <T>
+	//   <T, U, V>
+	//
+	GenParamList struct {
+		Lbrack token.Pos // position of "<"
+		List   []*Ident  // list of identifiers
+		Rbrack token.Pos // position of ">"
+	}
+)
+
+func (f *GenParamList) Pos() token.Pos {
+	if f.Lbrack.IsValid() {
+		return f.Lbrack
+	}
+	// the list should not be empty in this case;
+	// be conservative and guard against bad ASTs
+	if len(f.List) > 0 {
+		return f.List[0].Pos()
+	}
+	return token.NoPos
+}
+
+func (f *GenParamList) End() token.Pos {
+	if f.Rbrack.IsValid() {
+		return f.Rbrack + 1
+	}
+	// the list should not be empty in this case;
+	// be conservative and guard against bad ASTs
+	if n := len(f.List); n > 0 {
+		return f.List[n-1].End()
+	}
+	return token.NoPos
+}
 
 // Pos and End implementations for expression/type nodes.
 

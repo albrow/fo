@@ -49,6 +49,9 @@ var valids = []string{
 	`package p; var _ = map[*P]int{&P{}:0, {}:1}`,
 	`package p; type T = int`,
 	`package p; type (T = p.T; _ = struct{}; x = *T)`,
+
+	// Fo extensions
+	`package p; type T struct<V> { val V }`,
 }
 
 func TestValid(t *testing.T) {
@@ -104,6 +107,10 @@ var invalids = []string{
 	`package p; func f() { defer func() {} /* ERROR HERE "function must be invoked" */ }`,
 	`package p; func f() { go func() { func() { f(x func /* ERROR "missing ','" */ (){}) } } }`,
 	`package p; func f(x func(), u v func /* ERROR "missing ','" */ ()){}`,
+
+	// Fo extensions
+	`package p; type T struct<V { /* ERROR "expected '>', found '{'" */ val V }`,
+	`package p; type T struct<> /* ERROR "expected 'IDENT', found '>'" */  { val V }`,
 
 	// issue 8656
 	`package p; func f() (a b string /* ERROR "missing ','" */ , ok bool)`,

@@ -749,22 +749,34 @@ func (p *parser) parseStructType() *ast.StructType {
 	}
 
 	pos := p.expect(token.STRUCT)
+
+	// If the next token is a '<' then we expect a list of generic parameters.
+	var genParams *ast.GenParamList
+	if p.tok == token.LSS {
+		genParams = &ast.GenParamList{
+			Lbrack: p.expect(token.LSS),
+			List:   p.parseIdentList(),
+			Rbrack: p.expect(token.GTR),
+		}
+	}
+
 	lbrace := p.expect(token.LBRACE)
 	scope := ast.NewScope(nil) // struct scope
-	var list []*ast.Field
+	var fields []*ast.Field
 	for p.tok == token.IDENT || p.tok == token.MUL || p.tok == token.LPAREN {
 		// a field declaration cannot start with a '(' but we accept
 		// it here for more robust parsing and better error messages
 		// (parseFieldDecl will check and complain if necessary)
-		list = append(list, p.parseFieldDecl(scope))
+		fields = append(fields, p.parseFieldDecl(scope))
 	}
 	rbrace := p.expect(token.RBRACE)
 
 	return &ast.StructType{
-		Struct: pos,
+		Struct:    pos,
+		GenParams: genParams,
 		Fields: &ast.FieldList{
 			Opening: lbrace,
-			List:    list,
+			List:    fields,
 			Closing: rbrace,
 		},
 	}
