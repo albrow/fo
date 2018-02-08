@@ -8,11 +8,12 @@ package parser
 import (
 	"bytes"
 	"fmt"
-	"go/ast"
 	"go/token"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/albrow/fo/ast"
 )
 
 var validFiles = []string{

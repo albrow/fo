@@ -2,18 +2,20 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// To avoid a cyclic dependency with go/parser, this file is in a separate package.
+// To avoid a cyclic dependency with github.com/albrow/fo/parser, this file is
+// in a separate package.
 
 package ast_test
 
 import (
 	"bytes"
 	"fmt"
-	. "go/ast"
-	"go/parser"
 	"go/token"
 	"sort"
 	"testing"
+
+	. "github.com/albrow/fo/ast"
+	"github.com/albrow/fo/parser"
 )
 
 const src = `

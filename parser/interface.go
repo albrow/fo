@@ -10,13 +10,14 @@ package parser
 import (
 	"bytes"
 	"errors"
-	"go/ast"
 	"go/token"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/albrow/fo/ast"
 )
 
 // If src != nil, readSource converts src to a []byte if possible;
