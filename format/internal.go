@@ -12,12 +12,12 @@ package format
 
 import (
 	"bytes"
-	"go/token"
 	"strings"
 
 	"github.com/albrow/fo/ast"
 	"github.com/albrow/fo/parser"
 	"github.com/albrow/fo/printer"
+	"github.com/albrow/fo/token"
 )
 
 // parse parses src, which was read from the named file,

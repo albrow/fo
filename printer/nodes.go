@@ -11,13 +11,13 @@ package printer
 
 import (
 	"bytes"
-	"go/token"
 	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/albrow/fo/ast"
+	"github.com/albrow/fo/token"
 )
 
 // Formatting issues:

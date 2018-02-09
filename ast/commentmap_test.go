@@ -11,12 +11,12 @@ package ast_test
 import (
 	"bytes"
 	"fmt"
-	"go/token"
 	"sort"
 	"testing"
 
 	. "github.com/albrow/fo/ast"
 	"github.com/albrow/fo/parser"
+	"github.com/albrow/fo/token"
 )
 
 const src = `

@@ -8,7 +8,6 @@ package printer
 
 import (
 	"fmt"
-	"go/token"
 	"io"
 	"os"
 	"strconv"
@@ -17,6 +16,7 @@ import (
 	"unicode"
 
 	"github.com/albrow/fo/ast"
+	"github.com/albrow/fo/token"
 )
 
 const (

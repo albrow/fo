@@ -9,12 +9,12 @@ package format
 import (
 	"bytes"
 	"fmt"
-	"go/token"
 	"io"
 
 	"github.com/albrow/fo/ast"
 	"github.com/albrow/fo/parser"
 	"github.com/albrow/fo/printer"
+	"github.com/albrow/fo/token"
 )
 
 var config = printer.Config{Mode: printer.UseSpaces | printer.TabIndent, Tabwidth: 8}

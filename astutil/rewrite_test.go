@@ -7,13 +7,13 @@ package astutil_test
 
 import (
 	"bytes"
-	"go/token"
 	"testing"
 
 	"github.com/albrow/fo/ast"
 	"github.com/albrow/fo/astutil"
 	"github.com/albrow/fo/format"
 	"github.com/albrow/fo/parser"
+	"github.com/albrow/fo/token"
 )
 
 var rewriteTests = [...]struct {

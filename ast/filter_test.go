@@ -10,12 +10,12 @@ package ast_test
 
 import (
 	"bytes"
-	"go/token"
 	"testing"
 
 	"github.com/albrow/fo/ast"
 	"github.com/albrow/fo/format"
 	"github.com/albrow/fo/parser"
+	"github.com/albrow/fo/token"
 )
 
 const input = `package p

@@ -13,9 +13,10 @@ package astutil_test
 import (
 	"bytes"
 	"fmt"
-	"go/token"
 	"strings"
 	"testing"
+
+	"github.com/albrow/fo/token"
 
 	"github.com/albrow/fo/ast"
 	"github.com/albrow/fo/astutil"

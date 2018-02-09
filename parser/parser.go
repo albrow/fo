@@ -19,13 +19,13 @@ package parser
 
 import (
 	"fmt"
-	"go/scanner"
-	"go/token"
 	"strconv"
 	"strings"
 	"unicode"
 
 	"github.com/albrow/fo/ast"
+	"github.com/albrow/fo/scanner"
+	"github.com/albrow/fo/token"
 )
 
 // The parser structure holds the parser's internal state.
@@ -750,13 +750,18 @@ func (p *parser) parseStructType() *ast.StructType {
 
 	pos := p.expect(token.STRUCT)
 
-	// If the next token is a '<' then we expect a list of generic parameters.
+	// If the next token is a ':' then we expect a list of generic parameters.
 	var genParams *ast.GenParamList
-	if p.tok == token.LSS {
+	if p.tok == token.DOUBLE_COLON {
+		dcolon := p.expect(token.DOUBLE_COLON)
+		lparen := p.expect(token.LPAREN)
+		list := p.parseIdentList()
+		rparen := p.expect(token.RPAREN)
 		genParams = &ast.GenParamList{
-			Lbrack: p.expect(token.LSS),
-			List:   p.parseIdentList(),
-			Rbrack: p.expect(token.GTR),
+			Dcolon: dcolon,
+			Lparen: lparen,
+			List:   list,
+			Rparen: rparen,
 		}
 	}
 
@@ -1230,7 +1235,12 @@ func (p *parser) parseIndexOrSlice(x ast.Expr) ast.Expr {
 		colons[ncolons] = p.pos
 		ncolons++
 		p.next()
-		if p.tok != token.COLON && p.tok != token.RBRACK && p.tok != token.EOF {
+		if p.tok == token.DOUBLE_COLON {
+			// The DOUBLE_COLON token was added by Fo. Add a special case here so that
+			// we return the same error message that vanila Go does.
+			p.error(colons[0], "2nd index required in 3-index slice")
+			index[1] = &ast.BadExpr{From: colons[0] + 1, To: colons[1]}
+		} else if p.tok != token.COLON && p.tok != token.DOUBLE_COLON && p.tok != token.RBRACK && p.tok != token.EOF {
 			index[ncolons] = p.parseRhs()
 		}
 	}
@@ -1363,6 +1373,21 @@ func (p *parser) parseLiteralValue(typ ast.Expr) ast.Expr {
 		defer un(trace(p, "LiteralValue"))
 	}
 
+	// If the next token is a ':' then we expect a list of generic parameters.
+	var genParams *ast.GenParamList
+	if p.tok == token.DOUBLE_COLON {
+		dcolon := p.expect(token.DOUBLE_COLON)
+		lparen := p.expect(token.LPAREN)
+		list := p.parseIdentList()
+		rparen := p.expect(token.RPAREN)
+		genParams = &ast.GenParamList{
+			Dcolon: dcolon,
+			Lparen: lparen,
+			List:   list,
+			Rparen: rparen,
+		}
+	}
+
 	lbrace := p.expect(token.LBRACE)
 	var elts []ast.Expr
 	p.exprLev++
@@ -1371,7 +1396,13 @@ func (p *parser) parseLiteralValue(typ ast.Expr) ast.Expr {
 	}
 	p.exprLev--
 	rbrace := p.expectClosing(token.RBRACE, "composite literal")
-	return &ast.CompositeLit{Type: typ, Lbrace: lbrace, Elts: elts, Rbrace: rbrace}
+	return &ast.CompositeLit{
+		Type:      typ,
+		GenParams: genParams,
+		Lbrace:    lbrace,
+		Elts:      elts,
+		Rbrace:    rbrace,
+	}
 }
 
 // checkExpr checks that x is an expression (and not a type).
@@ -1517,6 +1548,8 @@ L:
 			} else {
 				break L
 			}
+		case token.DOUBLE_COLON:
+			x = p.parseLiteralValue(x)
 		default:
 			break L
 		}

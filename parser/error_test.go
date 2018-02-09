@@ -24,13 +24,14 @@
 package parser
 
 import (
-	"go/scanner"
-	"go/token"
 	"io/ioutil"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/albrow/fo/scanner"
+	"github.com/albrow/fo/token"
 )
 
 const testdata = "testdata"

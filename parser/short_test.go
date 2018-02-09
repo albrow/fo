@@ -51,7 +51,8 @@ var valids = []string{
 	`package p; type (T = p.T; _ = struct{}; x = *T)`,
 
 	// Fo extensions
-	`package p; type T struct<V> { val V }`,
+	`package p; type T struct::(V) { val V }`,
+	`package p; var x = T::(V) { val: "" }`,
 }
 
 func TestValid(t *testing.T) {
@@ -109,8 +110,10 @@ var invalids = []string{
 	`package p; func f(x func(), u v func /* ERROR "missing ','" */ ()){}`,
 
 	// Fo extensions
-	`package p; type T struct<V { /* ERROR "expected '>', found '{'" */ val V }`,
-	`package p; type T struct<> /* ERROR "expected 'IDENT', found '>'" */  { val V }`,
+	`package p; type T struct::(V { /* ERROR "expected '\)', found '{'" */ val V }`,
+	`package p; type T struct::() /* ERROR "expected 'IDENT', found '\)'" */  { val V }`,
+	`package p; var x = T::(V { /* ERROR "expected '\)', found '{'" */ val: "" }`,
+	`package p; var x = T::()  /* ERROR "expected 'IDENT', found '\)'" */ { val: "" }`,
 
 	// issue 8656
 	`package p; func f() (a b string /* ERROR "missing ','" */ , ok bool)`,

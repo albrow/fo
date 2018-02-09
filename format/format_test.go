@@ -8,13 +8,13 @@ package format
 import (
 	"bytes"
 	"fmt"
-	"go/token"
 	"io/ioutil"
 	"log"
 	"strings"
 	"testing"
 
 	"github.com/albrow/fo/parser"
+	"github.com/albrow/fo/token"
 )
 
 const testfile = "format_test.go"

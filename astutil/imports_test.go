@@ -7,7 +7,6 @@ package astutil
 
 import (
 	"bytes"
-	"go/token"
 	"reflect"
 	"strconv"
 	"testing"
@@ -15,6 +14,7 @@ import (
 	"github.com/albrow/fo/ast"
 	"github.com/albrow/fo/format"
 	"github.com/albrow/fo/parser"
+	"github.com/albrow/fo/token"
 )
 
 var fset = token.NewFileSet()

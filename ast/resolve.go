@@ -9,9 +9,10 @@ package ast
 
 import (
 	"fmt"
-	"go/scanner"
-	"go/token"
 	"strconv"
+
+	"github.com/albrow/fo/scanner"
+	"github.com/albrow/fo/token"
 )
 
 type pkgBuilder struct {

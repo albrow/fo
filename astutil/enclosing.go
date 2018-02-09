@@ -9,10 +9,10 @@ package astutil
 
 import (
 	"fmt"
-	"go/token"
 	"sort"
 
 	"github.com/albrow/fo/ast"
+	"github.com/albrow/fo/token"
 )
 
 // PathEnclosingInterval returns the node that encloses the source

@@ -6,9 +6,10 @@
 package parser
 
 import (
-	"go/token"
 	"io/ioutil"
 	"testing"
+
+	"github.com/albrow/fo/token"
 )
 
 var src = readFile("parser.go")

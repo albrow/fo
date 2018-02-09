@@ -9,10 +9,11 @@
 package ast
 
 import (
-	"go/token"
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/albrow/fo/token"
 )
 
 // ----------------------------------------------------------------------------
@@ -265,10 +266,11 @@ type (
 
 	// A CompositeLit node represents a composite literal.
 	CompositeLit struct {
-		Type   Expr      // literal type; or nil
-		Lbrace token.Pos // position of "{"
-		Elts   []Expr    // list of composite elements; or nil
-		Rbrace token.Pos // position of "}"
+		Type      Expr          // literal type; or nil
+		GenParams *GenParamList // list of generic parameters
+		Lbrace    token.Pos     // position of "{"
+		Elts      []Expr        // list of composite elements; or nil
+		Rbrace    token.Pos     // position of "}"
 	}
 
 	// A ParenExpr node represents a parenthesized expression.
@@ -422,36 +424,29 @@ type (
 type (
 	// GenParamList is a list of generic parameters. For example:
 	//
-	//   <T>
-	//   <T, U, V>
+	//   :(T)
+	//   :(T, U, V)
+	//   :(string, int)
+	//   :(ast.Expr, token.Pos)
 	//
 	GenParamList struct {
-		Lbrack token.Pos // position of "<"
+		Dcolon token.Pos // position of "::"
+		Lparen token.Pos // position of "("
 		List   []*Ident  // list of identifiers
-		Rbrack token.Pos // position of ">"
+		Rparen token.Pos // position of ")"
 	}
 )
 
 func (f *GenParamList) Pos() token.Pos {
-	if f.Lbrack.IsValid() {
-		return f.Lbrack
-	}
-	// the list should not be empty in this case;
-	// be conservative and guard against bad ASTs
-	if len(f.List) > 0 {
-		return f.List[0].Pos()
+	if f.Dcolon.IsValid() {
+		return f.Dcolon
 	}
 	return token.NoPos
 }
 
 func (f *GenParamList) End() token.Pos {
-	if f.Rbrack.IsValid() {
-		return f.Rbrack + 1
-	}
-	// the list should not be empty in this case;
-	// be conservative and guard against bad ASTs
-	if n := len(f.List); n > 0 {
-		return f.List[n-1].End()
+	if f.Rparen.IsValid() {
+		return f.Rparen + 1
 	}
 	return token.NoPos
 }

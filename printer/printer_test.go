@@ -10,7 +10,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"go/token"
 	"io"
 	"io/ioutil"
 	"path/filepath"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/albrow/fo/ast"
 	"github.com/albrow/fo/parser"
+	"github.com/albrow/fo/token"
 )
 
 const (

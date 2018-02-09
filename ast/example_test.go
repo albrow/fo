@@ -10,11 +10,11 @@ package ast_test
 import (
 	"bytes"
 	"fmt"
-	"go/token"
 
 	"github.com/albrow/fo/ast"
 	"github.com/albrow/fo/format"
 	"github.com/albrow/fo/parser"
+	"github.com/albrow/fo/token"
 )
 
 // This example demonstrates how to inspect the AST of a Go program.

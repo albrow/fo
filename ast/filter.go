@@ -6,8 +6,9 @@
 package ast
 
 import (
-	"go/token"
 	"sort"
+
+	"github.com/albrow/fo/token"
 )
 
 // ----------------------------------------------------------------------------
