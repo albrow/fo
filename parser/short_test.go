@@ -52,7 +52,10 @@ var valids = []string{
 
 	// Fo extensions
 	`package p; type T struct::(V) { val V }`,
+	`package p; type T struct::(U, V) { val V }`,
 	`package p; var x = T::(V) { val: "" }`,
+	`package p; var x = T::(U, V) { val: "" }`,
+	`package p; var x = struct::(V) { val V } { val: "" }`,
 }
 
 func TestValid(t *testing.T) {
@@ -112,6 +115,7 @@ var invalids = []string{
 	// Fo extensions
 	`package p; type T struct::(V { /* ERROR "expected '\)', found '{'" */ val V }`,
 	`package p; type T struct::() /* ERROR "expected 'IDENT', found '\)'" */  { val V }`,
+	`package p; type T struct::(V, ) /* ERROR "expected 'IDENT', found '\)'" */ { val V }`,
 	`package p; var x = T::(V { /* ERROR "expected '\)', found '{'" */ val: "" }`,
 	`package p; var x = T::()  /* ERROR "expected 'IDENT', found '\)'" */ { val: "" }`,
 
