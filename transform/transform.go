@@ -113,31 +113,31 @@ func postTransform(decls map[string]*ast.StructType, usage map[string][][]string
 // TODO: make this more readable by renaming all the copies to newX
 func generateDeclNodes(genDecl *ast.GenDecl, typeSpec *ast.TypeSpec, thisUsage [][]string) []ast.Node {
 	newNodes := []ast.Node{}
+	structTypeRef, ok := typeSpec.Type.(*ast.StructType)
+	if !ok {
+		return nil
+	}
 	for _, params := range thisUsage {
-		ts := *typeSpec
-		ts.Name = ast.NewIdent(generateTypeName(typeSpec.Name.Name, params))
-		structTypeRef, ok := ts.Type.(*ast.StructType)
-		if !ok {
-			return nil
-		}
-		structType := *structTypeRef
-		list := make([]*ast.Field, len(structType.Fields.List))
-		copy(list, structType.Fields.List)
-		for i, field := range list {
+		newType := *typeSpec
+		newType.Name = ast.NewIdent(generateTypeName(typeSpec.Name.Name, params))
+		newStructType := *structTypeRef
+		newFieldList := make([]*ast.Field, len(newStructType.Fields.List))
+		copy(newFieldList, newStructType.Fields.List)
+		for i, field := range newFieldList {
 			if fieldTypeIdent, ok := field.Type.(*ast.Ident); ok {
-				paramIndex := getTypeParamIndex(structType.GenParams, fieldTypeIdent.Name)
+				paramIndex := getTypeParamIndex(newStructType.GenParams, fieldTypeIdent.Name)
 				newField := *field
 				newField.Type = ast.NewIdent(params[paramIndex])
-				list[i] = &newField
+				newFieldList[i] = &newField
 			}
 		}
-		fields := *structType.Fields
-		fields.List = list
-		structType.Fields = &fields
-		structType.GenParams = nil
-		ts.Type = &structType
+		newFields := *newStructType.Fields
+		newFields.List = newFieldList
+		newStructType.Fields = &newFields
+		newStructType.GenParams = nil
+		newType.Type = &newStructType
 		newDecl := *genDecl
-		newDecl.Specs = []ast.Spec{&ts}
+		newDecl.Specs = []ast.Spec{&newType}
 		newNodes = append(newNodes, &newDecl)
 	}
 	return newNodes
