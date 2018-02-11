@@ -1,8 +1,6 @@
 package transform
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -154,12 +152,4 @@ func getTypeParamIndex(genParams *ast.GenParamList, typeName string) int {
 		}
 	}
 	panic(fmt.Errorf("could not find type parameter %s in %s", typeName, genParams.List))
-}
-
-func deepCopy(dst interface{}, src interface{}) error {
-	srcBytes := bytes.NewBuffer(nil)
-	if err := json.NewEncoder(srcBytes).Encode(src); err != nil {
-		return err
-	}
-	return json.NewDecoder(srcBytes).Decode(dst)
 }
