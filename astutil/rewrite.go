@@ -231,6 +231,12 @@ func (a *application) apply(parent ast.Node, name string, iter *iterator, n ast.
 	case *ast.BadExpr, *ast.Ident, *ast.BasicLit:
 		// nothing to do
 
+	case *ast.GenIdent:
+		a.apply(n, "GenIdent", nil, n.GenParams)
+
+	case *ast.GenParamList:
+		a.applyList(n, "List")
+
 	case *ast.Ellipsis:
 		a.apply(n, "Elt", nil, n.Elt)
 

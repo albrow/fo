@@ -178,6 +178,8 @@ var unresolved = new(ast.Object)
 // identifiers.
 //
 func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
+	// TODO: do we need to modify this to work with *ast.GenIdent?
+
 	// nothing to do if x is not an identifier or the blank identifier
 	ident, _ := x.(*ast.Ident)
 	if ident == nil {
@@ -544,6 +546,18 @@ func (p *parser) parseIdent() *ast.Ident {
 	return &ast.Ident{NamePos: pos, Name: name}
 }
 
+func (p *parser) parseIdentOrGenIdent() ast.Expr {
+	ident := p.parseIdent()
+	if p.tok == token.DOUBLE_COLON {
+		genParams := p.parseGenParamList()
+		return &ast.GenIdent{
+			Ident:     ident,
+			GenParams: genParams,
+		}
+	}
+	return ident
+}
+
 func (p *parser) parseIdentList() (list []*ast.Ident) {
 	if p.trace {
 		defer un(trace(p, "IdentList"))
@@ -574,6 +588,19 @@ func (p *parser) parseExprList(lhs bool) (list []ast.Expr) {
 	}
 
 	return
+}
+
+func (p *parser) parseGenParamList() *ast.GenParamList {
+	dcolon := p.expect(token.DOUBLE_COLON)
+	lparen := p.expect(token.LPAREN)
+	list := p.parseIdentList()
+	rparen := p.expect(token.RPAREN)
+	return &ast.GenParamList{
+		Dcolon: dcolon,
+		Lparen: lparen,
+		List:   list,
+		Rparen: rparen,
+	}
 }
 
 func (p *parser) parseLhsList() []ast.Expr {
@@ -638,7 +665,7 @@ func (p *parser) parseTypeName() ast.Expr {
 		defer un(trace(p, "TypeName"))
 	}
 
-	ident := p.parseIdent()
+	ident := p.parseIdentOrGenIdent()
 	// don't resolve ident yet - it may be a parameter or field name
 
 	if p.tok == token.PERIOD {
@@ -750,29 +777,20 @@ func (p *parser) parseStructType() *ast.StructType {
 
 	pos := p.expect(token.STRUCT)
 
-	// If the next token is a ':' then we expect a list of generic parameters.
+	// If the next token is a '::' then we expect a list of generic parameters.
 	var genParams *ast.GenParamList
 	if p.tok == token.DOUBLE_COLON {
-		dcolon := p.expect(token.DOUBLE_COLON)
-		lparen := p.expect(token.LPAREN)
-		list := p.parseIdentList()
-		rparen := p.expect(token.RPAREN)
-		genParams = &ast.GenParamList{
-			Dcolon: dcolon,
-			Lparen: lparen,
-			List:   list,
-			Rparen: rparen,
-		}
+		genParams = p.parseGenParamList()
 	}
 
 	lbrace := p.expect(token.LBRACE)
 	scope := ast.NewScope(nil) // struct scope
-	var fields []*ast.Field
+	var list []*ast.Field
 	for p.tok == token.IDENT || p.tok == token.MUL || p.tok == token.LPAREN {
 		// a field declaration cannot start with a '(' but we accept
 		// it here for more robust parsing and better error messages
 		// (parseFieldDecl will check and complain if necessary)
-		fields = append(fields, p.parseFieldDecl(scope))
+		list = append(list, p.parseFieldDecl(scope))
 	}
 	rbrace := p.expect(token.RBRACE)
 
@@ -781,7 +799,7 @@ func (p *parser) parseStructType() *ast.StructType {
 		GenParams: genParams,
 		Fields: &ast.FieldList{
 			Opening: lbrace,
-			List:    fields,
+			List:    list,
 			Closing: rbrace,
 		},
 	}
@@ -1151,7 +1169,7 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 
 	switch p.tok {
 	case token.IDENT:
-		x := p.parseIdent()
+		x := p.parseIdentOrGenIdent()
 		if !lhs {
 			p.resolve(x)
 		}
@@ -1240,7 +1258,7 @@ func (p *parser) parseIndexOrSlice(x ast.Expr) ast.Expr {
 			// we return the same error message that vanila Go does.
 			p.error(colons[0], "2nd index required in 3-index slice")
 			index[1] = &ast.BadExpr{From: colons[0] + 1, To: colons[1]}
-		} else if p.tok != token.COLON && p.tok != token.DOUBLE_COLON && p.tok != token.RBRACK && p.tok != token.EOF {
+		} else if p.tok != token.COLON && p.tok != token.RBRACK && p.tok != token.EOF {
 			index[ncolons] = p.parseRhs()
 		}
 	}
@@ -1373,21 +1391,6 @@ func (p *parser) parseLiteralValue(typ ast.Expr) ast.Expr {
 		defer un(trace(p, "LiteralValue"))
 	}
 
-	// If the next token is a ':' then we expect a list of generic parameters.
-	var genParams *ast.GenParamList
-	if p.tok == token.DOUBLE_COLON {
-		dcolon := p.expect(token.DOUBLE_COLON)
-		lparen := p.expect(token.LPAREN)
-		list := p.parseIdentList()
-		rparen := p.expect(token.RPAREN)
-		genParams = &ast.GenParamList{
-			Dcolon: dcolon,
-			Lparen: lparen,
-			List:   list,
-			Rparen: rparen,
-		}
-	}
-
 	lbrace := p.expect(token.LBRACE)
 	var elts []ast.Expr
 	p.exprLev++
@@ -1396,13 +1399,7 @@ func (p *parser) parseLiteralValue(typ ast.Expr) ast.Expr {
 	}
 	p.exprLev--
 	rbrace := p.expectClosing(token.RBRACE, "composite literal")
-	return &ast.CompositeLit{
-		Type:      typ,
-		GenParams: genParams,
-		Lbrace:    lbrace,
-		Elts:      elts,
-		Rbrace:    rbrace,
-	}
+	return &ast.CompositeLit{Type: typ, Lbrace: lbrace, Elts: elts, Rbrace: rbrace}
 }
 
 // checkExpr checks that x is an expression (and not a type).
@@ -1410,6 +1407,7 @@ func (p *parser) checkExpr(x ast.Expr) ast.Expr {
 	switch unparen(x).(type) {
 	case *ast.BadExpr:
 	case *ast.Ident:
+	case *ast.GenIdent:
 	case *ast.BasicLit:
 	case *ast.FuncLit:
 	case *ast.CompositeLit:
@@ -1441,6 +1439,7 @@ func isTypeName(x ast.Expr) bool {
 	switch t := x.(type) {
 	case *ast.BadExpr:
 	case *ast.Ident:
+	case *ast.GenIdent:
 	case *ast.SelectorExpr:
 		_, isIdent := t.X.(*ast.Ident)
 		return isIdent
@@ -1455,6 +1454,7 @@ func isLiteralType(x ast.Expr) bool {
 	switch t := x.(type) {
 	case *ast.BadExpr:
 	case *ast.Ident:
+	case *ast.GenIdent:
 	case *ast.SelectorExpr:
 		_, isIdent := t.X.(*ast.Ident)
 		return isIdent
@@ -1548,8 +1548,6 @@ L:
 			} else {
 				break L
 			}
-		case token.DOUBLE_COLON:
-			x = p.parseLiteralValue(x)
 		default:
 			break L
 		}

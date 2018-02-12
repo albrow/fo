@@ -243,6 +243,13 @@ type (
 		Obj     *Object   // denoted object; or nil
 	}
 
+	// A GenIdent node represents an identifier with associated generic type
+	// parameters.
+	GenIdent struct {
+		*Ident                  // identifier
+		GenParams *GenParamList // list of generic type parameters
+	}
+
 	// An Ellipsis node stands for the "..." type in a
 	// parameter list or the "..." length in an array type.
 	//
@@ -266,11 +273,10 @@ type (
 
 	// A CompositeLit node represents a composite literal.
 	CompositeLit struct {
-		Type      Expr          // literal type; or nil
-		GenParams *GenParamList // list of generic parameters
-		Lbrace    token.Pos     // position of "{"
-		Elts      []Expr        // list of composite elements; or nil
-		Rbrace    token.Pos     // position of "}"
+		Type   Expr      // literal type; or nil
+		Lbrace token.Pos // position of "{"
+		Elts   []Expr    // list of composite elements; or nil
+		Rbrace token.Pos // position of "}"
 	}
 
 	// A ParenExpr node represents a parenthesized expression.
@@ -384,7 +390,7 @@ type (
 	// A StructType node represents a struct type.
 	StructType struct {
 		Struct     token.Pos     // position of "struct" keyword
-		GenParams  *GenParamList // list of generic parameters
+		GenParams  *GenParamList // list of generic type parameters
 		Fields     *FieldList    // list of field declarations
 		Incomplete bool          // true if (source) fields are missing in the Fields list
 	}
@@ -524,6 +530,7 @@ func (x *ChanType) End() token.Pos      { return x.Value.End() }
 //
 func (*BadExpr) exprNode()        {}
 func (*Ident) exprNode()          {}
+func (*GenIdent) exprNode()       {}
 func (*Ellipsis) exprNode()       {}
 func (*BasicLit) exprNode()       {}
 func (*FuncLit) exprNode()        {}
@@ -545,6 +552,20 @@ func (*FuncType) exprNode()      {}
 func (*InterfaceType) exprNode() {}
 func (*MapType) exprNode()       {}
 func (*ChanType) exprNode()      {}
+
+func (f *GenIdent) Pos() token.Pos {
+	if f.Ident != nil {
+		return f.Ident.Pos()
+	}
+	return token.NoPos
+}
+
+func (f *GenIdent) End() token.Pos {
+	if f.GenParams != nil {
+		f.GenParams.End()
+	}
+	return token.NoPos
+}
 
 // ----------------------------------------------------------------------------
 // Convenience functions for Idents

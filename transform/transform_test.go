@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/albrow/fo/format"
+
 	"github.com/albrow/fo/parser"
-	"github.com/albrow/fo/printer"
 	"github.com/albrow/fo/token"
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
@@ -19,9 +20,9 @@ type Box struct::(T) {
 	val T
 }
 
-type Tuple struct::(T, V) {
+type Tuple struct::(T, U) {
 	first T
-	second V
+	second U
 }
 
 type Unused struct::(T) {
@@ -50,20 +51,64 @@ type Box__string struct {
 }
 
 type Tuple__int__string struct {
-	first	int
-	second	string
+	first  int
+	second string
 }
 
 func main() {
 	x := Box__string{val: "foo"}
 	y := Box__int{val: 2}
 	myTuple := Tuple__int__string{
-		first:	2,
-		second:	"foo",
+		first:  2,
+		second: "foo",
 	}
 }
 `
+	testParseFile(t, src, expected)
+}
 
+func TestTransformStructTypeInsideFuncType(t *testing.T) {
+	src := `package main
+
+type Either struct::(T, U) {
+	left T
+	right U
+}
+
+func getData() Either::(int, string) {
+}
+
+func handleEither(e Either::(error, string)) {
+}
+
+func main() { }
+`
+
+	expected := `package main
+
+type Either__error__string struct {
+	left  error
+	right string
+}
+type Either__int__string struct {
+	left  int
+	right string
+}
+
+func getData() Either__int__string {
+}
+
+func handleEither(e Either__error__string,) {
+}
+
+func main() {}
+`
+
+	testParseFile(t, src, expected)
+}
+
+func testParseFile(t *testing.T, src string, expected string) {
+	t.Helper()
 	fset := token.NewFileSet()
 	orig, err := parser.ParseFile(fset, "struct_type_literals", src, 0)
 	if err != nil {
@@ -74,8 +119,8 @@ func main() {
 		t.Fatalf("Transform returned error: %s", err.Error())
 	}
 	output := bytes.NewBuffer(nil)
-	if err := printer.Fprint(output, fset, transformed); err != nil {
-		t.Fatalf("printer.Fprint returned error: %s", err.Error())
+	if err := format.Node(output, fset, transformed); err != nil {
+		t.Fatalf("format.Node returned error: %s", err.Error())
 	}
 	if output.String() != expected {
 		diff := diffmatchpatch.New()

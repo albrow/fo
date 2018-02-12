@@ -53,9 +53,12 @@ var valids = []string{
 	// Fo extensions
 	`package p; type T struct::(V) { val V }`,
 	`package p; type T struct::(U, V) { val V }`,
+	`package p; var x T::(V)`,
+	`package p; var x T::(V, U)`,
 	`package p; var x = T::(V) { val: "" }`,
-	`package p; var x = T::(U, V) { val: "" }`,
-	`package p; var x = struct::(V) { val V } { val: "" }`,
+	`package p; func main() { x := T::(V) { val: "" } }`,
+	`package p; func _(T::(V)) {}`,
+	`package p; func _() T::(V) {}`,
 }
 
 func TestValid(t *testing.T) {
@@ -113,11 +116,17 @@ var invalids = []string{
 	`package p; func f(x func(), u v func /* ERROR "missing ','" */ ()){}`,
 
 	// Fo extensions
-	`package p; type T struct::(V { /* ERROR "expected '\)', found '{'" */ val V }`,
 	`package p; type T struct::() /* ERROR "expected 'IDENT', found '\)'" */  { val V }`,
+	`package p; type T struct::(V { /* ERROR "expected '\)', found '{'" */ val V }`,
 	`package p; type T struct::(V, ) /* ERROR "expected 'IDENT', found '\)'" */ { val V }`,
-	`package p; var x = T::(V { /* ERROR "expected '\)', found '{'" */ val: "" }`,
-	`package p; var x = T::()  /* ERROR "expected 'IDENT', found '\)'" */ { val: "" }`,
+	`package p; var x = T::() /* ERROR "expected 'IDENT', found '\)'" */ { val: "" }`,
+	`package p; var x = T::(V { /* ERROR "expected '\)', found '{'" */ val V }`,
+	`package p; var x = T::(V, ) /* ERROR "expected 'IDENT', found '\)'" */ { val V }`,
+	`package p; func main() { x := T::() /* ERROR "expected 'IDENT', found '\)'" */ { val: "" } }`,
+	`package p; func main() { x := T::(V { /* ERROR "expected '\)', found '{'" */ val V } }`,
+	`package p; func main() { x := T::(V, ) /* ERROR "expected 'IDENT', found '\)'" */ { val V } }`,
+	`package p; func _(T::() /* ERROR "expected 'IDENT', found '\)'" */ ) {}`,
+	`package p; func _() T::() /* ERROR "expected 'IDENT', found '\)'" */ {}`,
 
 	// issue 8656
 	`package p; func f() (a b string /* ERROR "missing ','" */ , ok bool)`,

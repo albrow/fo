@@ -5,7 +5,9 @@
 
 package ast
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // A Visitor's Visit method is invoked for each node encountered by Walk.
 // If the result visitor w is not nil, Walk visits each of the children
@@ -88,6 +90,14 @@ func Walk(v Visitor, node Node) {
 	// Expressions
 	case *BadExpr, *Ident, *BasicLit:
 		// nothing to do
+
+	case *GenIdent:
+		Walk(v, n.GenParams)
+
+	case *GenParamList:
+		for _, f := range n.List {
+			Walk(v, f)
+		}
 
 	case *Ellipsis:
 		if n.Elt != nil {
