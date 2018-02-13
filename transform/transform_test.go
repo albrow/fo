@@ -10,10 +10,23 @@ import (
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
-func TestTransformStructTypeLiterals(t *testing.T) {
+func TestTransformStructTypeUnused(t *testing.T) {
 	src := `package main
 
-import "fmt"
+type T struct::(U) {}
+
+func main() { }
+`
+
+	expected := `package main
+
+func main() {}
+`
+
+	testParseFile(t, src, expected)
+}
+func TestTransformStructTypeLiterals(t *testing.T) {
+	src := `package main
 
 type Box struct::(T) {
 	val T
@@ -24,14 +37,13 @@ type Tuple struct::(T, U) {
 	second U
 }
 
-type Unused struct::(T) {
-	val T
-}
-
 func main() {
-	x := Box::(string) { val: "foo" }
-	y := Box::(int) {}
-	z := Box::(int) {}
+	a := Box::(string){}
+	b := &Box::(int){}
+	c := []Box::(string){}
+	d := [2]Box::(int){}
+	e := map[string]Box::(string){}
+
 	myTuple := Tuple::(int, string) {
 		first: 2,
 		second: "foo",
@@ -40,8 +52,6 @@ func main() {
 `
 
 	expected := `package main
-
-import "fmt"
 
 type Box__int struct {
 	val int
@@ -56,9 +66,12 @@ type Tuple__int__string struct {
 }
 
 func main() {
-	x := Box__string{val: "foo"}
-	y := Box__int{}
-	z := Box__int{}
+	a := Box__string{}
+	b := &Box__int{}
+	c := []Box__string{}
+	d := [2]Box__int{}
+	e := map[string]Box__string{}
+
 	myTuple := Tuple__int__string{
 		first:  2,
 		second: "foo",
@@ -68,7 +81,7 @@ func main() {
 	testParseFile(t, src, expected)
 }
 
-func TestTransformStructTypeInsideFuncType(t *testing.T) {
+func TestTransformStructTypeFuncArgs(t *testing.T) {
 	src := `package main
 
 type Either struct::(T, U) {
@@ -77,6 +90,7 @@ type Either struct::(T, U) {
 }
 
 func getData() Either::(int, string) {
+	return Either::(int, string){}
 }
 
 func handleEither(e Either::(error, string)) {
@@ -97,12 +111,115 @@ type Either__int__string struct {
 }
 
 func getData() Either__int__string {
+	return Either__int__string{}
 }
 
 func handleEither(e Either__error__string,) {
 }
 
 func main() {}
+`
+
+	testParseFile(t, src, expected)
+}
+
+func TestTransformStructTypeMethodReceiver(t *testing.T) {
+	src := `package main
+
+type Maybe struct::(T) {
+	val T
+	valid bool
+}
+
+func (m Maybe::(string)) IsValid() bool {
+	return m.valid
+}
+
+func main() { }
+`
+
+	expected := `package main
+
+type Maybe__string struct {
+	val   string
+	valid bool
+}
+
+func (m Maybe__string,) IsValid() bool {
+	return m.valid
+}
+
+func main() {}
+`
+
+	testParseFile(t, src, expected)
+}
+
+func TestTransformStructTypeSwitch(t *testing.T) {
+	src := `package main
+
+type Box struct::(T) {
+	val T
+}
+
+func main() { 
+	var x interface{} = Box::(int){}
+	switch x.(type) {
+	case Box::(int):
+	case Box::(string):
+	}
+}
+`
+
+	expected := `package main
+
+type Box__string struct {
+	val string
+}
+type Box__int struct {
+	val int
+}
+
+func main() {
+	var x interface{} = Box__int{}
+	switch x.(type) {
+	case Box__int:
+	case Box__string:
+	}
+}
+`
+
+	testParseFile(t, src, expected)
+}
+
+func TestTransformStructTypeAssert(t *testing.T) {
+	src := `package main
+
+type Box struct::(T) {
+	val T
+}
+
+func main() { 
+	var x interface{} = Box::(int){}
+	_ = x.(Box::(int))
+	_ = x.(Box::(string))
+}
+`
+
+	expected := `package main
+
+type Box__string struct {
+	val string
+}
+type Box__int struct {
+	val int
+}
+
+func main() {
+	var x interface{} = Box__int{}
+	_ = x.(Box__int)
+	_ = x.(Box__string)
+}
 `
 
 	testParseFile(t, src, expected)

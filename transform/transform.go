@@ -99,6 +99,10 @@ func generateDeclNodes(genDecl *ast.GenDecl, typeSpec *ast.TypeSpec, thisUsage [
 		for i, field := range newFieldList {
 			if fieldTypeIdent, ok := field.Type.(*ast.Ident); ok {
 				paramIndex := getTypeParamIndex(newStructType.GenParams, fieldTypeIdent.Name)
+				if paramIndex == -1 {
+					// This is a type not in the list of generic type parameters.
+					continue
+				}
 				newField := *field
 				newField.Type = ast.NewIdent(params[paramIndex])
 				newFieldList[i] = &newField
@@ -126,5 +130,5 @@ func getTypeParamIndex(genParams *ast.GenParamList, typeName string) int {
 			return i
 		}
 	}
-	panic(fmt.Errorf("could not find type parameter %s in %s", typeName, genParams.List))
+	return -1
 }
