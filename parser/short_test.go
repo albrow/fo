@@ -80,9 +80,13 @@ var valids = []string{
 	`package p; func _() { x := [2]T::(U){} }`,
 	`package p; func _() { x := map[T::(U)]V::(W){} }`,
 
-	// Function arguments
+	// Other uses for types
 	`package p; func _(T::(U)) {}`,
 	`package p; func _() T::(U) {}`,
+	`package p; func (T::(U)) f(){}`,
+	`package p; func _() T::(U) { return T::(U){} }`,
+	`package p; func _() { switch n := x.(type) { case T::(U): break } }`,
+	`package p; func _() { _ = x.(T::(U)) }`,
 }
 
 func TestValid(t *testing.T) {

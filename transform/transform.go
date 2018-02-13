@@ -7,6 +7,7 @@ import (
 	"github.com/albrow/fo/ast"
 	"github.com/albrow/fo/astutil"
 	"github.com/albrow/fo/token"
+	"github.com/albrow/stringset"
 )
 
 func File(fset *token.FileSet, f *ast.File) (*ast.File, error) {
@@ -25,12 +26,17 @@ func File(fset *token.FileSet, f *ast.File) (*ast.File, error) {
 
 func findGenericTypeUsage(fset *token.FileSet, f *ast.File) (map[string][][]string, error) {
 	usage := map[string][][]string{}
+	alreadySeen := stringset.New()
 	var err error
 	ast.Inspect(f, func(n ast.Node) bool {
 		if genIdent, ok := n.(*ast.GenIdent); ok {
 			if genIdent.GenParams != nil {
 				params := parseGenParams(genIdent.GenParams)
-				usage[genIdent.Name] = append(usage[genIdent.Name], params)
+				stringifiedParams := strings.Join(params, ",")
+				if !alreadySeen.Contains(stringifiedParams) {
+					usage[genIdent.Name] = append(usage[genIdent.Name], params)
+					alreadySeen.Add(stringifiedParams)
+				}
 			}
 		}
 		return true

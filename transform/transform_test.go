@@ -30,7 +30,8 @@ type Unused struct::(T) {
 
 func main() {
 	x := Box::(string) { val: "foo" }
-	y := Box::(int) { val: 2 }
+	y := Box::(int) {}
+	z := Box::(int) {}
 	myTuple := Tuple::(int, string) {
 		first: 2,
 		second: "foo",
@@ -56,7 +57,8 @@ type Tuple__int__string struct {
 
 func main() {
 	x := Box__string{val: "foo"}
-	y := Box__int{val: 2}
+	y := Box__int{}
+	z := Box__int{}
 	myTuple := Tuple__int__string{
 		first:  2,
 		second: "foo",
