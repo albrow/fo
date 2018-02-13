@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/albrow/fo/format"
-
 	"github.com/albrow/fo/parser"
 	"github.com/albrow/fo/token"
 	"github.com/sergi/go-diff/diffmatchpatch"

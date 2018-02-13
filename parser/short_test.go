@@ -51,14 +51,38 @@ var valids = []string{
 	`package p; type (T = p.T; _ = struct{}; x = *T)`,
 
 	// Fo extensions
+
+	// Struct types
 	`package p; type T struct::(V) { val V }`,
 	`package p; type T struct::(U, V) { val V }`,
-	`package p; var x T::(V)`,
-	`package p; var x T::(V, U)`,
-	`package p; var x = T::(V) { val: "" }`,
-	`package p; func main() { x := T::(V) { val: "" } }`,
-	`package p; func _(T::(V)) {}`,
-	`package p; func _() T::(V) {}`,
+
+	// Top-level variable assignments
+	`package p; var x T::(U)`,
+	`package p; var x = T::(U){}`,
+	`package p; var x *T::(U)`,
+	`package p; var x = &T::(U){}`,
+	`package p; var x []T::(U)`,
+	`package p; var x = []T::(U){}`,
+	`package p; var x [2]T::(U)`,
+	`package p; var x = [2]T::(U){}`,
+	`package p; var x map[T::(U)]V::(W)`,
+	`package p; var x = map[T::(U)]V::(W){}`,
+	`package p; var x chan T::(U)`,
+	`package p; var x func(T::(U))`,
+	`package p; var x = func(T::(U)) {}`,
+	`package p; var x func() T::(U)`,
+	`package p; var x = func() T::(U) {}`,
+
+	// Short assignments
+	`package p; func _() { x := T::(U){} }`,
+	`package p; func _() { x := &T::(U){} }`,
+	`package p; func _() { x := []T::(U){} }`,
+	`package p; func _() { x := [2]T::(U){} }`,
+	`package p; func _() { x := map[T::(U)]V::(W){} }`,
+
+	// Function arguments
+	`package p; func _(T::(U)) {}`,
+	`package p; func _() T::(U) {}`,
 }
 
 func TestValid(t *testing.T) {
