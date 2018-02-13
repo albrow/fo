@@ -321,7 +321,9 @@ func (p *printer) parameters(fields *ast.FieldList) {
 		}
 		// if the closing ")" is on a separate line from the last parameter,
 		// print an additional "," and line break
-		if closing := p.lineFor(fields.Closing); 0 < prevLine && prevLine < closing {
+		// Note: we had to add an extra check here after modifying the AST in
+		// fo/transform because it changed some of the line numbers.
+		if closing := p.lineFor(fields.Closing); 0 < prevLine && prevLine < closing && p.lineFor(fields.Opening) != closing {
 			p.print(token.COMMA)
 			p.linebreak(closing, 0, ignore, true)
 		}
@@ -687,6 +689,10 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int) {
 	case *ast.Ident:
 		p.print(x)
 
+	case *ast.GenIdent:
+		p.print(x.Ident)
+		p.print(x.GenParams)
+
 	case *ast.BinaryExpr:
 		if depth < 1 {
 			p.internalError("depth < 1:", depth)
@@ -858,6 +864,9 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int) {
 
 	case *ast.StructType:
 		p.print(token.STRUCT)
+		if x.GenParams != nil {
+			p.print(x.GenParams)
+		}
 		p.fieldList(x.Fields, true, x.Incomplete)
 
 	case *ast.FuncType:

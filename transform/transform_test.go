@@ -2,12 +2,13 @@ package transform
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/albrow/fo/format"
 	"github.com/albrow/fo/parser"
 	"github.com/albrow/fo/token"
-	"github.com/sergi/go-diff/diffmatchpatch"
+	"github.com/aryann/difflib"
 )
 
 func TestTransformStructTypeUnused(t *testing.T) {
@@ -114,7 +115,7 @@ func getData() Either__int__string {
 	return Either__int__string{}
 }
 
-func handleEither(e Either__error__string,) {
+func handleEither(e Either__error__string) {
 }
 
 func main() {}
@@ -145,7 +146,7 @@ type Maybe__string struct {
 	valid bool
 }
 
-func (m Maybe__string,) IsValid() bool {
+func (m Maybe__string) IsValid() bool {
 	return m.valid
 }
 
@@ -241,10 +242,14 @@ func testParseFile(t *testing.T, src string, expected string) {
 		t.Fatalf("format.Node returned error: %s", err.Error())
 	}
 	if output.String() != expected {
-		diff := diffmatchpatch.New()
+		diff := difflib.Diff(strings.Split(expected, "\n"), strings.Split(output.String(), "\n"))
+		diffStrings := ""
+		for _, d := range diff {
+			diffStrings += d.String() + "\n"
+		}
 		t.Fatalf(
 			"output of Transform did not match expected\n\n%s",
-			diff.DiffPrettyText(diff.DiffMain(expected, output.String(), false)),
+			diffStrings,
 		)
 	}
 }
