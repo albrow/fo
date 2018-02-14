@@ -1633,7 +1633,11 @@ func (p *printer) distanceFrom(from token.Pos) int {
 
 func (p *printer) funcDecl(d *ast.FuncDecl) {
 	p.setComment(d.Doc)
-	p.print(d.Pos(), token.FUNC, blank)
+	p.print(d.Pos(), token.FUNC)
+	if d.GenParams != nil {
+		p.print(d.GenParams)
+	}
+	p.print(blank)
 	if d.Recv != nil {
 		p.parameters(d.Recv) // method: print receiver
 		p.print(blank)

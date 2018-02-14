@@ -54,11 +54,11 @@ func main() {
 
 	expected := `package main
 
-type Box__int struct {
-	val int
-}
 type Box__string struct {
 	val string
+}
+type Box__int struct {
+	val int
 }
 
 type Tuple__int__string struct {
@@ -102,12 +102,12 @@ func main() { }
 
 	expected := `package main
 
-type Either__error__string struct {
-	left  error
-	right string
-}
 type Either__int__string struct {
 	left  int
+	right string
+}
+type Either__error__string struct {
+	left  error
 	right string
 }
 
@@ -174,11 +174,11 @@ func main() {
 
 	expected := `package main
 
-type Box__string struct {
-	val string
-}
 type Box__int struct {
 	val int
+}
+type Box__string struct {
+	val string
 }
 
 func main() {
@@ -209,11 +209,11 @@ func main() {
 
 	expected := `package main
 
-type Box__string struct {
-	val string
-}
 type Box__int struct {
 	val int
+}
+type Box__string struct {
+	val string
 }
 
 func main() {
@@ -252,4 +252,37 @@ func testParseFile(t *testing.T, src string, expected string) {
 			diffStrings,
 		)
 	}
+}
+
+func TestTransformFuncDecl(t *testing.T) {
+	src := `package main
+
+func::(T) Print(t T) {
+	fmt.Println(t)
+}
+
+func main() {
+	Print::(int)(5)
+	Print::(int)(42)
+	Print::(string)("foo")
+}
+`
+
+	expected := `package main
+
+func Print__int(t int) {
+	fmt.Println(t)
+}
+func Print__string(t string) {
+	fmt.Println(t)
+}
+
+func main() {
+	Print__int(5)
+	Print__int(42)
+	Print__string("foo")
+}
+`
+
+	testParseFile(t, src, expected)
 }

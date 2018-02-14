@@ -64,14 +64,22 @@ func postTransform(usage map[string][][]string) func(c *astutil.Cursor) bool {
 					switch t := typeSpec.Type.(type) {
 					case *ast.StructType:
 						if t.GenParams != nil {
-							newNodes := generateDeclNodes(n, typeSpec, usage[typeSpec.Name.Name])
+							newNodes := createStructTypeNodes(n, typeSpec, usage[typeSpec.Name.Name])
 							for _, node := range newNodes {
-								c.InsertAfter(node)
+								c.InsertBefore(node)
 							}
 							c.Delete()
 						}
 					}
 				}
+			}
+		case *ast.FuncDecl:
+			if n.GenParams != nil {
+				newNodes := createFuncDeclNodes(n, usage[n.Name.Name])
+				for _, node := range newNodes {
+					c.InsertBefore(node)
+				}
+				c.Delete()
 			}
 		case *ast.GenIdent:
 			if n.GenParams != nil {
@@ -84,7 +92,7 @@ func postTransform(usage map[string][][]string) func(c *astutil.Cursor) bool {
 	}
 }
 
-func generateDeclNodes(genDecl *ast.GenDecl, typeSpec *ast.TypeSpec, thisUsage [][]string) []ast.Node {
+func createStructTypeNodes(genDecl *ast.GenDecl, typeSpec *ast.TypeSpec, thisUsage [][]string) []ast.Node {
 	newNodes := []ast.Node{}
 	structTypeRef, ok := typeSpec.Type.(*ast.StructType)
 	if !ok {
@@ -115,6 +123,57 @@ func generateDeclNodes(genDecl *ast.GenDecl, typeSpec *ast.TypeSpec, thisUsage [
 		newType.Type = &newStructType
 		newDecl := *genDecl
 		newDecl.Specs = []ast.Spec{&newType}
+		newNodes = append(newNodes, &newDecl)
+	}
+	return newNodes
+}
+
+func createFuncDeclNodes(funcDecl *ast.FuncDecl, thisUsage [][]string) []ast.Node {
+	newNodes := []ast.Node{}
+	for _, params := range thisUsage {
+		newDecl := *funcDecl
+		newDecl.GenParams = nil
+		newDecl.Name = ast.NewIdent(generateTypeName(newDecl.Name.Name, params))
+		if funcDecl.Recv != nil {
+			newRecv := *funcDecl.Recv
+			newFieldList := make([]*ast.Field, len(funcDecl.Recv.List))
+			copy(newFieldList, funcDecl.Recv.List)
+			for i, field := range newRecv.List {
+				if fieldTypeIdent, ok := field.Type.(*ast.Ident); ok {
+					paramIndex := getTypeParamIndex(funcDecl.GenParams, fieldTypeIdent.Name)
+					if paramIndex == -1 {
+						// This is a type not in the list of generic type parameters.
+						continue
+					}
+					newField := *field
+					newField.Type = ast.NewIdent(params[paramIndex])
+					newFieldList[i] = &newField
+				}
+			}
+			newRecv.List = newFieldList
+			newDecl.Recv = &newRecv
+		}
+		newType := *funcDecl.Type
+		if funcDecl.Type.Params != nil {
+			newParams := *funcDecl.Type.Params
+			newFieldList := make([]*ast.Field, len(funcDecl.Type.Params.List))
+			copy(newFieldList, funcDecl.Type.Params.List)
+			for i, field := range newParams.List {
+				if fieldTypeIdent, ok := field.Type.(*ast.Ident); ok {
+					paramIndex := getTypeParamIndex(funcDecl.GenParams, fieldTypeIdent.Name)
+					if paramIndex == -1 {
+						// This is a type not in the list of generic type parameters.
+						continue
+					}
+					newField := *field
+					newField.Type = ast.NewIdent(params[paramIndex])
+					newFieldList[i] = &newField
+				}
+			}
+			newParams.List = newFieldList
+			newType.Params = &newParams
+		}
+		newDecl.Type = &newType
 		newNodes = append(newNodes, &newDecl)
 	}
 	return newNodes
