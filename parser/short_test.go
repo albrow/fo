@@ -52,9 +52,16 @@ var valids = []string{
 
 	// Fo extensions
 
-	// Struct types
+	// Struct type declarations
 	`package p; type T struct::(V) { val V }`,
 	`package p; type T struct::(U, V) { val V }`,
+
+	// Function and method declarations
+	`package p; func::(T) f(t T) {}`,
+	`package p; func::(T, U) f(t T, u U) {}`,
+	`package p; func::(T) f() T {}`,
+	`package p; func::(T) (t T) f() {}`,
+	`package p; func::(T, U, V) (t T) f(u U) V {}`,
 
 	// Top-level variable assignments
 	`package p; var x T::(U)`,
@@ -147,6 +154,9 @@ var invalids = []string{
 	`package p; type T struct::() /* ERROR "expected 'IDENT', found '\)'" */  { val V }`,
 	`package p; type T struct::(V { /* ERROR "expected '\)', found '{'" */ val V }`,
 	`package p; type T struct::(V, ) /* ERROR "expected 'IDENT', found '\)'" */ { val V }`,
+	`package p; func::() /* ERROR "expected 'IDENT', found '\)'" */  f() { val V }`,
+	`package p; func::(V f /* ERROR "expected '\)', found 'IDENT'" */ () { val V }`,
+	`package p; func::(V, ) /* ERROR "expected 'IDENT', found '\)'" */ f() { val V }`,
 	`package p; var x = T::() /* ERROR "expected 'IDENT', found '\)'" */ { val: "" }`,
 	`package p; var x = T::(V { /* ERROR "expected '\)', found '{'" */ val V }`,
 	`package p; var x = T::(V, ) /* ERROR "expected 'IDENT', found '\)'" */ { val V }`,

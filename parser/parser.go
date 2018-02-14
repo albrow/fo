@@ -2423,6 +2423,12 @@ func (p *parser) parseFuncDecl() *ast.FuncDecl {
 	pos := p.expect(token.FUNC)
 	scope := ast.NewScope(p.topScope) // function scope
 
+	// If the next token is a '::' then we expect a list of generic parameters.
+	var genParams *ast.GenParamList
+	if p.tok == token.DOUBLE_COLON {
+		genParams = p.parseGenParamList()
+	}
+
 	var recv *ast.FieldList
 	if p.tok == token.LPAREN {
 		recv = p.parseParameters(scope, false)
@@ -2439,9 +2445,10 @@ func (p *parser) parseFuncDecl() *ast.FuncDecl {
 	p.expectSemi()
 
 	decl := &ast.FuncDecl{
-		Doc:  doc,
-		Recv: recv,
-		Name: ident,
+		Doc:       doc,
+		Recv:      recv,
+		GenParams: genParams,
+		Name:      ident,
 		Type: &ast.FuncType{
 			Func:    pos,
 			Params:  params,
