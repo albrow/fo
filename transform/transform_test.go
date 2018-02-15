@@ -38,12 +38,18 @@ type Tuple struct::(T, U) {
 	second U
 }
 
+type Map struct::(T, U) {
+	m map[T]U
+}
+
 func main() {
 	a := Box::(string){}
 	b := &Box::(int){}
 	c := []Box::(string){}
 	d := [2]Box::(int){}
 	e := map[string]Box::(string){}
+
+	f := Map::(string, int){}
 
 	myTuple := Tuple::(int, string) {
 		first: 2,
@@ -66,12 +72,18 @@ type Tuple__int__string struct {
 	second string
 }
 
+type Map__string__int struct {
+	m map[string]int
+}
+
 func main() {
 	a := Box__string{}
 	b := &Box__int{}
 	c := []Box__string{}
 	d := [2]Box__int{}
 	e := map[string]Box__string{}
+
+	f := Map__string__int{}
 
 	myTuple := Tuple__int__string{
 		first:  2,
@@ -226,6 +238,49 @@ func main() {
 	testParseFile(t, src, expected)
 }
 
+func TestTransformFuncDecl(t *testing.T) {
+	src := `package main
+
+func::(T) Print(t T) {
+	fmt.Println(t)
+}
+
+func::(T) MakeSlice() []T {
+	return make([]T)
+}
+
+func main() {
+	Print::(int)(5)
+	Print::(int)(42)
+	Print::(string)("foo")
+	MakeSlice::(string)()
+}
+`
+
+	expected := `package main
+
+func Print__int(t int) {
+	fmt.Println(t)
+}
+func Print__string(t string) {
+	fmt.Println(t)
+}
+
+func MakeSlice__string() ([]string) {
+	return make([]string)
+}
+
+func main() {
+	Print__int(5)
+	Print__int(42)
+	Print__string("foo")
+	MakeSlice__string()
+}
+`
+
+	testParseFile(t, src, expected)
+}
+
 func testParseFile(t *testing.T, src string, expected string) {
 	t.Helper()
 	fset := token.NewFileSet()
@@ -252,37 +307,4 @@ func testParseFile(t *testing.T, src string, expected string) {
 			diffStrings,
 		)
 	}
-}
-
-func TestTransformFuncDecl(t *testing.T) {
-	src := `package main
-
-func::(T) Print(t T) {
-	fmt.Println(t)
-}
-
-func main() {
-	Print::(int)(5)
-	Print::(int)(42)
-	Print::(string)("foo")
-}
-`
-
-	expected := `package main
-
-func Print__int(t int) {
-	fmt.Println(t)
-}
-func Print__string(t string) {
-	fmt.Println(t)
-}
-
-func main() {
-	Print__int(5)
-	Print__int(42)
-	Print__string("foo")
-}
-`
-
-	testParseFile(t, src, expected)
 }

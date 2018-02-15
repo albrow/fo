@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/albrow/fo/ast"
+	"github.com/albrow/fo/astclone"
 	"github.com/albrow/fo/astutil"
 	"github.com/albrow/fo/token"
 	"github.com/albrow/stringset"
@@ -26,16 +27,19 @@ func File(fset *token.FileSet, f *ast.File) (*ast.File, error) {
 
 func findGenericTypeUsage(fset *token.FileSet, f *ast.File) (map[string][][]string, error) {
 	usage := map[string][][]string{}
-	alreadySeen := stringset.New()
+	alreadySeen := map[string]stringset.Set{}
 	var err error
 	ast.Inspect(f, func(n ast.Node) bool {
 		if genIdent, ok := n.(*ast.GenIdent); ok {
 			if genIdent.GenParams != nil {
 				params := parseGenParams(genIdent.GenParams)
 				stringifiedParams := strings.Join(params, ",")
-				if !alreadySeen.Contains(stringifiedParams) {
+				if alreadySeen[genIdent.Name] == nil {
+					alreadySeen[genIdent.Name] = stringset.New()
+				}
+				if !alreadySeen[genIdent.Name].Contains(stringifiedParams) {
 					usage[genIdent.Name] = append(usage[genIdent.Name], params)
-					alreadySeen.Add(stringifiedParams)
+					alreadySeen[genIdent.Name].Add(stringifiedParams)
 				}
 			}
 		}
@@ -64,7 +68,7 @@ func postTransform(usage map[string][][]string) func(c *astutil.Cursor) bool {
 					switch t := typeSpec.Type.(type) {
 					case *ast.StructType:
 						if t.GenParams != nil {
-							newNodes := createStructTypeNodes(n, typeSpec, usage[typeSpec.Name.Name])
+							newNodes := createStructTypeNodes(n, usage[typeSpec.Name.Name])
 							for _, node := range newNodes {
 								c.InsertBefore(node)
 							}
@@ -92,38 +96,18 @@ func postTransform(usage map[string][][]string) func(c *astutil.Cursor) bool {
 	}
 }
 
-func createStructTypeNodes(genDecl *ast.GenDecl, typeSpec *ast.TypeSpec, thisUsage [][]string) []ast.Node {
+func createStructTypeNodes(genDecl *ast.GenDecl, thisUsage [][]string) []ast.Node {
 	newNodes := []ast.Node{}
-	structTypeRef, ok := typeSpec.Type.(*ast.StructType)
-	if !ok {
-		return nil
-	}
+	typeSpec := genDecl.Specs[0].(*ast.TypeSpec)
+	structType := typeSpec.Type.(*ast.StructType)
 	for _, params := range thisUsage {
-		newType := *typeSpec
-		newType.Name = ast.NewIdent(generateTypeName(typeSpec.Name.Name, params))
-		newStructType := *structTypeRef
-		newFieldList := make([]*ast.Field, len(newStructType.Fields.List))
-		copy(newFieldList, newStructType.Fields.List)
-		for i, field := range newFieldList {
-			if fieldTypeIdent, ok := field.Type.(*ast.Ident); ok {
-				paramIndex := getTypeParamIndex(newStructType.GenParams, fieldTypeIdent.Name)
-				if paramIndex == -1 {
-					// This is a type not in the list of generic type parameters.
-					continue
-				}
-				newField := *field
-				newField.Type = ast.NewIdent(params[paramIndex])
-				newFieldList[i] = &newField
-			}
-		}
-		newFields := *newStructType.Fields
-		newFields.List = newFieldList
-		newStructType.Fields = &newFields
+		mappings := createTypeMappings(structType.GenParams, params)
+		newDecl := replaceIdentsInScope(astclone.Clone(genDecl), mappings).(*ast.GenDecl)
+		newTypeSpec := newDecl.Specs[0].(*ast.TypeSpec)
+		newStructType := newTypeSpec.Type.(*ast.StructType)
 		newStructType.GenParams = nil
-		newType.Type = &newStructType
-		newDecl := *genDecl
-		newDecl.Specs = []ast.Spec{&newType}
-		newNodes = append(newNodes, &newDecl)
+		newTypeSpec.Name = ast.NewIdent(generateTypeName(typeSpec.Name.Name, params))
+		newNodes = append(newNodes, newDecl)
 	}
 	return newNodes
 }
@@ -131,52 +115,24 @@ func createStructTypeNodes(genDecl *ast.GenDecl, typeSpec *ast.TypeSpec, thisUsa
 func createFuncDeclNodes(funcDecl *ast.FuncDecl, thisUsage [][]string) []ast.Node {
 	newNodes := []ast.Node{}
 	for _, params := range thisUsage {
-		newDecl := *funcDecl
-		newDecl.GenParams = nil
-		newDecl.Name = ast.NewIdent(generateTypeName(newDecl.Name.Name, params))
-		if funcDecl.Recv != nil {
-			newRecv := *funcDecl.Recv
-			newFieldList := make([]*ast.Field, len(funcDecl.Recv.List))
-			copy(newFieldList, funcDecl.Recv.List)
-			for i, field := range newRecv.List {
-				if fieldTypeIdent, ok := field.Type.(*ast.Ident); ok {
-					paramIndex := getTypeParamIndex(funcDecl.GenParams, fieldTypeIdent.Name)
-					if paramIndex == -1 {
-						// This is a type not in the list of generic type parameters.
-						continue
-					}
-					newField := *field
-					newField.Type = ast.NewIdent(params[paramIndex])
-					newFieldList[i] = &newField
-				}
-			}
-			newRecv.List = newFieldList
-			newDecl.Recv = &newRecv
-		}
-		newType := *funcDecl.Type
-		if funcDecl.Type.Params != nil {
-			newParams := *funcDecl.Type.Params
-			newFieldList := make([]*ast.Field, len(funcDecl.Type.Params.List))
-			copy(newFieldList, funcDecl.Type.Params.List)
-			for i, field := range newParams.List {
-				if fieldTypeIdent, ok := field.Type.(*ast.Ident); ok {
-					paramIndex := getTypeParamIndex(funcDecl.GenParams, fieldTypeIdent.Name)
-					if paramIndex == -1 {
-						// This is a type not in the list of generic type parameters.
-						continue
-					}
-					newField := *field
-					newField.Type = ast.NewIdent(params[paramIndex])
-					newFieldList[i] = &newField
-				}
-			}
-			newParams.List = newFieldList
-			newType.Params = &newParams
-		}
-		newDecl.Type = &newType
-		newNodes = append(newNodes, &newDecl)
+		mappings := createTypeMappings(funcDecl.GenParams, params)
+		newDecl := replaceIdentsInScope(astclone.Clone(funcDecl), mappings).(*ast.FuncDecl)
+		newDecl.Name = ast.NewIdent(generateTypeName(funcDecl.Name.Name, params))
+		newNodes = append(newNodes, newDecl)
 	}
 	return newNodes
+}
+
+// TODO: handle nested scopes here.
+func replaceIdentsInScope(n ast.Node, mappings map[string]string) ast.Node {
+	return astutil.Apply(n, nil, func(c *astutil.Cursor) bool {
+		if ident, ok := c.Node().(*ast.Ident); ok {
+			if newName, found := mappings[ident.Name]; found {
+				c.Replace(ast.NewIdent(newName))
+			}
+		}
+		return true
+	})
 }
 
 func generateTypeName(typeName string, params []string) string {
@@ -190,4 +146,22 @@ func getTypeParamIndex(genParams *ast.GenParamList, typeName string) int {
 		}
 	}
 	return -1
+}
+
+func createTypeMappings(genParams *ast.GenParamList, params []string) map[string]string {
+	if len(params) != len(genParams.List) {
+		panic(
+			fmt.Errorf(
+				"%v: wrong number of type parameters (expected %d but got %d)",
+				genParams.Pos(),
+				len(genParams.List),
+				len(params),
+			),
+		)
+	}
+	mappings := map[string]string{}
+	for i, oldIdent := range genParams.List {
+		mappings[oldIdent.Name] = params[i]
+	}
+	return mappings
 }
