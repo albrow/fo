@@ -543,14 +543,14 @@ func (p *parser) parseIdent() *ast.Ident {
 	} else {
 		p.expect(token.IDENT) // use expect() error handling
 	}
-	var genParams *ast.GenParamList
+	var typeParams *ast.TypeParamList
 	if p.tok == token.DOUBLE_COLON {
-		genParams = p.parseGenParamList()
+		typeParams = p.parseGenParamList()
 	}
 	return &ast.Ident{
-		NamePos:   pos,
-		Name:      name,
-		GenParams: genParams,
+		NamePos:    pos,
+		Name:       name,
+		TypeParams: typeParams,
 	}
 }
 
@@ -586,12 +586,12 @@ func (p *parser) parseExprList(lhs bool) (list []ast.Expr) {
 	return
 }
 
-func (p *parser) parseGenParamList() *ast.GenParamList {
+func (p *parser) parseGenParamList() *ast.TypeParamList {
 	dcolon := p.expect(token.DOUBLE_COLON)
 	lparen := p.expect(token.LPAREN)
 	list := p.parseIdentList()
 	rparen := p.expect(token.RPAREN)
-	return &ast.GenParamList{
+	return &ast.TypeParamList{
 		Dcolon: dcolon,
 		Lparen: lparen,
 		List:   list,
@@ -774,9 +774,9 @@ func (p *parser) parseStructType() *ast.StructType {
 	pos := p.expect(token.STRUCT)
 
 	// If the next token is a '::' then we expect a list of generic parameters.
-	var genParams *ast.GenParamList
+	var typeParams *ast.TypeParamList
 	if p.tok == token.DOUBLE_COLON {
-		genParams = p.parseGenParamList()
+		typeParams = p.parseGenParamList()
 	}
 
 	lbrace := p.expect(token.LBRACE)
@@ -791,8 +791,8 @@ func (p *parser) parseStructType() *ast.StructType {
 	rbrace := p.expect(token.RBRACE)
 
 	return &ast.StructType{
-		Struct:    pos,
-		GenParams: genParams,
+		Struct:     pos,
+		TypeParams: typeParams,
 		Fields: &ast.FieldList{
 			Opening: lbrace,
 			List:    list,
@@ -1837,9 +1837,9 @@ func (p *parser) parseBranchStmt(tok token.Token) *ast.BranchStmt {
 	var label *ast.Ident
 	if tok != token.FALLTHROUGH && p.tok == token.IDENT {
 		label = p.parseIdent()
-		if label.GenParams != nil {
+		if label.TypeParams != nil {
 			p.error(
-				label.GenParams.Pos(),
+				label.TypeParams.Pos(),
 				"type parameters not allowed for labels",
 			)
 		}
@@ -2284,9 +2284,9 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 		p.next()
 	case token.IDENT:
 		ident = p.parseIdent()
-		if ident.GenParams != nil {
+		if ident.TypeParams != nil {
 			p.error(
-				ident.GenParams.Pos(),
+				ident.TypeParams.Pos(),
 				"type parameters not allowed in import statement",
 			)
 		}
@@ -2370,9 +2370,9 @@ func (p *parser) parseTypeSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.
 	}
 
 	ident := p.parseIdent()
-	if ident.GenParams != nil {
+	if ident.TypeParams != nil {
 		p.error(
-			ident.GenParams.Pos(),
+			ident.TypeParams.Pos(),
 			fmt.Sprintf("unexpected type parameters for identifier %s", ident.Name),
 		)
 	}
@@ -2435,9 +2435,9 @@ func (p *parser) parseFuncDecl() *ast.FuncDecl {
 	scope := ast.NewScope(p.topScope) // function scope
 
 	// If the next token is a '::' then we expect a list of generic parameters.
-	var genParams *ast.GenParamList
+	var typeParams *ast.TypeParamList
 	if p.tok == token.DOUBLE_COLON {
-		genParams = p.parseGenParamList()
+		typeParams = p.parseGenParamList()
 	}
 
 	var recv *ast.FieldList
@@ -2446,9 +2446,9 @@ func (p *parser) parseFuncDecl() *ast.FuncDecl {
 	}
 
 	ident := p.parseIdent()
-	if ident.GenParams != nil {
+	if ident.TypeParams != nil {
 		p.error(
-			ident.GenParams.Pos(),
+			ident.TypeParams.Pos(),
 			fmt.Sprintf("unexpected type parameters for identifier %s", ident.Name),
 		)
 	}
@@ -2462,10 +2462,10 @@ func (p *parser) parseFuncDecl() *ast.FuncDecl {
 	p.expectSemi()
 
 	decl := &ast.FuncDecl{
-		Doc:       doc,
-		Recv:      recv,
-		GenParams: genParams,
-		Name:      ident,
+		Doc:        doc,
+		Recv:       recv,
+		TypeParams: typeParams,
+		Name:       ident,
 		Type: &ast.FuncType{
 			Func:    pos,
 			Params:  params,
@@ -2537,9 +2537,9 @@ func (p *parser) parseFile() *ast.File {
 	if ident.Name == "_" && p.mode&DeclarationErrors != 0 {
 		p.error(p.pos, "invalid package name _")
 	}
-	if ident.GenParams != nil {
+	if ident.TypeParams != nil {
 		p.error(
-			ident.GenParams.Pos(),
+			ident.TypeParams.Pos(),
 			"type parameters not allowed in package name",
 		)
 	}

@@ -238,10 +238,10 @@ type (
 
 	// An Ident node represents an identifier.
 	Ident struct {
-		NamePos   token.Pos     // identifier position
-		Name      string        // identifier name
-		GenParams *GenParamList // list of generic type parameters
-		Obj       *Object       // denoted object; or nil
+		NamePos    token.Pos      // identifier position
+		Name       string         // identifier name
+		TypeParams *TypeParamList // list of generic type parameters
+		Obj        *Object        // denoted object; or nil
 	}
 
 	// An Ellipsis node stands for the "..." type in a
@@ -383,10 +383,10 @@ type (
 
 	// A StructType node represents a struct type.
 	StructType struct {
-		Struct     token.Pos     // position of "struct" keyword
-		GenParams  *GenParamList // list of generic type parameters
-		Fields     *FieldList    // list of field declarations
-		Incomplete bool          // true if (source) fields are missing in the Fields list
+		Struct     token.Pos      // position of "struct" keyword
+		TypeParams *TypeParamList // list of generic type parameters
+		Fields     *FieldList     // list of field declarations
+		Incomplete bool           // true if (source) fields are missing in the Fields list
 	}
 
 	// Pointer types are represented via StarExpr nodes.
@@ -422,14 +422,14 @@ type (
 )
 
 type (
-	// GenParamList is a list of generic parameters. For example:
+	// TypeParamList is a list of generic type parameters. For example:
 	//
-	//   :(T)
-	//   :(T, U, V)
-	//   :(string, int)
-	//   :(ast.Expr, token.Pos)
+	//   ::(T)
+	//   ::(T, U, V)
+	//   ::(string, int)
+	//   ::(pkg.X, pkg.Y)
 	//
-	GenParamList struct {
+	TypeParamList struct {
 		Dcolon token.Pos // position of "::"
 		Lparen token.Pos // position of "("
 		List   []*Ident  // list of identifiers
@@ -437,14 +437,14 @@ type (
 	}
 )
 
-func (f *GenParamList) Pos() token.Pos {
+func (f *TypeParamList) Pos() token.Pos {
 	if f.Dcolon.IsValid() {
 		return f.Dcolon
 	}
 	return token.NoPos
 }
 
-func (f *GenParamList) End() token.Pos {
+func (f *TypeParamList) End() token.Pos {
 	if f.Rparen.IsValid() {
 		return f.Rparen + 1
 	}
@@ -962,12 +962,12 @@ type (
 
 	// A FuncDecl node represents a function declaration.
 	FuncDecl struct {
-		Doc       *CommentGroup // associated documentation; or nil
-		GenParams *GenParamList // list of generic type parameters
-		Recv      *FieldList    // receiver (methods); or nil (functions)
-		Name      *Ident        // function/method name
-		Type      *FuncType     // function signature: parameters, results, and position of "func" keyword
-		Body      *BlockStmt    // function body; or nil for external (non-Go) function
+		Doc        *CommentGroup  // associated documentation; or nil
+		TypeParams *TypeParamList // list of generic type parameters
+		Recv       *FieldList     // receiver (methods); or nil (functions)
+		Name       *Ident         // function/method name
+		Type       *FuncType      // function signature: parameters, results, and position of "func" keyword
+		Body       *BlockStmt     // function body; or nil for external (non-Go) function
 	}
 )
 

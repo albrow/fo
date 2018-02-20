@@ -688,8 +688,8 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int) {
 
 	case *ast.Ident:
 		p.print(x)
-		if x.GenParams != nil {
-			p.print(x.GenParams)
+		if x.TypeParams != nil {
+			p.print(x.TypeParams)
 		}
 
 	case *ast.BinaryExpr:
@@ -863,8 +863,8 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int) {
 
 	case *ast.StructType:
 		p.print(token.STRUCT)
-		if x.GenParams != nil {
-			p.print(x.GenParams)
+		if x.TypeParams != nil {
+			p.print(x.TypeParams)
 		}
 		p.fieldList(x.Fields, true, x.Incomplete)
 
@@ -1633,8 +1633,8 @@ func (p *printer) distanceFrom(from token.Pos) int {
 func (p *printer) funcDecl(d *ast.FuncDecl) {
 	p.setComment(d.Doc)
 	p.print(d.Pos(), token.FUNC)
-	if d.GenParams != nil {
-		p.print(d.GenParams)
+	if d.TypeParams != nil {
+		p.print(d.TypeParams)
 	}
 	p.print(blank)
 	if d.Recv != nil {

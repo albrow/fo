@@ -31,8 +31,8 @@ func findGenericTypeUsage(fset *token.FileSet, f *ast.File) (map[string][][]stri
 	var err error
 	ast.Inspect(f, func(n ast.Node) bool {
 		if ident, ok := n.(*ast.Ident); ok {
-			if ident.GenParams != nil {
-				params := parseGenParams(ident.GenParams)
+			if ident.TypeParams != nil {
+				params := parseGenParams(ident.TypeParams)
 				stringifiedParams := strings.Join(params, ",")
 				if alreadySeen[ident.Name] == nil {
 					alreadySeen[ident.Name] = stringset.New()
@@ -51,7 +51,7 @@ func findGenericTypeUsage(fset *token.FileSet, f *ast.File) (map[string][][]stri
 	return usage, nil
 }
 
-func parseGenParams(genParams *ast.GenParamList) []string {
+func parseGenParams(genParams *ast.TypeParamList) []string {
 	params := []string{}
 	for _, ident := range genParams.List {
 		params = append(params, ident.Name)
@@ -67,7 +67,7 @@ func postTransform(usage map[string][][]string) func(c *astutil.Cursor) bool {
 				if typeSpec, ok := n.Specs[0].(*ast.TypeSpec); ok {
 					switch t := typeSpec.Type.(type) {
 					case *ast.StructType:
-						if t.GenParams != nil {
+						if t.TypeParams != nil {
 							newNodes := createStructTypeNodes(n, usage[typeSpec.Name.Name])
 							for _, node := range newNodes {
 								c.InsertBefore(node)
@@ -78,7 +78,7 @@ func postTransform(usage map[string][][]string) func(c *astutil.Cursor) bool {
 				}
 			}
 		case *ast.FuncDecl:
-			if n.GenParams != nil {
+			if n.TypeParams != nil {
 				newNodes := createFuncDeclNodes(n, usage[n.Name.Name])
 				for _, node := range newNodes {
 					c.InsertBefore(node)
@@ -86,8 +86,8 @@ func postTransform(usage map[string][][]string) func(c *astutil.Cursor) bool {
 				c.Delete()
 			}
 		case *ast.Ident:
-			if n.GenParams != nil {
-				params := parseGenParams(n.GenParams)
+			if n.TypeParams != nil {
+				params := parseGenParams(n.TypeParams)
 				newName := generateTypeName(n.Name, params)
 				c.Replace(ast.NewIdent(newName))
 			}
@@ -101,11 +101,11 @@ func createStructTypeNodes(genDecl *ast.GenDecl, thisUsage [][]string) []ast.Nod
 	typeSpec := genDecl.Specs[0].(*ast.TypeSpec)
 	structType := typeSpec.Type.(*ast.StructType)
 	for _, params := range thisUsage {
-		mappings := createTypeMappings(structType.GenParams, params)
+		mappings := createTypeMappings(structType.TypeParams, params)
 		newDecl := replaceIdentsInScope(astclone.Clone(genDecl), mappings).(*ast.GenDecl)
 		newTypeSpec := newDecl.Specs[0].(*ast.TypeSpec)
 		newStructType := newTypeSpec.Type.(*ast.StructType)
-		newStructType.GenParams = nil
+		newStructType.TypeParams = nil
 		newTypeSpec.Name = ast.NewIdent(generateTypeName(typeSpec.Name.Name, params))
 		newNodes = append(newNodes, newDecl)
 	}
@@ -115,7 +115,7 @@ func createStructTypeNodes(genDecl *ast.GenDecl, thisUsage [][]string) []ast.Nod
 func createFuncDeclNodes(funcDecl *ast.FuncDecl, thisUsage [][]string) []ast.Node {
 	newNodes := []ast.Node{}
 	for _, params := range thisUsage {
-		mappings := createTypeMappings(funcDecl.GenParams, params)
+		mappings := createTypeMappings(funcDecl.TypeParams, params)
 		newDecl := replaceIdentsInScope(astclone.Clone(funcDecl), mappings).(*ast.FuncDecl)
 		newDecl.Name = ast.NewIdent(generateTypeName(funcDecl.Name.Name, params))
 		newNodes = append(newNodes, newDecl)
@@ -139,7 +139,7 @@ func generateTypeName(typeName string, params []string) string {
 	return fmt.Sprintf("%s__%s", typeName, strings.Join(params, "__"))
 }
 
-func getTypeParamIndex(genParams *ast.GenParamList, typeName string) int {
+func getTypeParamIndex(genParams *ast.TypeParamList, typeName string) int {
 	for i, paramName := range genParams.List {
 		if paramName.Name == typeName {
 			return i
@@ -148,7 +148,7 @@ func getTypeParamIndex(genParams *ast.GenParamList, typeName string) int {
 	return -1
 }
 
-func createTypeMappings(genParams *ast.GenParamList, params []string) map[string]string {
+func createTypeMappings(genParams *ast.TypeParamList, params []string) map[string]string {
 	if len(params) != len(genParams.List) {
 		panic(
 			fmt.Errorf(

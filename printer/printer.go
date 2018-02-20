@@ -926,7 +926,7 @@ func (p *printer) print(args ...interface{}) {
 			impliedSemi = true
 			p.lastTok = token.IDENT
 
-		case *ast.GenParamList:
+		case *ast.TypeParamList:
 			p.print(token.DOUBLE_COLON)
 			p.print(token.LPAREN)
 			p.identList(x.List, false)

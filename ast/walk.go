@@ -92,11 +92,11 @@ func Walk(v Visitor, node Node) {
 		// nothing to do
 
 	case *Ident:
-		if n.GenParams != nil {
-			Walk(v, n.GenParams)
+		if n.TypeParams != nil {
+			Walk(v, n.TypeParams)
 		}
 
-	case *GenParamList:
+	case *TypeParamList:
 		for _, f := range n.List {
 			Walk(v, f)
 		}

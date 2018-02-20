@@ -52,8 +52,8 @@ func Clone(node ast.Node) ast.Node {
 		x := *n
 		return &x
 
-	case *ast.GenParamList:
-		return &ast.GenParamList{
+	case *ast.TypeParamList:
+		return &ast.TypeParamList{
 			Dcolon: n.Dcolon,
 			Lparen: n.Lparen,
 			List:   cloneIdentList(n.List),
@@ -169,13 +169,13 @@ func Clone(node ast.Node) ast.Node {
 		}
 
 	case *ast.StructType:
-		var genParams *ast.GenParamList
-		if n.GenParams != nil {
-			genParams = Clone(n.GenParams).(*ast.GenParamList)
+		var genParams *ast.TypeParamList
+		if n.TypeParams != nil {
+			genParams = Clone(n.TypeParams).(*ast.TypeParamList)
 		}
 		return &ast.StructType{
 			Struct:     n.Struct,
-			GenParams:  genParams,
+			TypeParams: genParams,
 			Fields:     cloneFieldList(n.Fields),
 			Incomplete: n.Incomplete,
 		}
@@ -516,15 +516,15 @@ func cloneIdent(n *ast.Ident) *ast.Ident {
 	if n == nil {
 		return nil
 	}
-	var genParams *ast.GenParamList
-	if n.GenParams != nil {
-		genParams = Clone(n.GenParams).(*ast.GenParamList)
+	var genParams *ast.TypeParamList
+	if n.TypeParams != nil {
+		genParams = Clone(n.TypeParams).(*ast.TypeParamList)
 	}
 	return &ast.Ident{
-		NamePos:   n.NamePos,
-		Name:      n.Name,
-		GenParams: genParams,
-		Obj:       cloneObject(n.Obj),
+		NamePos:    n.NamePos,
+		Name:       n.Name,
+		TypeParams: genParams,
+		Obj:        cloneObject(n.Obj),
 	}
 }
 
