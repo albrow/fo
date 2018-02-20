@@ -52,16 +52,6 @@ func Clone(node ast.Node) ast.Node {
 		x := *n
 		return &x
 
-	case *ast.GenIdent:
-		var genParams *ast.GenParamList
-		if n.GenParams != nil {
-			genParams = Clone(n.GenParams).(*ast.GenParamList)
-		}
-		return &ast.GenIdent{
-			Ident:     cloneIdent(n.Ident),
-			GenParams: genParams,
-		}
-
 	case *ast.GenParamList:
 		return &ast.GenParamList{
 			Dcolon: n.Dcolon,
@@ -526,10 +516,15 @@ func cloneIdent(n *ast.Ident) *ast.Ident {
 	if n == nil {
 		return nil
 	}
+	var genParams *ast.GenParamList
+	if n.GenParams != nil {
+		genParams = Clone(n.GenParams).(*ast.GenParamList)
+	}
 	return &ast.Ident{
-		NamePos: n.NamePos,
-		Name:    n.Name,
-		Obj:     cloneObject(n.Obj),
+		NamePos:   n.NamePos,
+		Name:      n.Name,
+		GenParams: genParams,
+		Obj:       cloneObject(n.Obj),
 	}
 }
 

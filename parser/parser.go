@@ -543,19 +543,15 @@ func (p *parser) parseIdent() *ast.Ident {
 	} else {
 		p.expect(token.IDENT) // use expect() error handling
 	}
-	return &ast.Ident{NamePos: pos, Name: name}
-}
-
-func (p *parser) parseIdentOrGenIdent() ast.Expr {
-	ident := p.parseIdent()
+	var genParams *ast.GenParamList
 	if p.tok == token.DOUBLE_COLON {
-		genParams := p.parseGenParamList()
-		return &ast.GenIdent{
-			Ident:     ident,
-			GenParams: genParams,
-		}
+		genParams = p.parseGenParamList()
 	}
-	return ident
+	return &ast.Ident{
+		NamePos:   pos,
+		Name:      name,
+		GenParams: genParams,
+	}
 }
 
 func (p *parser) parseIdentList() (list []*ast.Ident) {
@@ -665,7 +661,7 @@ func (p *parser) parseTypeName() ast.Expr {
 		defer un(trace(p, "TypeName"))
 	}
 
-	ident := p.parseIdentOrGenIdent()
+	ident := p.parseIdent()
 	// don't resolve ident yet - it may be a parameter or field name
 
 	if p.tok == token.PERIOD {
@@ -1169,7 +1165,7 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 
 	switch p.tok {
 	case token.IDENT:
-		x := p.parseIdentOrGenIdent()
+		x := p.parseIdent()
 		if !lhs {
 			p.resolve(x)
 		}
@@ -1407,7 +1403,6 @@ func (p *parser) checkExpr(x ast.Expr) ast.Expr {
 	switch unparen(x).(type) {
 	case *ast.BadExpr:
 	case *ast.Ident:
-	case *ast.GenIdent:
 	case *ast.BasicLit:
 	case *ast.FuncLit:
 	case *ast.CompositeLit:
@@ -1439,7 +1434,6 @@ func isTypeName(x ast.Expr) bool {
 	switch t := x.(type) {
 	case *ast.BadExpr:
 	case *ast.Ident:
-	case *ast.GenIdent:
 	case *ast.SelectorExpr:
 		_, isIdent := t.X.(*ast.Ident)
 		return isIdent
@@ -1454,7 +1448,6 @@ func isLiteralType(x ast.Expr) bool {
 	switch t := x.(type) {
 	case *ast.BadExpr:
 	case *ast.Ident:
-	case *ast.GenIdent:
 	case *ast.SelectorExpr:
 		_, isIdent := t.X.(*ast.Ident)
 		return isIdent
@@ -1844,6 +1837,12 @@ func (p *parser) parseBranchStmt(tok token.Token) *ast.BranchStmt {
 	var label *ast.Ident
 	if tok != token.FALLTHROUGH && p.tok == token.IDENT {
 		label = p.parseIdent()
+		if label.GenParams != nil {
+			p.error(
+				label.GenParams.Pos(),
+				"type parameters not allowed for labels",
+			)
+		}
 		// add to list of unresolved targets
 		n := len(p.targetStack) - 1
 		p.targetStack[n] = append(p.targetStack[n], label)
@@ -2285,6 +2284,12 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 		p.next()
 	case token.IDENT:
 		ident = p.parseIdent()
+		if ident.GenParams != nil {
+			p.error(
+				ident.GenParams.Pos(),
+				"type parameters not allowed in import statement",
+			)
+		}
 	}
 
 	pos := p.pos
@@ -2365,6 +2370,12 @@ func (p *parser) parseTypeSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.
 	}
 
 	ident := p.parseIdent()
+	if ident.GenParams != nil {
+		p.error(
+			ident.GenParams.Pos(),
+			fmt.Sprintf("unexpected type parameters for identifier %s", ident.Name),
+		)
+	}
 
 	// Go spec: The scope of a type identifier declared inside a function begins
 	// at the identifier in the TypeSpec and ends at the end of the innermost
@@ -2435,6 +2446,12 @@ func (p *parser) parseFuncDecl() *ast.FuncDecl {
 	}
 
 	ident := p.parseIdent()
+	if ident.GenParams != nil {
+		p.error(
+			ident.GenParams.Pos(),
+			fmt.Sprintf("unexpected type parameters for identifier %s", ident.Name),
+		)
+	}
 
 	params, results := p.parseSignature(scope)
 
@@ -2519,6 +2536,12 @@ func (p *parser) parseFile() *ast.File {
 	ident := p.parseIdent()
 	if ident.Name == "_" && p.mode&DeclarationErrors != 0 {
 		p.error(p.pos, "invalid package name _")
+	}
+	if ident.GenParams != nil {
+		p.error(
+			ident.GenParams.Pos(),
+			"type parameters not allowed in package name",
+		)
 	}
 	p.expectSemi()
 

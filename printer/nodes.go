@@ -688,10 +688,9 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int) {
 
 	case *ast.Ident:
 		p.print(x)
-
-	case *ast.GenIdent:
-		p.print(x.Ident)
-		p.print(x.GenParams)
+		if x.GenParams != nil {
+			p.print(x.GenParams)
+		}
 
 	case *ast.BinaryExpr:
 		if depth < 1 {

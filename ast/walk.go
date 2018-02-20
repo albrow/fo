@@ -88,11 +88,13 @@ func Walk(v Visitor, node Node) {
 		}
 
 	// Expressions
-	case *BadExpr, *Ident, *BasicLit:
+	case *BadExpr, *BasicLit:
 		// nothing to do
 
-	case *GenIdent:
-		Walk(v, n.GenParams)
+	case *Ident:
+		if n.GenParams != nil {
+			Walk(v, n.GenParams)
+		}
 
 	case *GenParamList:
 		for _, f := range n.List {

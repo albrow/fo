@@ -30,16 +30,16 @@ func findGenericTypeUsage(fset *token.FileSet, f *ast.File) (map[string][][]stri
 	alreadySeen := map[string]stringset.Set{}
 	var err error
 	ast.Inspect(f, func(n ast.Node) bool {
-		if genIdent, ok := n.(*ast.GenIdent); ok {
-			if genIdent.GenParams != nil {
-				params := parseGenParams(genIdent.GenParams)
+		if ident, ok := n.(*ast.Ident); ok {
+			if ident.GenParams != nil {
+				params := parseGenParams(ident.GenParams)
 				stringifiedParams := strings.Join(params, ",")
-				if alreadySeen[genIdent.Name] == nil {
-					alreadySeen[genIdent.Name] = stringset.New()
+				if alreadySeen[ident.Name] == nil {
+					alreadySeen[ident.Name] = stringset.New()
 				}
-				if !alreadySeen[genIdent.Name].Contains(stringifiedParams) {
-					usage[genIdent.Name] = append(usage[genIdent.Name], params)
-					alreadySeen[genIdent.Name].Add(stringifiedParams)
+				if !alreadySeen[ident.Name].Contains(stringifiedParams) {
+					usage[ident.Name] = append(usage[ident.Name], params)
+					alreadySeen[ident.Name].Add(stringifiedParams)
 				}
 			}
 		}
@@ -85,7 +85,7 @@ func postTransform(usage map[string][][]string) func(c *astutil.Cursor) bool {
 				}
 				c.Delete()
 			}
-		case *ast.GenIdent:
+		case *ast.Ident:
 			if n.GenParams != nil {
 				params := parseGenParams(n.GenParams)
 				newName := generateTypeName(n.Name, params)

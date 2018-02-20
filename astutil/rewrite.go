@@ -228,10 +228,10 @@ func (a *application) apply(parent ast.Node, name string, iter *iterator, n ast.
 		a.applyList(n, "List")
 
 	// Expressions
-	case *ast.BadExpr, *ast.Ident, *ast.BasicLit:
+	case *ast.BadExpr, *ast.BasicLit:
 		// nothing to do
 
-	case *ast.GenIdent:
+	case *ast.Ident:
 		a.apply(n, "GenIdent", nil, n.GenParams)
 
 	case *ast.GenParamList:

@@ -79,6 +79,8 @@ var valids = []string{
 	`package p; var x = func(T::(U)) {}`,
 	`package p; var x func() T::(U)`,
 	`package p; var x = func() T::(U) {}`,
+	`package p; var x = y.T::(U){}`,
+	`package p; var x y.T::(U)`,
 
 	// Short assignments
 	`package p; func _() { x := T::(U){} }`,
@@ -150,22 +152,6 @@ var invalids = []string{
 	`package p; func f() { go func() { func() { f(x func /* ERROR "missing ','" */ (){}) } } }`,
 	`package p; func f(x func(), u v func /* ERROR "missing ','" */ ()){}`,
 
-	// Fo extensions
-	`package p; type T struct::() /* ERROR "expected 'IDENT', found '\)'" */  { val V }`,
-	`package p; type T struct::(V { /* ERROR "expected '\)', found '{'" */ val V }`,
-	`package p; type T struct::(V, ) /* ERROR "expected 'IDENT', found '\)'" */ { val V }`,
-	`package p; func::() /* ERROR "expected 'IDENT', found '\)'" */  f() { val V }`,
-	`package p; func::(V f /* ERROR "expected '\)', found 'IDENT'" */ () { val V }`,
-	`package p; func::(V, ) /* ERROR "expected 'IDENT', found '\)'" */ f() { val V }`,
-	`package p; var x = T::() /* ERROR "expected 'IDENT', found '\)'" */ { val: "" }`,
-	`package p; var x = T::(V { /* ERROR "expected '\)', found '{'" */ val V }`,
-	`package p; var x = T::(V, ) /* ERROR "expected 'IDENT', found '\)'" */ { val V }`,
-	`package p; func main() { x := T::() /* ERROR "expected 'IDENT', found '\)'" */ { val: "" } }`,
-	`package p; func main() { x := T::(V { /* ERROR "expected '\)', found '{'" */ val V } }`,
-	`package p; func main() { x := T::(V, ) /* ERROR "expected 'IDENT', found '\)'" */ { val V } }`,
-	`package p; func _(T::() /* ERROR "expected 'IDENT', found '\)'" */ ) {}`,
-	`package p; func _() T::() /* ERROR "expected 'IDENT', found '\)'" */ {}`,
-
 	// issue 8656
 	`package p; func f() (a b string /* ERROR "missing ','" */ , ok bool)`,
 
@@ -189,6 +175,29 @@ var invalids = []string{
 	// issue 13475
 	`package p; func f() { if true {} else ; /* ERROR "expected if statement or block" */ }`,
 	`package p; func f() { if true {} else defer /* ERROR "expected if statement or block" */ f() }`,
+
+	// Fo extensions
+	`package p; type T struct::() /* ERROR "expected 'IDENT', found '\)'" */  { val V }`,
+	`package p; type T struct::(V { /* ERROR "expected '\)', found '{'" */ val V }`,
+	`package p; type T struct::(V, ) /* ERROR "expected 'IDENT', found '\)'" */ { val V }`,
+	`package p; func::() /* ERROR "expected 'IDENT', found '\)'" */  f() { val V }`,
+	`package p; func::(V f /* ERROR "expected '\)', found 'IDENT'" */ () { val V }`,
+	`package p; func::(V, ) /* ERROR "expected 'IDENT', found '\)'" */ f() { val V }`,
+	`package p; var x = T::() /* ERROR "expected 'IDENT', found '\)'" */ { val: "" }`,
+	`package p; var x = T::(V { /* ERROR "expected '\)', found '{'" */ val V }`,
+	`package p; var x = T::(V, ) /* ERROR "expected 'IDENT', found '\)'" */ { val V }`,
+	`package p; func main() { x := T::() /* ERROR "expected 'IDENT', found '\)'" */ { val: "" } }`,
+	`package p; func main() { x := T::(V { /* ERROR "expected '\)', found '{'" */ val V } }`,
+	`package p; func main() { x := T::(V, ) /* ERROR "expected 'IDENT', found '\)'" */ { val V } }`,
+	`package p; func _(T::() /* ERROR "expected 'IDENT', found '\)'" */ ) {}`,
+	`package p; func _() T::() /* ERROR "expected 'IDENT', found '\)'" */ {}`,
+
+	// Invalid type parameters
+	`package p; func _() { T:; for { break T:: /* ERROR "type parameters not allowed for labels" */ (U) } }`,
+	`package p; import x:: /* ERROR "type parameters not allowed in import statement" */ (T) "fmt"`,
+	`package p; type T:: /* ERROR "unexpected type parameters for identifier T" */ (U) struct{}`,
+	`package p; func T:: /* ERROR "unexpected type parameters for identifier T" */ (U) () {}`,
+	`package p:: /* ERROR "type parameters not allowed in package name" */ (T);`,
 }
 
 func TestInvalid(t *testing.T) {
