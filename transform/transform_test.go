@@ -96,6 +96,35 @@ func main() {
 	testParseFile(t, src, expected)
 }
 
+func TestTransformStructTypeSelectorUsage(t *testing.T) {
+	src := `package main
+
+import "bytes"
+
+type Box struct::(T) {
+	val T
+}
+
+func main() {
+	x := Box::(bytes.Buffer){}
+}
+`
+
+	expected := `package main
+
+import "bytes"
+
+type Box__bytes_Buffer struct {
+	val bytes.Buffer
+}
+
+func main() {
+	x := Box__bytes_Buffer{}
+}
+`
+	testParseFile(t, src, expected)
+}
+
 func TestTransformStructTypeFuncArgs(t *testing.T) {
 	src := `package main
 

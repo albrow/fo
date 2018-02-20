@@ -57,6 +57,13 @@ func parseConcreteTypeParams(list *ast.ConcreteTypeParamList) []string {
 		switch x := expr.(type) {
 		case *ast.Ident:
 			params = append(params, x.Name)
+		case *ast.SelectorExpr:
+			switch y := x.X.(type) {
+			case *ast.Ident:
+				params = append(params, y.Name+"."+x.Sel.Name)
+			default:
+				panic(fmt.Errorf("unexpected selector type in type param list: %T", x.X))
+			}
 		default:
 			panic(fmt.Errorf("unexpected concrete type in type param list: %T", expr))
 		}
@@ -141,7 +148,11 @@ func replaceIdentsInScope(n ast.Node, mappings map[string]string) ast.Node {
 }
 
 func generateTypeName(typeName string, params []string) string {
-	return fmt.Sprintf("%s__%s", typeName, strings.Join(params, "__"))
+	paramsCopy := []string{}
+	for _, p := range params {
+		paramsCopy = append(paramsCopy, strings.Replace(p, ".", "_", -1))
+	}
+	return fmt.Sprintf("%s__%s", typeName, strings.Join(paramsCopy, "__"))
 }
 
 func getTypeParamIndex(typeParams *ast.TypeParamList, typeName string) int {
