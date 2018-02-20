@@ -238,10 +238,10 @@ type (
 
 	// An Ident node represents an identifier.
 	Ident struct {
-		NamePos    token.Pos      // identifier position
-		Name       string         // identifier name
-		TypeParams *TypeParamList // list of generic type parameters
-		Obj        *Object        // denoted object; or nil
+		NamePos    token.Pos              // identifier position
+		Name       string                 // identifier name
+		TypeParams *ConcreteTypeParamList // list of concrete type parameters
+		Obj        *Object                // denoted object; or nil
 	}
 
 	// An Ellipsis node stands for the "..." type in a
@@ -426,8 +426,6 @@ type (
 	//
 	//   ::(T)
 	//   ::(T, U, V)
-	//   ::(string, int)
-	//   ::(pkg.X, pkg.Y)
 	//
 	TypeParamList struct {
 		Dcolon token.Pos // position of "::"
@@ -435,16 +433,44 @@ type (
 		List   []*Ident  // list of identifiers
 		Rparen token.Pos // position of ")"
 	}
+
+	// ConcreteTypeParamList is a list of concrete type parameters. They can be
+	// thought of as "arguments" passed to generic functions or data structures.
+	//
+	//   ::(string)
+	//   ::(pkg.X, pkg.Y)
+	//   ::(T::(U), T::(V))
+	//
+	ConcreteTypeParamList struct {
+		Dcolon token.Pos // position of "::"
+		Lparen token.Pos // position of "("
+		List   []Expr    // list of types
+		Rparen token.Pos // position of ")"
+	}
 )
 
-func (f *TypeParamList) Pos() token.Pos {
+func (l *TypeParamList) Pos() token.Pos {
+	if l.Dcolon.IsValid() {
+		return l.Dcolon
+	}
+	return token.NoPos
+}
+
+func (l *TypeParamList) End() token.Pos {
+	if l.Rparen.IsValid() {
+		return l.Rparen + 1
+	}
+	return token.NoPos
+}
+
+func (f *ConcreteTypeParamList) Pos() token.Pos {
 	if f.Dcolon.IsValid() {
 		return f.Dcolon
 	}
 	return token.NoPos
 }
 
-func (f *TypeParamList) End() token.Pos {
+func (f *ConcreteTypeParamList) End() token.Pos {
 	if f.Rparen.IsValid() {
 		return f.Rparen + 1
 	}

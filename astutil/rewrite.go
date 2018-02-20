@@ -237,6 +237,9 @@ func (a *application) apply(parent ast.Node, name string, iter *iterator, n ast.
 	case *ast.TypeParamList:
 		a.applyList(n, "List")
 
+	case *ast.ConcreteTypeParamList:
+		a.applyList(n, "List")
+
 	case *ast.Ellipsis:
 		a.apply(n, "Elt", nil, n.Elt)
 

@@ -169,13 +169,13 @@ func Clone(node ast.Node) ast.Node {
 		}
 
 	case *ast.StructType:
-		var genParams *ast.TypeParamList
+		var typeParams *ast.TypeParamList
 		if n.TypeParams != nil {
-			genParams = Clone(n.TypeParams).(*ast.TypeParamList)
+			typeParams = Clone(n.TypeParams).(*ast.TypeParamList)
 		}
 		return &ast.StructType{
 			Struct:     n.Struct,
-			TypeParams: genParams,
+			TypeParams: typeParams,
 			Fields:     cloneFieldList(n.Fields),
 			Incomplete: n.Incomplete,
 		}
@@ -516,14 +516,14 @@ func cloneIdent(n *ast.Ident) *ast.Ident {
 	if n == nil {
 		return nil
 	}
-	var genParams *ast.TypeParamList
+	var typeParams *ast.ConcreteTypeParamList
 	if n.TypeParams != nil {
-		genParams = Clone(n.TypeParams).(*ast.TypeParamList)
+		typeParams = Clone(n.TypeParams).(*ast.ConcreteTypeParamList)
 	}
 	return &ast.Ident{
 		NamePos:    n.NamePos,
 		Name:       n.Name,
-		TypeParams: genParams,
+		TypeParams: typeParams,
 		Obj:        cloneObject(n.Obj),
 	}
 }

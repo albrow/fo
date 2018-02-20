@@ -32,7 +32,7 @@ func findGenericTypeUsage(fset *token.FileSet, f *ast.File) (map[string][][]stri
 	ast.Inspect(f, func(n ast.Node) bool {
 		if ident, ok := n.(*ast.Ident); ok {
 			if ident.TypeParams != nil {
-				params := parseGenParams(ident.TypeParams)
+				params := parseConcreteTypeParams(ident.TypeParams)
 				stringifiedParams := strings.Join(params, ",")
 				if alreadySeen[ident.Name] == nil {
 					alreadySeen[ident.Name] = stringset.New()
@@ -51,10 +51,15 @@ func findGenericTypeUsage(fset *token.FileSet, f *ast.File) (map[string][][]stri
 	return usage, nil
 }
 
-func parseGenParams(genParams *ast.TypeParamList) []string {
+func parseConcreteTypeParams(list *ast.ConcreteTypeParamList) []string {
 	params := []string{}
-	for _, ident := range genParams.List {
-		params = append(params, ident.Name)
+	for _, expr := range list.List {
+		switch x := expr.(type) {
+		case *ast.Ident:
+			params = append(params, x.Name)
+		default:
+			panic(fmt.Errorf("unexpected concrete type in type param list: %T", expr))
+		}
 	}
 	return params
 }
@@ -87,7 +92,7 @@ func postTransform(usage map[string][][]string) func(c *astutil.Cursor) bool {
 			}
 		case *ast.Ident:
 			if n.TypeParams != nil {
-				params := parseGenParams(n.TypeParams)
+				params := parseConcreteTypeParams(n.TypeParams)
 				newName := generateTypeName(n.Name, params)
 				c.Replace(ast.NewIdent(newName))
 			}
@@ -139,8 +144,8 @@ func generateTypeName(typeName string, params []string) string {
 	return fmt.Sprintf("%s__%s", typeName, strings.Join(params, "__"))
 }
 
-func getTypeParamIndex(genParams *ast.TypeParamList, typeName string) int {
-	for i, paramName := range genParams.List {
+func getTypeParamIndex(typeParams *ast.TypeParamList, typeName string) int {
+	for i, paramName := range typeParams.List {
 		if paramName.Name == typeName {
 			return i
 		}
@@ -148,19 +153,19 @@ func getTypeParamIndex(genParams *ast.TypeParamList, typeName string) int {
 	return -1
 }
 
-func createTypeMappings(genParams *ast.TypeParamList, params []string) map[string]string {
-	if len(params) != len(genParams.List) {
+func createTypeMappings(typeParams *ast.TypeParamList, params []string) map[string]string {
+	if len(params) != len(typeParams.List) {
 		panic(
 			fmt.Errorf(
 				"%v: wrong number of type parameters (expected %d but got %d)",
-				genParams.Pos(),
-				len(genParams.List),
+				typeParams.Pos(),
+				len(typeParams.List),
 				len(params),
 			),
 		)
 	}
 	mappings := map[string]string{}
-	for i, oldIdent := range genParams.List {
+	for i, oldIdent := range typeParams.List {
 		mappings[oldIdent.Name] = params[i]
 	}
 	return mappings

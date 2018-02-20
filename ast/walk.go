@@ -101,6 +101,11 @@ func Walk(v Visitor, node Node) {
 			Walk(v, f)
 		}
 
+	case *ConcreteTypeParamList:
+		for _, f := range n.List {
+			Walk(v, f)
+		}
+
 	case *Ellipsis:
 		if n.Elt != nil {
 			Walk(v, n.Elt)

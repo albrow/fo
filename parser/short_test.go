@@ -183,16 +183,16 @@ var invalids = []string{
 	`package p; func::() /* ERROR "expected 'IDENT', found '\)'" */  f() { val V }`,
 	`package p; func::(V f /* ERROR "expected '\)', found 'IDENT'" */ () { val V }`,
 	`package p; func::(V, ) /* ERROR "expected 'IDENT', found '\)'" */ f() { val V }`,
-	`package p; var x = T::() /* ERROR "expected 'IDENT', found '\)'" */ { val: "" }`,
+	`package p; var x = T::() /* ERROR "expected type, found '\)'" */ { val: "" }`,
 	`package p; var x = T::(V { /* ERROR "expected '\)', found '{'" */ val V }`,
-	`package p; var x = T::(V, ) /* ERROR "expected 'IDENT', found '\)'" */ { val V }`,
-	`package p; func main() { x := T::() /* ERROR "expected 'IDENT', found '\)'" */ { val: "" } }`,
+	`package p; var x = T::(V, ) /* ERROR "expected type, found '\)'" */ { val V }`,
+	`package p; func main() { x := T::() /* ERROR "expected type, found '\)'" */ { val: "" } }`,
 	`package p; func main() { x := T::(V { /* ERROR "expected '\)', found '{'" */ val V } }`,
-	`package p; func main() { x := T::(V, ) /* ERROR "expected 'IDENT', found '\)'" */ { val V } }`,
-	`package p; func _(T::() /* ERROR "expected 'IDENT', found '\)'" */ ) {}`,
-	`package p; func _() T::() /* ERROR "expected 'IDENT', found '\)'" */ {}`,
+	`package p; func main() { x := T::(V, ) /* ERROR "expected type, found '\)'" */ { val V } }`,
+	`package p; func _(T::() /* ERROR "expected type, found '\)'" */ ) {}`,
+	`package p; func _() T::() /* ERROR "expected type, found '\)'" */ {}`,
 
-	// Invalid type parameters
+	// Type parameters on idents which don't support them
 	`package p; func _() { T:; for { break T:: /* ERROR "type parameters not allowed for labels" */ (U) } }`,
 	`package p; import x:: /* ERROR "type parameters not allowed in import statement" */ (T) "fmt"`,
 	`package p; type T:: /* ERROR "unexpected type parameters for identifier T" */ (U) struct{}`,

@@ -543,9 +543,9 @@ func (p *parser) parseIdent() *ast.Ident {
 	} else {
 		p.expect(token.IDENT) // use expect() error handling
 	}
-	var typeParams *ast.TypeParamList
+	var typeParams *ast.ConcreteTypeParamList
 	if p.tok == token.DOUBLE_COLON {
-		typeParams = p.parseGenParamList()
+		typeParams = p.parseConcreteTypeParamList()
 	}
 	return &ast.Ident{
 		NamePos:    pos,
@@ -586,12 +586,32 @@ func (p *parser) parseExprList(lhs bool) (list []ast.Expr) {
 	return
 }
 
-func (p *parser) parseGenParamList() *ast.TypeParamList {
+func (p *parser) parseTypeParamList() *ast.TypeParamList {
 	dcolon := p.expect(token.DOUBLE_COLON)
 	lparen := p.expect(token.LPAREN)
 	list := p.parseIdentList()
 	rparen := p.expect(token.RPAREN)
 	return &ast.TypeParamList{
+		Dcolon: dcolon,
+		Lparen: lparen,
+		List:   list,
+		Rparen: rparen,
+	}
+}
+
+func (p *parser) parseConcreteTypeParamList() *ast.ConcreteTypeParamList {
+	dcolon := p.expect(token.DOUBLE_COLON)
+	lparen := p.expect(token.LPAREN)
+
+	list := []ast.Expr{}
+	list = append(list, p.parseType())
+	for p.tok == token.COMMA {
+		p.next()
+		list = append(list, p.parseType())
+	}
+
+	rparen := p.expect(token.RPAREN)
+	return &ast.ConcreteTypeParamList{
 		Dcolon: dcolon,
 		Lparen: lparen,
 		List:   list,
@@ -776,7 +796,7 @@ func (p *parser) parseStructType() *ast.StructType {
 	// If the next token is a '::' then we expect a list of generic parameters.
 	var typeParams *ast.TypeParamList
 	if p.tok == token.DOUBLE_COLON {
-		typeParams = p.parseGenParamList()
+		typeParams = p.parseTypeParamList()
 	}
 
 	lbrace := p.expect(token.LBRACE)
@@ -2437,7 +2457,7 @@ func (p *parser) parseFuncDecl() *ast.FuncDecl {
 	// If the next token is a '::' then we expect a list of generic parameters.
 	var typeParams *ast.TypeParamList
 	if p.tok == token.DOUBLE_COLON {
-		typeParams = p.parseGenParamList()
+		typeParams = p.parseTypeParamList()
 	}
 
 	var recv *ast.FieldList
