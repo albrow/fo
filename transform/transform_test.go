@@ -16,6 +16,8 @@ func TestTransformStructTypeUnused(t *testing.T) {
 
 type T struct::(U) {}
 
+func::(T) f(x T) {}
+
 func main() { }
 `
 
