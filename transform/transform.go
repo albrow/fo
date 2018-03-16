@@ -124,8 +124,12 @@ func File(fset *token.FileSet, f *ast.File) (*ast.File, error) {
 	}
 	trans.parse(f, nil)
 	trans.reduceUsages()
+	// TODO: optimize by reducing the number of passes over the AST. Right now
+	// there is one for generating concrete types and another for replacing
+	// generic type identifiers (e.g., Box::(string)) with their corresponding
+	// concrete type (e.g., Box__string).
 	withConcreteTypes := astutil.Apply(f, nil, trans.generateConcreteTypes())
-	result := astutil.Apply(withConcreteTypes, nil, trans.useConcreteTypes())
+	result := astutil.Apply(withConcreteTypes, nil, trans.replaceGenericIdents())
 	resultFile, ok := result.(*ast.File)
 	if !ok {
 		panic(fmt.Errorf("astutil.Apply returned a non-file type: %T", result))
@@ -247,6 +251,8 @@ func (trans *transformer) reduceUsages() {
 	}
 }
 
+// TODO: sort usage set before generating concrete types so we get deterministic
+// output.
 func (trans *transformer) generateConcreteTypes() func(c *astutil.Cursor) bool {
 	return func(c *astutil.Cursor) bool {
 		switch n := c.Node().(type) {
@@ -284,7 +290,7 @@ func (trans *transformer) generateConcreteTypes() func(c *astutil.Cursor) bool {
 	}
 }
 
-func (trans *transformer) useConcreteTypes() func(c *astutil.Cursor) bool {
+func (trans *transformer) replaceGenericIdents() func(c *astutil.Cursor) bool {
 	return func(c *astutil.Cursor) bool {
 		switch n := c.Node().(type) {
 		case *ast.Ident:
