@@ -400,6 +400,68 @@ func main() {
 	testParseFile(t, src, expected)
 }
 
+func TestTransformFuncDeclInherited(t *testing.T) {
+	src := `package main
+
+type Tuple struct::(T, U) {
+	first T
+	second U
+}
+
+func::(T, U) NewTuple(first T, second U) Tuple::(T, U) {
+	return Tuple::(T, U){
+		first: first,
+		second: second,
+	}
+}
+
+func::(T) NewTupleString(first string, second T) Tuple::(string, T) {
+	return Tuple::(string, T) {
+		first: first,
+		second: second,
+	}
+}
+
+func main() {
+	x := NewTuple::(bool, int64)(true, 42)
+	y := NewTupleString::(float64)("foo", 12.34)
+}
+`
+
+	expected := `package main
+
+type Tuple__bool__int64 struct {
+	first  bool
+	second int64
+}
+type Tuple__string__float64 struct {
+	first  string
+	second float64
+}
+
+func NewTuple__bool__int64(first bool, second int64) (Tuple__bool__int64) {
+	return Tuple__bool__int64{
+		first:  first,
+		second: second,
+	}
+}
+
+func NewTupleString__float64(first string, second float64) (Tuple__string__float64) {
+	return Tuple__string__float64{
+		first:  first,
+		second: second,
+	}
+}
+
+func main() {
+	x := NewTuple__bool__int64(true, 42)
+	y := NewTupleString__float64("foo", 12.34)
+}
+`
+
+	testParseFile(t, src, expected)
+}
+
 func testParseFile(t *testing.T, src string, expected string) {
 	t.Helper()
 	fset := token.NewFileSet()
