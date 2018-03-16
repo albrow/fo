@@ -60,6 +60,14 @@ func Clone(node ast.Node) ast.Node {
 			Rparen: n.Rparen,
 		}
 
+	case *ast.ConcreteTypeParamList:
+		return &ast.ConcreteTypeParamList{
+			Dcolon: n.Dcolon,
+			Lparen: n.Lparen,
+			List:   cloneExprList(n.List),
+			Rparen: n.Rparen,
+		}
+
 	case *ast.Ellipsis:
 		return &ast.Ellipsis{
 			Ellipsis: n.Ellipsis,

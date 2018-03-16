@@ -312,6 +312,94 @@ func main() {
 	testParseFile(t, src, expected)
 }
 
+func TestTransformStructTypeInherited(t *testing.T) {
+	src := `package main
+
+type Tuple struct::(T, U) {
+	first T
+	second U
+}
+
+type BoxedTuple struct::(T, U) {
+	val Tuple::(T, U)
+}
+
+type BoxedTupleString struct::(T) {
+	val Tuple::(string, T)
+}
+
+func main() {
+	a := BoxedTuple::(string, int){
+		val: Tuple::(string, int){
+			first: "foo",
+			second: 42,
+		},
+	}
+	b := BoxedTuple::(float64, int){}
+	c := BoxedTupleString::(bool){
+		val: Tuple::(string, bool) {
+			first: "abc",
+			second: true,
+		},
+	}
+	d := BoxedTupleString::(uint){}
+}
+`
+
+	expected := `package main
+
+type Tuple__string__int struct {
+	first  string
+	second int
+}
+type Tuple__string__bool struct {
+	first  string
+	second bool
+}
+type Tuple__float64__int struct {
+	first  float64
+	second int
+}
+type Tuple__string__uint struct {
+	first  string
+	second uint
+}
+
+type BoxedTuple__string__int struct {
+	val Tuple__string__int
+}
+type BoxedTuple__float64__int struct {
+	val Tuple__float64__int
+}
+
+type BoxedTupleString__bool struct {
+	val Tuple__string__bool
+}
+type BoxedTupleString__uint struct {
+	val Tuple__string__uint
+}
+
+func main() {
+	a := BoxedTuple__string__int{
+		val: Tuple__string__int{
+			first:  "foo",
+			second: 42,
+		},
+	}
+	b := BoxedTuple__float64__int{}
+	c := BoxedTupleString__bool{
+		val: Tuple__string__bool{
+			first:  "abc",
+			second: true,
+		},
+	}
+	d := BoxedTupleString__uint{}
+}
+`
+
+	testParseFile(t, src, expected)
+}
+
 func testParseFile(t *testing.T, src string, expected string) {
 	t.Helper()
 	fset := token.NewFileSet()
