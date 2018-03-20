@@ -62,11 +62,11 @@ func main() {
 
 	expected := `package main
 
-type Box__string struct {
-	val string
-}
 type Box__int struct {
 	val int
+}
+type Box__string struct {
+	val string
 }
 
 type Tuple__int__string struct {
@@ -145,12 +145,12 @@ func main() { }
 
 	expected := `package main
 
-type Either__int__string struct {
-	left  int
-	right string
-}
 type Either__error__string struct {
 	left  error
+	right string
+}
+type Either__int__string struct {
+	left  int
 	right string
 }
 
@@ -348,16 +348,16 @@ func main() {
 
 	expected := `package main
 
-type Tuple__string__int struct {
-	first  string
+type Tuple__float64__int struct {
+	first  float64
 	second int
 }
 type Tuple__string__bool struct {
 	first  string
 	second bool
 }
-type Tuple__float64__int struct {
-	first  float64
+type Tuple__string__int struct {
+	first  string
 	second int
 }
 type Tuple__string__uint struct {
@@ -365,11 +365,11 @@ type Tuple__string__uint struct {
 	second uint
 }
 
-type BoxedTuple__string__int struct {
-	val Tuple__string__int
-}
 type BoxedTuple__float64__int struct {
 	val Tuple__float64__int
+}
+type BoxedTuple__string__int struct {
+	val Tuple__string__int
 }
 
 type BoxedTupleString__bool struct {

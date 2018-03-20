@@ -2,6 +2,7 @@ package transform
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/albrow/fo/ast"
@@ -19,36 +20,37 @@ type usage struct {
 type declaration struct {
 	typ      *ast.Ident
 	params   *ast.TypeParamList
-	children map[string][]*usage
+	children *usageSet
 }
 
 type transformer struct {
-	fset       *token.FileSet
-	decls      map[string]*declaration
-	usages     map[string][]*usage
-	seenUsages map[string]stringset.Set
+	fset   *token.FileSet
+	decls  map[string]*declaration
+	usages *usageSet
 }
 
-// TODO: abstract this out into a usageSet type which does automatic
-// de-duplication.
-func (trans *transformer) addUsage(usg *usage) {
-	if trans.usages == nil {
-		trans.usages = map[string][]*usage{}
+type usageSet struct {
+	usages map[string][]*usage
+	seen   map[string]stringset.Set
+}
+
+func (us *usageSet) add(usg *usage) {
+	if us.usages == nil {
+		us.usages = map[string][]*usage{}
 	}
-	if trans.seenUsages == nil {
-		trans.seenUsages = map[string]stringset.Set{}
+	if us.seen == nil {
+		us.seen = map[string]stringset.Set{}
 	}
-	if usages, found := trans.usages[usg.typ.Name]; found {
-		if seen := trans.seenUsages[usg.typ.Name]; seen == nil || !seen.Contains(usg.concreteTypeName()) {
-			usages = append(usages, usg)
-			trans.usages[usg.typ.Name] = usages
-			trans.seenUsages[usg.typ.Name].Add(usg.concreteTypeName())
+	key := usg.concreteTypeName()
+	if seen := us.seen[usg.typ.Name]; len(seen) > 0 {
+		if seen.Contains(key) {
+			return
 		}
 	} else {
-		trans.usages[usg.typ.Name] = []*usage{usg}
-		trans.seenUsages[usg.typ.Name] = stringset.New()
-		trans.seenUsages[usg.typ.Name].Add(usg.concreteTypeName())
+		us.seen[usg.typ.Name] = stringset.New()
 	}
+	us.usages[usg.typ.Name] = append(us.usages[usg.typ.Name], usg)
+	us.seen[usg.typ.Name].Add(key)
 }
 
 func (trans *transformer) addDecl(decl *declaration) {
@@ -56,18 +58,6 @@ func (trans *transformer) addDecl(decl *declaration) {
 		trans.decls = map[string]*declaration{}
 	}
 	trans.decls[decl.typ.Name] = decl
-}
-
-func (decl *declaration) addChild(usg *usage) {
-	if decl.children == nil {
-		decl.children = map[string][]*usage{}
-	}
-	if usages, found := decl.children[usg.typ.Name]; found {
-		usages = append(usages, usg)
-		decl.children[usg.typ.Name] = usages
-	} else {
-		decl.children[usg.typ.Name] = []*usage{usg}
-	}
 }
 
 func (d *declaration) stringParams() []string {
@@ -120,7 +110,8 @@ func (u *usage) concreteTypeName() string {
 
 func File(fset *token.FileSet, f *ast.File) (*ast.File, error) {
 	trans := &transformer{
-		fset: fset,
+		fset:   fset,
+		usages: &usageSet{},
 	}
 	trans.parse(f, nil)
 	trans.reduceUsages()
@@ -158,8 +149,9 @@ func (trans *transformer) parse(root ast.Node, parent *declaration) {
 			// will be assigned as children of it. (Note that this implementation
 			// assumes you cannot have nested generic type declarations).
 			decl := &declaration{
-				typ:    x.Name,
-				params: x.TypeParams,
+				typ:      x.Name,
+				params:   x.TypeParams,
+				children: &usageSet{},
 			}
 			trans.addDecl(decl)
 			if x.Recv != nil {
@@ -189,8 +181,9 @@ func (trans *transformer) parse(root ast.Node, parent *declaration) {
 			// Just like with function declarations, there may be nested type
 			// parameters inside of the struct type. We handle them the same way.
 			decl := &declaration{
-				typ:    typeSpec.Name,
-				params: structType.TypeParams,
+				typ:      typeSpec.Name,
+				params:   structType.TypeParams,
+				children: &usageSet{},
 			}
 			trans.addDecl(decl)
 			trans.parse(structType.TypeParams, decl)
@@ -211,11 +204,11 @@ func (trans *transformer) parse(root ast.Node, parent *declaration) {
 				// from the parent, add this usage to the parent's children. We use this
 				// parent -> child relationship to generate the appropriate concrete
 				// types for both the parent and the child.
-				parent.addChild(usg)
+				parent.children.add(usg)
 			} else {
 				// Otherwise, this usage does not inherit from the parent and we add it
 				// to the global list of usages.
-				trans.addUsage(usg)
+				trans.usages.add(usg)
 			}
 			return true
 		default:
@@ -226,11 +219,11 @@ func (trans *transformer) parse(root ast.Node, parent *declaration) {
 
 func (trans *transformer) reduceUsages() {
 	// Add all the usages inside parent declarations.
-	for usageName, parentUsages := range trans.usages {
+	for _, parentUsages := range trans.usages.usages {
 		for _, parentUsage := range parentUsages {
-			if decl, found := trans.decls[usageName]; found {
-				for _, child := range decl.children {
-					for _, childUsage := range child {
+			if decl, found := trans.decls[parentUsage.typ.Name]; found {
+				for _, childUsages := range decl.children.usages {
+					for _, childUsage := range childUsages {
 						parentTypeMappings := createTypeMappings(decl.params, parentUsage.stringParams())
 						newUsage := &usage{
 							typ:    astclone.Clone(childUsage.typ).(*ast.Ident),
@@ -243,16 +236,22 @@ func (trans *transformer) reduceUsages() {
 								}
 							}
 						}
-						trans.addUsage(newUsage)
+						trans.usages.add(newUsage)
 					}
 				}
 			}
 		}
 	}
+
+	// Sort the usages for each type so they are in deterministic order. This helps the
+	// compiler have deterministic output.
+	for _, usages := range trans.usages.usages {
+		sort.Slice(usages, func(i int, j int) bool {
+			return usages[i].concreteTypeName() < usages[j].concreteTypeName()
+		})
+	}
 }
 
-// TODO: sort usage set before generating concrete types so we get deterministic
-// output.
 func (trans *transformer) generateConcreteTypes() func(c *astutil.Cursor) bool {
 	return func(c *astutil.Cursor) bool {
 		switch n := c.Node().(type) {
@@ -262,7 +261,7 @@ func (trans *transformer) generateConcreteTypes() func(c *astutil.Cursor) bool {
 					switch t := typeSpec.Type.(type) {
 					case *ast.StructType:
 						if t.TypeParams != nil {
-							newNodes := createStructTypeNodes(n, trans.usages[typeSpec.Name.Name])
+							newNodes := createStructTypeNodes(n, trans.usages.usages[typeSpec.Name.Name])
 							for _, node := range newNodes {
 								c.InsertBefore(node)
 							}
@@ -273,7 +272,7 @@ func (trans *transformer) generateConcreteTypes() func(c *astutil.Cursor) bool {
 			}
 		case *ast.FuncDecl:
 			if n.TypeParams != nil {
-				newNodes := createFuncDeclNodes(n, trans.usages[n.Name.Name])
+				newNodes := createFuncDeclNodes(n, trans.usages.usages[n.Name.Name])
 				for _, node := range newNodes {
 					c.InsertBefore(node)
 				}
@@ -331,7 +330,6 @@ func createFuncDeclNodes(funcDecl *ast.FuncDecl, usages []*usage) []ast.Node {
 	return newNodes
 }
 
-// TODO: handle nested scopes here.
 func replaceIdentsInScope(n ast.Node, mappings map[string]string) ast.Node {
 	return astutil.Apply(n, nil, func(c *astutil.Cursor) bool {
 		if ident, ok := c.Node().(*ast.Ident); ok {
