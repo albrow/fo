@@ -107,7 +107,7 @@ func (p *printer) internalError(msg ...interface{}) {
 	if debug {
 		fmt.Print(p.pos.String() + ": ")
 		fmt.Println(msg...)
-		panic("go/printer")
+		panic("github.com/albrow/fo/printer")
 	}
 }
 

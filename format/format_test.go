@@ -79,7 +79,7 @@ func TestSource(t *testing.T) {
 // The formatted result must look the same as the input for successful tests.
 var tests = []string{
 	// declaration lists
-	`import "go/format"`,
+	`import "github.com/albrow/fo/format"`,
 	"var x int",
 	"var x int\n\ntype T struct{}",
 

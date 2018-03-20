@@ -928,7 +928,7 @@ import (
 	"os"
 	"utf8"
 
-	"go/format"
+	"github.com/albrow/fo/format"
 )
 `,
 		out: `package main
@@ -939,7 +939,7 @@ import (
 	"os"
 	"utf8"
 
-	"go/format"
+	"github.com/albrow/fo/format"
 )
 `,
 	},
@@ -955,7 +955,7 @@ import (
 	"os"   // c
 	"utf8" // d
 
-	"go/format" // e
+	"github.com/albrow/fo/format" // e
 )
 `,
 		out: `package main
@@ -967,7 +967,7 @@ import (
 	"os"   // c
 	"utf8" // d
 
-	"go/format" // e
+	"github.com/albrow/fo/format" // e
 )
 `,
 	},

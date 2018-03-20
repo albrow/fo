@@ -29,8 +29,8 @@ package p /* the name is p */
 import (
 	"bytes"     // bytes
 	"fmt"       // fmt
-	"go/ast"
-	"go/parser"
+	"github.com/albrow/fo/ast"
+	"github.com/albrow/fo/parser"
 )
 
 // T

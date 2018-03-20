@@ -11,8 +11,10 @@ package parser
 
 import (
 	"fmt"
-	"go/scanner"
-	"go/token"
+
+	"github.com/albrow/fo/scanner"
+
+	"github.com/albrow/fo/token"
 
 	"github.com/albrow/fo/ast"
 )
