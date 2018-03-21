@@ -117,27 +117,57 @@ func NewSlice(elem Type) *Slice { return &Slice{elem} }
 // Elem returns the element type of slice s.
 func (s *Slice) Elem() Type { return s.elem }
 
+// TypeParam is an identifier for a type used in generic data structures and
+// functions.
+type TypeParam string
+
+// NewTypeParam returns a new type parameter with the given name.
+func NewTypeParam(name string) *TypeParam {
+	tp := TypeParam(name)
+	return &tp
+}
+
+// Underlying for type parameters always returns the empty interface. The
+// compiler can make no assumptions about the underlying type.
+func (tp *TypeParam) Underlying() Type {
+	return NewInterface(nil, nil)
+}
+
+func (tp TypeParam) String() string {
+	return string(tp)
+}
+
 // A Struct represents a struct type.
 type Struct struct {
-	fields []*Var
-	tags   []string // field tags; nil if there are no tags
+	fields     []*Var
+	tags       []string // field tags; nil if there are no tags
+	typeParams []*TypeParam
 }
 
 // NewStruct returns a new struct with the given fields and corresponding field tags.
 // If a field with index i has a tag, tags[i] must be that tag, but len(tags) may be
 // only as long as required to hold the tag with the largest index i. Consequently,
 // if no field has a tag, tags may be nil.
-func NewStruct(fields []*Var, tags []string) *Struct {
+func NewStruct(fields []*Var, tags []string, typeParams []*TypeParam) *Struct {
 	var fset objset
 	for _, f := range fields {
 		if f.name != "_" && fset.insert(f) != nil {
 			panic("multiple fields with the same name")
 		}
 	}
+	// TODO: test this
+	tset := map[string]struct{}{}
+	for _, t := range typeParams {
+		if _, found := tset[t.String()]; found {
+			panic("multiple type parameters with the same name")
+		} else {
+			tset[t.String()] = struct{}{}
+		}
+	}
 	if len(tags) > len(fields) {
 		panic("more tags than fields")
 	}
-	return &Struct{fields: fields, tags: tags}
+	return &Struct{fields: fields, tags: tags, typeParams: typeParams}
 }
 
 // NumFields returns the number of fields in the struct (including blank and anonymous fields).

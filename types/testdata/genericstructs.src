@@ -1,0 +1,28 @@
+// Copyright 2018 Alex Browne. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+package genericstructs
+
+type A struct::(T) {
+  a T
+  b []T
+  c map[T]T
+  d [5]T
+  e chan T
+  f func(T) T
+  g struct{
+    h T
+  }
+  i *T
+}
+
+type B struct::(T, U) {
+  a map[T]U
+}
+
+// TODO(albrow): this currently fails
+// func main() {
+//   a := A::(string){}
+//   var _ string = a.a
+// }

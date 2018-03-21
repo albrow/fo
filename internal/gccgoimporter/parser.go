@@ -521,7 +521,8 @@ func (p *parser) parseStructType(pkg *types.Package) types.Type {
 	}
 	p.expect('}')
 
-	return types.NewStruct(fields, tags)
+	// TODO(albrow): implement type parameter parsing here?
+	return types.NewStruct(fields, tags, nil)
 }
 
 // ParamList = "(" [ { Parameter "," } Parameter ] ")" .

@@ -285,6 +285,11 @@ func identical(x, y Type, cmpTags bool, p *ifacePair) bool {
 			return x.obj == y.obj
 		}
 
+	case *TypeParam:
+		if y, ok := y.(*TypeParam); ok {
+			return x.String() == y.String()
+		}
+
 	case nil:
 
 	default:

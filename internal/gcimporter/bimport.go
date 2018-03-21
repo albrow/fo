@@ -561,7 +561,8 @@ func (p *importer) typ(parent *types.Package) types.Type {
 	}
 }
 
-func (p *importer) fieldList(parent *types.Package) (fields []*types.Var, tags []string) {
+// TODO(albrow): implement type parameter parsing here?
+func (p *importer) fieldList(parent *types.Package) (fields []*types.Var, tags []string, typeParams []*types.TypeParam) {
 	if n := p.int(); n > 0 {
 		fields = make([]*types.Var, n)
 		tags = make([]string, n)

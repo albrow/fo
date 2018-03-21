@@ -626,6 +626,23 @@ func (check *Checker) structType(styp *Struct, e *ast.StructType, path []*TypeNa
 		return
 	}
 
+	// add type parameters to scope (if any)
+	scope := NewScope(check.scope, e.Pos(), e.End(), "struct type param scope")
+	typeParams := []*TypeParam{}
+	if e.TypeParams != nil {
+		for _, ident := range e.TypeParams.List {
+			tp := NewTypeParam(ident.Name)
+			typeParams = append(typeParams, tp)
+			obj := NewTypeName(ident.Pos(), check.pkg, ident.Name, tp)
+			scopePos := ident.Pos()
+			check.declare(scope, ident, obj, scopePos)
+		}
+	}
+	check.scope = scope
+	defer func() {
+		check.scope = scope.Parent()
+	}()
+
 	// struct fields and tags
 	var fields []*Var
 	var tags []string
@@ -703,6 +720,7 @@ func (check *Checker) structType(styp *Struct, e *ast.StructType, path []*TypeNa
 
 	styp.fields = fields
 	styp.tags = tags
+	styp.typeParams = typeParams
 }
 
 func anonymousFieldIdent(e ast.Expr) *ast.Ident {
