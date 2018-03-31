@@ -15,14 +15,76 @@ type A struct::(T) {
     h T
   }
   i *T
+  j ***T
+  k []map[T]chan T
 }
 
 type B struct::(T, U) {
   a map[T]U
 }
 
-// TODO(albrow): this currently fails
-// func main() {
-//   a := A::(string){}
-//   var _ string = a.a
-// }
+func main() {
+  a := A::(string){}
+  var _ string = a.a
+  var _ []string = a.b
+  var _ map[string]string = a.c
+  var _ [5]string = a.d
+  var _ chan string = a.e
+  var _ func(string) string = a.f
+  var _ struct{h string} = a.g
+  var _ string = a.g.h
+  var _ *string = a.i
+  var _ ***string = a.j
+  var _ []map[string]chan string = a.k
+
+  b := B::(int, float64){}
+  var _ map[int]float64 = b.a
+
+  var _ A::(uint) = A::(uint){}
+  var _ B::(bool, int8) = B::(bool, int8){}
+
+  s := ""
+  var _ A::(string) = A::(string){
+    a: "",
+    b: []string{""},
+    c: map[string]string{
+      "": "",
+    },
+    d: [5]string{"", "", "", "", ""},
+    e: make(chan string),
+    f: func(string) string { return "" },
+    g: struct{
+      h string
+    }{
+      h: "",
+    },
+    i: &s,
+    k: []map[string]chan string{
+      map[string]chan string{
+        "": make(chan string),
+      },
+    },
+  }
+
+  var _ A::(string) = A::(string){
+    a: s,
+    b: []string{s},
+    c: map[string]string{
+      s: s,
+    },
+    d: [5]string{s, s, s, s, s},
+    e: make(chan string),
+    f: func(string) string { return s },
+    g: struct{
+      h string
+    }{
+      h: s,
+    },
+    i: &s,
+    k: []map[string]chan string{
+      map[string]chan string{
+        s: make(chan string),
+      },
+    },
+  }
+}

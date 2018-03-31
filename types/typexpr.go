@@ -39,6 +39,8 @@ func (check *Checker) ident(x *operand, e *ast.Ident, def *Named, path []*TypeNa
 	typ := obj.Type()
 	assert(typ != nil)
 
+	check.typeParams(e, obj)
+
 	// The object may be dot-imported: If so, remove its package from
 	// the map of unused dot imports for the respective file scope.
 	// (This code is only needed for dot-imports. Without them,
@@ -84,6 +86,16 @@ func (check *Checker) ident(x *operand, e *ast.Ident, def *Named, path []*TypeNa
 				// maintain x.mode == typexpr despite error
 				typ = Typ[Invalid]
 				break
+			}
+		}
+		// Generate the corresponding type with type parameters replaced with
+		// concrete types (if needed).
+		if e.TypeParams != nil {
+			if named, ok := obj.Type().(*Named); ok {
+				switch underlying := named.Underlying().(type) {
+				case *Struct:
+					typ = check.generateStructType(e, underlying)
+				}
 			}
 		}
 
