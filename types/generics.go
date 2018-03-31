@@ -89,12 +89,10 @@ func (check *Checker) generateConcreteType(e *ast.Ident) {
 func (check *Checker) generateStructType(e *ast.Ident, typeName *TypeName, named *Named, s *Struct) Object {
 	typeMapping := map[string]Type{}
 	for i, typ := range e.TypeParams.List {
-		if ident, ok := typ.(*ast.Ident); ok {
-			var x operand
-			check.rawExpr(&x, ident, nil)
-			if x.typ != nil {
-				typeMapping[s.typeParams[i].String()] = x.typ
-			}
+		var x operand
+		check.rawExpr(&x, typ, nil)
+		if x.typ != nil {
+			typeMapping[s.typeParams[i].String()] = x.typ
 		}
 	}
 

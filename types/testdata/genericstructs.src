@@ -2,7 +2,12 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// TODO(albrow): Check everything else in transform/transform_test.go related
+// to structs. (e.g. inherited generic types, type assertions, type switches).
+
 package genericstructs
+
+import "bytes"
 
 type A struct::(T) {
   a T
@@ -24,6 +29,7 @@ type B struct::(T, U) {
 }
 
 func main() {
+  // Variable assignment
   a := A::(string){}
   var _ string = a.a
   var _ []string = a.b
@@ -42,7 +48,9 @@ func main() {
 
   var _ A::(uint) = A::(uint){}
   var _ B::(bool, int8) = B::(bool, int8){}
+  var _ A::(bytes.Buffer) = A::(bytes.Buffer){}
 
+  // Struct initialization
   s := ""
   var _ = A::(string){
     a: "",
@@ -66,25 +74,26 @@ func main() {
     },
   }
 
-  var _ = A::(string){
-    a: s,
-    b: []string{s},
-    c: map[string]string{
-      s: s,
-    },
-    d: [5]string{s, s, s, s, s},
-    e: make(chan string),
-    f: func(string) string { return s },
-    g: struct{
-      h string
-    }{
-      h: s,
-    },
-    i: &s,
-    k: []map[string]chan string{
-      map[string]chan string{
-        s: make(chan string),
-      },
-    },
-  }
+  // Concrete types in type switches
+  var x interface{} = A::(int){}
+	switch x.(type) {
+	case A::(int):
+	case A::(string):
+	}
+
+  // Concrete types in type assertions
+  var y interface{} = A::(int){}
+	_ = y.(A::(int))
+	_ = y.(A::(string))
+}
+
+// Usage of concrete struct types in function signatures
+func _() A::(int) {
+	return A::(int){}
+}
+
+func _(_ A::(int)) {
+}
+
+func (A::(int)) _() {
 }
