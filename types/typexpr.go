@@ -24,7 +24,12 @@ func (check *Checker) ident(x *operand, e *ast.Ident, def *Named, path []*TypeNa
 	x.mode = invalid
 	x.expr = e
 
-	scope, obj := check.scope.LookupParent(e.Name, check.pos)
+	if e.TypeParams != nil {
+		// Generate and declare the concrete type on the fly (if needed)
+		check.generateConcreteType(e)
+	}
+
+	scope, obj := check.scope.LookupParent(e.NameWithParams(), check.pos)
 	if obj == nil {
 		if e.Name == "_" {
 			check.errorf(e.Pos(), "cannot use _ as value or type")
@@ -86,16 +91,6 @@ func (check *Checker) ident(x *operand, e *ast.Ident, def *Named, path []*TypeNa
 				// maintain x.mode == typexpr despite error
 				typ = Typ[Invalid]
 				break
-			}
-		}
-		// Generate the corresponding type with type parameters replaced with
-		// concrete types (if needed).
-		if e.TypeParams != nil {
-			if named, ok := obj.Type().(*Named); ok {
-				switch underlying := named.Underlying().(type) {
-				case *Struct:
-					typ = check.generateStructType(e, underlying)
-				}
 			}
 		}
 

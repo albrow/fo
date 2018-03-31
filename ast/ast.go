@@ -9,6 +9,7 @@
 package ast
 
 import (
+	"fmt"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -598,9 +599,21 @@ func IsExported(name string) bool {
 //
 func (id *Ident) IsExported() bool { return IsExported(id.Name) }
 
+func (id *Ident) NameWithParams() string {
+	// TODO(albrow): Can this be optimized? Maybe we can avoid importing fmt?
+	if id.TypeParams == nil {
+		return id.Name
+	}
+	params := []string{}
+	for _, param := range id.TypeParams.List {
+		params = append(params, fmt.Sprint(param))
+	}
+	return id.Name + "::(" + strings.Join(params, ",") + ")"
+}
+
 func (id *Ident) String() string {
 	if id != nil {
-		return id.Name
+		return id.NameWithParams()
 	}
 	return "<nil>"
 }

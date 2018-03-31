@@ -50,9 +50,43 @@ func (check *Checker) typeParams(e *ast.Ident, obj Object) {
 	}
 }
 
-// TODO(albrow): return a named type (e.g. Box::(string)) to make type errors
-// easier to read.
-func (check *Checker) generateStructType(e *ast.Ident, s *Struct) *Struct {
+// generateConcreteType generates (and declares in the appropriate scope) a new
+// concrete type based on the name and type parameters of e.
+func (check *Checker) generateConcreteType(e *ast.Ident) {
+	// Check if the concrete type has already been declared in this scope. If so,
+	// there is nothing more to do here.
+	if _, concrete := check.scope.LookupParent(e.NameWithParams(), check.pos); concrete != nil {
+		return
+	}
+	// If the concrete type has not been declared, we need to look up the generic
+	// type and then generate the concrete type based on its type parameters and
+	// the concrete types provided by e.
+	origScope, obj := check.scope.LookupParent(e.Name, check.pos)
+	if obj == nil {
+		if e.Name == "_" {
+			check.errorf(e.Pos(), "cannot use _ as value or type")
+		} else {
+			check.errorf(e.Pos(), "undeclared name: %s", e.Name)
+		}
+		return
+	}
+
+	typ := obj.Type()
+	assert(typ != nil)
+
+	switch obj := obj.(type) {
+	case *TypeName:
+		if named, ok := obj.Type().(*Named); ok {
+			switch underlying := named.Underlying().(type) {
+			case *Struct:
+				newType := check.generateStructType(e, obj, named, underlying)
+				check.declare(origScope, e, newType, e.Pos())
+			}
+		}
+	}
+}
+
+func (check *Checker) generateStructType(e *ast.Ident, typeName *TypeName, named *Named, s *Struct) Object {
 	typeMapping := map[string]Type{}
 	for i, typ := range e.TypeParams.List {
 		if ident, ok := typ.(*ast.Ident); ok {
@@ -63,7 +97,15 @@ func (check *Checker) generateStructType(e *ast.Ident, s *Struct) *Struct {
 			}
 		}
 	}
-	return replaceTypesInStruct(s, typeMapping)
+
+	newType := replaceTypesInStruct(s, typeMapping)
+	newTypeName := *typeName
+	newNamed := *named
+	newNamed.underlying = newType
+	newNamed.obj = &newTypeName
+	newTypeName.typ = &newNamed
+	newTypeName.name = e.NameWithParams()
+	return &newTypeName
 }
 
 // replaceTypes recursively replaces any type parameters starting at root with
@@ -121,7 +163,7 @@ func replaceTypesInStruct(root *Struct, typeMapping map[string]Type) *Struct {
 		newField.typ = replaceTypes(field.Type(), typeMapping)
 		fields = append(fields, &newField)
 	}
-	return NewStruct(fields, root.tags, nil)
+	return NewStruct(fields, root.tags, root.typeParams)
 }
 
 func replaceTypesInSignature(root *Signature, typeMapping map[string]Type) *Signature {
