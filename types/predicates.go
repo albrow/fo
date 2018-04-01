@@ -7,7 +7,9 @@
 
 package types
 
-import "sort"
+import (
+	"sort"
+)
 
 func isNamed(typ Type) bool {
 	if _, ok := typ.(*Basic); ok {
@@ -180,6 +182,19 @@ func identical(x, y Type, cmpTags bool, p *ifacePair) bool {
 			}
 		}
 
+	case *ConcreteStruct:
+		if y, ok := y.(*ConcreteStruct); ok {
+			if !identical(&x.Struct, &y.Struct, cmpTags, p) {
+				return false
+			}
+			for name, xParam := range x.typeMap {
+				if !identical(y.typeMap[name], xParam, false, nil) {
+					return false
+				}
+			}
+			return true
+		}
+
 	case *Pointer:
 		// Two pointer types are identical if they have identical base types.
 		if y, ok := y.(*Pointer); ok {
@@ -282,6 +297,24 @@ func identical(x, y Type, cmpTags bool, p *ifacePair) bool {
 		// Two named types are identical if their type names originate
 		// in the same type declaration.
 		if y, ok := y.(*Named); ok {
+			// We use a special case here for concrete versions of generic types.
+			// TODO(albrow): Cache concrete types in some sort of special scope. If we
+			// do that, we can compare the objects directly, just like we do with
+			// normal named types.
+			switch xu := x.underlying.(type) {
+			case *ConcreteStruct:
+				if x.obj.Id() != y.obj.Id() {
+					return false
+				}
+				yu, ok := y.underlying.(*ConcreteStruct)
+				if !ok {
+					return false
+				}
+				if !identical(xu, yu, false, nil) {
+					return false
+				}
+				return true
+			}
 			return x.obj == y.obj
 		}
 

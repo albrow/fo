@@ -2,9 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// TODO(albrow): Check everything else in transform/transform_test.go related
-// to structs. (e.g. inherited generic types, type assertions, type switches).
-
 package genericstructs
 
 import "bytes"

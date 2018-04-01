@@ -159,6 +159,43 @@ func lookupFieldOrMethod(T Type, addressable bool, pkg *Package, name string) (o
 					}
 				}
 
+				// TODO(albrow): reduce code duplication between cases for *Struct and
+				// *ConcreteStruct
+			case *ConcreteStruct:
+				// look for a matching field and collect embedded types
+				for i, f := range t.fields {
+					if f.sameId(pkg, name) {
+						assert(f.typ != nil)
+						// Replace types according to the typeMap
+						newField := *f
+						newField.typ = replaceTypes(f.typ, t.typeMap)
+						f = &newField
+						index = concat(e.index, i)
+						if obj != nil || e.multiples {
+							return nil, index, false // collision
+						}
+						obj = f
+						indirect = e.indirect
+						continue // we can't have a matching interface method
+					}
+					// Collect embedded struct fields for searching the next
+					// lower depth, but only if we have not seen a match yet
+					// (if we have a match it is either the desired field or
+					// we have a name collision on the same depth; in either
+					// case we don't need to look further).
+					// Embedded fields are always of the form T or *T where
+					// T is a type name. If e.typ appeared multiple times at
+					// this depth, f.typ appears multiple times at the next
+					// depth.
+					if obj == nil && f.anonymous {
+						typ, isPtr := deref(f.typ)
+						// TODO(gri) optimization: ignore types that can't
+						// have fields or methods (only Named, Struct, and
+						// Interface types need to be considered).
+						next = append(next, embeddedType{typ, concat(e.index, i), e.indirect || isPtr, e.multiples})
+					}
+				}
+
 			case *Interface:
 				// look for a matching method
 				// TODO(gri) t.allMethods is sorted - use binary search

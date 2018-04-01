@@ -1,0 +1,67 @@
+// Copyright 2018 Alex Browne. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+package genericstructs
+
+type A struct::(T) {
+  v T
+}
+
+type B struct::(T, U) {
+  v0 T
+  v1 U
+  v2 map[T]U
+}
+
+type Awrap struct::(T) {
+  a A::(T)
+}
+
+type Bwrap struct::(T, U) {
+  b B::(T, U)
+}
+
+type Bpart struct::(T) {
+  b B::(string, T)
+}
+
+type Adouble struct::(T) {
+  aw Awrap::(T)
+}
+
+func main() {
+  var _ = Awrap::(string) {
+    a: A::(string) {
+      v: "",
+    },
+  }
+
+  var _ = Bwrap::(int, bool) {
+    b: B::(int, bool) {
+      v0: 0,
+      v1: false,
+      v2: map[int]bool{
+        1: true,
+      },
+    },
+  }
+
+  var _ = Bpart::(float64) {
+    b: B::(string, float64) {
+      v0: "",
+      v1: 2,
+      v2: map[string]float64{
+        "": 3,
+      },
+    },
+  }
+
+  var _ = Adouble::(uint) {
+    aw: Awrap::(uint) {
+      a: A::(uint) {
+        v: 123,
+      },
+    },
+  }
+}

@@ -1145,6 +1145,71 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 				}
 			}
 
+			// TODO(alborw): reduce code duplication between *Struct and
+			// *ConcreteStruct cases.
+		case *ConcreteStruct:
+			if len(e.Elts) == 0 {
+				break
+			}
+			fields := utyp.fields
+			if _, ok := e.Elts[0].(*ast.KeyValueExpr); ok {
+				// all elements must have keys
+				visited := make([]bool, len(fields))
+				for _, e := range e.Elts {
+					kv, _ := e.(*ast.KeyValueExpr)
+					if kv == nil {
+						check.error(e.Pos(), "mixture of field:value and value elements in struct literal")
+						continue
+					}
+					key, _ := kv.Key.(*ast.Ident)
+					if key == nil {
+						check.errorf(kv.Pos(), "invalid field name %s in struct literal", kv.Key)
+						continue
+					}
+					i := fieldIndex(utyp.fields, check.pkg, key.Name)
+					if i < 0 {
+						check.errorf(kv.Pos(), "unknown field %s in struct literal", key.Name)
+						continue
+					}
+					fld := fields[i]
+					check.recordUse(key, fld)
+					// 0 <= i < len(fields)
+					if visited[i] {
+						check.errorf(kv.Pos(), "duplicate field name %s in struct literal", key.Name)
+						continue
+					}
+					visited[i] = true
+					check.expr(x, kv.Value)
+					etyp := replaceTypes(fld.typ, utyp.typeMap)
+					check.assignment(x, etyp, "struct literal")
+				}
+			} else {
+				// no element must have a key
+				for i, e := range e.Elts {
+					if kv, _ := e.(*ast.KeyValueExpr); kv != nil {
+						check.error(kv.Pos(), "mixture of field:value and value elements in struct literal")
+						continue
+					}
+					check.expr(x, e)
+					if i >= len(fields) {
+						check.error(x.pos(), "too many values in struct literal")
+						break // cannot continue
+					}
+					// i < len(fields)
+					fld := fields[i]
+					if !fld.Exported() && fld.pkg != check.pkg {
+						check.errorf(x.pos(), "implicit assignment to unexported field %s in %s literal", fld.name, typ)
+						continue
+					}
+					etyp := fld.typ
+					check.assignment(x, etyp, "struct literal")
+				}
+				if len(e.Elts) < len(fields) {
+					check.error(e.Rbrace, "too few values in struct literal")
+					// ok to continue
+				}
+			}
+
 		case *Array:
 			// Prevent crash if the array referred to is not yet set up.
 			// This is a stop-gap solution; a better approach would use the mechanism of

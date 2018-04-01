@@ -10,6 +10,7 @@ package types
 import (
 	"bytes"
 	"fmt"
+	"strings"
 )
 
 // A Qualifier controls how named package-level objects are printed in
@@ -237,8 +238,26 @@ func writeType(buf *bytes.Buffer, typ Type, qf Qualifier, visited []Type) {
 			// differently from named types at package level to avoid
 			// ambiguity.
 			s = obj.name
+			buf.WriteString(s)
+			// Check for special case of concrete versions of generic types.
+			switch u := t.underlying.(type) {
+			case *ConcreteStruct:
+				if u.typeMap != nil && len(u.typeMap) > 0 {
+					params := []string{}
+					for _, param := range u.typeParams {
+						if concrete, found := u.typeMap[param.String()]; found {
+							params = append(params, concrete.String())
+						} else {
+							params = append(params, "?")
+						}
+					}
+					buf.WriteString("::(")
+					// TODO(albrow): Can we avoid using the strings package here?
+					buf.WriteString(strings.Join(params, ","))
+					buf.WriteByte(')')
+				}
+			}
 		}
-		buf.WriteString(s)
 
 	case *TypeParam:
 		buf.WriteString(t.String())

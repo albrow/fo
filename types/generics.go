@@ -6,104 +6,45 @@ import (
 	"github.com/albrow/fo/ast"
 )
 
-// TODO(albrow): test the error case here
-// TODO(alborw): wrap this into the ident function or otherwise make it more
-//               efficient?
-func (check *Checker) typeParams(e *ast.Ident, obj Object) {
-	var givenParams []ast.Expr
-	if e.TypeParams != nil {
-		givenParams = e.TypeParams.List
-	}
-	switch obj := obj.(type) {
+// concreteType returns a new type with the concrete type parameters of e
+// applied.
+func (check *Checker) concreteType(e *ast.Ident, genericObj Object) Type {
+	switch genericObj := genericObj.(type) {
 	case *TypeName:
-		if typ, ok := obj.Type().(*Named); ok {
-			switch underlying := typ.Underlying().(type) {
-			case *Struct:
-				if len(underlying.typeParams) != len(givenParams) {
-					check.error(
-						e.Pos(),
-						fmt.Sprintf(
-							"wrong number of type params for %s (expected %d but got %d)",
-							e.Name,
-							len(underlying.typeParams),
-							len(givenParams),
-						),
-					)
-				}
-				return
-			}
-		}
-	case *Func:
-		// TODO(albrow): Implement this.
-		return
-	}
-	if len(givenParams) != 0 {
-		check.error(
-			e.Pos(),
-			fmt.Sprintf(
-				"wrong number of type params for %s (%T) (expected 0 but got %d)",
-				e.Name,
-				obj,
-				len(givenParams),
-			),
-		)
-	}
-}
-
-// generateConcreteType generates (and declares in the appropriate scope) a new
-// concrete type based on the name and type parameters of e.
-func (check *Checker) generateConcreteType(e *ast.Ident) {
-	// Check if the concrete type has already been declared in this scope. If so,
-	// there is nothing more to do here.
-	if _, concrete := check.scope.LookupParent(e.NameWithParams(), check.pos); concrete != nil {
-		return
-	}
-	// If the concrete type has not been declared, we need to look up the generic
-	// type and then generate the concrete type based on its type parameters and
-	// the concrete types provided by e.
-	origScope, obj := check.scope.LookupParent(e.Name, check.pos)
-	if obj == nil {
-		if e.Name == "_" {
-			check.errorf(e.Pos(), "cannot use _ as value or type")
-		} else {
-			check.errorf(e.Pos(), "undeclared name: %s", e.Name)
-		}
-		return
-	}
-
-	typ := obj.Type()
-	assert(typ != nil)
-
-	switch obj := obj.(type) {
-	case *TypeName:
-		if named, ok := obj.Type().(*Named); ok {
+		if named, ok := genericObj.Type().(*Named); ok {
 			switch underlying := named.Underlying().(type) {
 			case *Struct:
-				newType := check.generateStructType(e, obj, named, underlying)
-				check.declare(origScope, e, newType, e.Pos())
+				// TODO(albrow): ache concrete types in some sort of special scope so we
+				// can avoid re-generating the concrete types on each usage.
+				typeMap := check.createTypeMap(e.TypeParams, underlying.typeParams)
+				newType := underlying.NewConcrete(typeMap)
+				newTypeName := *genericObj
+				newNamed := *named
+				newNamed.underlying = newType
+				newNamed.obj = &newTypeName
+				newTypeName.typ = &newNamed
+				// newTypeName.name = e.NameWithParams()
+				return &newNamed
 			}
 		}
 	}
+
+	check.errorf(check.pos, "unexpected generic type for ident %s: %T", e.Name, genericObj)
+	return nil
 }
 
-func (check *Checker) generateStructType(e *ast.Ident, typeName *TypeName, named *Named, s *Struct) Object {
-	typeMapping := map[string]Type{}
-	for i, typ := range e.TypeParams.List {
+// TODO(albrow): catch case where the wrong number of type parameters has been
+// given and test it.
+func (check *Checker) createTypeMap(params *ast.ConcreteTypeParamList, genericParams []*TypeParam) map[string]Type {
+	typeMap := map[string]Type{}
+	for i, typ := range params.List {
 		var x operand
 		check.rawExpr(&x, typ, nil)
 		if x.typ != nil {
-			typeMapping[s.typeParams[i].String()] = x.typ
+			typeMap[genericParams[i].String()] = x.typ
 		}
 	}
-
-	newType := replaceTypesInStruct(s, typeMapping)
-	newTypeName := *typeName
-	newNamed := *named
-	newNamed.underlying = newType
-	newNamed.obj = &newTypeName
-	newTypeName.typ = &newNamed
-	newTypeName.name = e.NameWithParams()
-	return &newTypeName
+	return typeMap
 }
 
 // replaceTypes recursively replaces any type parameters starting at root with
@@ -150,6 +91,8 @@ func replaceTypes(root Type, typeMapping map[string]Type) Type {
 		return replaceTypesInStruct(t, typeMapping)
 	case *Signature:
 		return replaceTypesInSignature(t, typeMapping)
+	case *Named:
+		return replaceTypesInNamed(t, typeMapping)
 	}
 	return root
 }
@@ -192,4 +135,26 @@ func replaceTypesInSignature(root *Signature, typeMapping map[string]Type) *Sign
 	}
 
 	return NewSignature(newRecv, newParams, newResults, root.variadic)
+}
+
+func replaceTypesInNamed(root *Named, typeMapping map[string]Type) *Named {
+	switch u := root.underlying.(type) {
+	case *ConcreteStruct:
+		newTypeMap := map[string]Type{}
+		for key, given := range u.typeMap {
+			if param, ok := given.(*TypeParam); ok {
+				if inherited, found := typeMapping[param.String()]; found {
+					newTypeMap[key] = inherited
+					continue
+				}
+			}
+			newTypeMap[key] = given
+		}
+		newU := *u
+		newU.typeMap = newTypeMap
+		newRoot := *root
+		newRoot.underlying = &newU
+		return &newRoot
+	}
+	return root
 }

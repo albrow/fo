@@ -144,6 +144,13 @@ type Struct struct {
 	typeParams []*TypeParam
 }
 
+// ConcreteStruct represents a generic struct type with concrete type parameters
+// supplied.
+type ConcreteStruct struct {
+	Struct
+	typeMap map[string]Type
+}
+
 // NewStruct returns a new struct with the given fields and corresponding field tags.
 // If a field with index i has a tag, tags[i] must be that tag, but len(tags) may be
 // only as long as required to hold the tag with the largest index i. Consequently,
@@ -182,6 +189,15 @@ func (s *Struct) Tag(i int) string {
 		return s.tags[i]
 	}
 	return ""
+}
+
+// NewConcrete returns a new concrete instance of the struct type with the given
+// concrete type parameters.
+func (s *Struct) NewConcrete(typeMap map[string]Type) *ConcreteStruct {
+	return &ConcreteStruct{
+		Struct:  *s,
+		typeMap: typeMap,
+	}
 }
 
 // A Pointer represents a pointer type.

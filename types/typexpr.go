@@ -24,12 +24,7 @@ func (check *Checker) ident(x *operand, e *ast.Ident, def *Named, path []*TypeNa
 	x.mode = invalid
 	x.expr = e
 
-	if e.TypeParams != nil {
-		// Generate and declare the concrete type on the fly (if needed)
-		check.generateConcreteType(e)
-	}
-
-	scope, obj := check.scope.LookupParent(e.NameWithParams(), check.pos)
+	scope, obj := check.scope.LookupParent(e.Name, check.pos)
 	if obj == nil {
 		if e.Name == "_" {
 			check.errorf(e.Pos(), "cannot use _ as value or type")
@@ -44,7 +39,11 @@ func (check *Checker) ident(x *operand, e *ast.Ident, def *Named, path []*TypeNa
 	typ := obj.Type()
 	assert(typ != nil)
 
-	check.typeParams(e, obj)
+	if e.TypeParams != nil {
+		// For generic types, we generate the corresponding concrete type on the
+		// fly.
+		typ = check.concreteType(e, obj)
+	}
 
 	// The object may be dot-imported: If so, remove its package from
 	// the map of unused dot imports for the respective file scope.
