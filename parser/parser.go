@@ -971,10 +971,15 @@ func (p *parser) parseFuncType() (*ast.FuncType, *ast.Scope) {
 	}
 
 	pos := p.expect(token.FUNC)
+	// If the next token is a '::' then we expect a list of generic parameters.
+	var typeParams *ast.TypeParamList
+	if p.tok == token.DOUBLE_COLON {
+		typeParams = p.parseTypeParamList()
+	}
 	scope := ast.NewScope(p.topScope) // function scope
 	params, results := p.parseSignature(scope)
 
-	return &ast.FuncType{Func: pos, Params: params, Results: results}, scope
+	return &ast.FuncType{Func: pos, TypeParams: typeParams, Params: params, Results: results}, scope
 }
 
 func (p *parser) parseMethodSpec(scope *ast.Scope) *ast.Field {
@@ -2482,14 +2487,14 @@ func (p *parser) parseFuncDecl() *ast.FuncDecl {
 	p.expectSemi()
 
 	decl := &ast.FuncDecl{
-		Doc:        doc,
-		Recv:       recv,
-		TypeParams: typeParams,
-		Name:       ident,
+		Doc:  doc,
+		Recv: recv,
+		Name: ident,
 		Type: &ast.FuncType{
-			Func:    pos,
-			Params:  params,
-			Results: results,
+			Func:       pos,
+			TypeParams: typeParams,
+			Params:     params,
+			Results:    results,
 		},
 		Body: body,
 	}

@@ -62,6 +62,7 @@ var valids = []string{
 	`package p; func::(T) f() T {}`,
 	`package p; func::(T) (t T) f() {}`,
 	`package p; func::(T, U, V) (t T) f(u U) V {}`,
+	`package p; var _ = func::(T)(){}`,
 
 	// Top-level variable assignments
 	`package p; var x T::(U)`,

@@ -136,7 +136,7 @@ func (trans *transformer) parse(root ast.Node, parent *declaration) {
 	ast.Inspect(root, func(n ast.Node) bool {
 		switch x := n.(type) {
 		case *ast.FuncDecl:
-			if x.TypeParams == nil {
+			if x.Type.TypeParams == nil {
 				return true
 			}
 			// There may be nested type parameters inside of the function that refer
@@ -150,7 +150,7 @@ func (trans *transformer) parse(root ast.Node, parent *declaration) {
 			// assumes you cannot have nested generic type declarations).
 			decl := &declaration{
 				typ:      x.Name,
-				params:   x.TypeParams,
+				params:   x.Type.TypeParams,
 				children: &usageSet{},
 			}
 			trans.addDecl(decl)
@@ -158,7 +158,7 @@ func (trans *transformer) parse(root ast.Node, parent *declaration) {
 				trans.parse(x.Recv, decl)
 			}
 			trans.parse(x.Type, decl)
-			trans.parse(x.TypeParams, decl)
+			trans.parse(x.Type.TypeParams, decl)
 			if x.Body != nil {
 				trans.parse(x.Body, decl)
 			}
@@ -271,7 +271,7 @@ func (trans *transformer) generateConcreteTypes() func(c *astutil.Cursor) bool {
 				}
 			}
 		case *ast.FuncDecl:
-			if n.TypeParams != nil {
+			if n.Type.TypeParams != nil {
 				newNodes := createFuncDeclNodes(n, trans.usages.usages[n.Name.Name])
 				for _, node := range newNodes {
 					c.InsertBefore(node)
@@ -322,7 +322,7 @@ func createStructTypeNodes(genDecl *ast.GenDecl, usages []*usage) []ast.Node {
 func createFuncDeclNodes(funcDecl *ast.FuncDecl, usages []*usage) []ast.Node {
 	newNodes := []ast.Node{}
 	for _, usg := range usages {
-		mappings := createTypeMappings(funcDecl.TypeParams, usg.stringParams())
+		mappings := createTypeMappings(funcDecl.Type.TypeParams, usg.stringParams())
 		newDecl := replaceIdentsInScope(astclone.Clone(funcDecl), mappings).(*ast.FuncDecl)
 		newDecl.Name = ast.NewIdent(generateTypeName(funcDecl.Name.Name, usg.stringParams()))
 		newNodes = append(newNodes, newDecl)
