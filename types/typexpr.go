@@ -153,6 +153,24 @@ func (check *Checker) typ(e ast.Expr) Type {
 
 // funcType type-checks a function or method type.
 func (check *Checker) funcType(sig *Signature, recvPar *ast.FieldList, ftyp *ast.FuncType) {
+	// Add type parameters to scope (if any)
+	origScope := check.scope
+	typeParams := []*TypeParam{}
+	if ftyp.TypeParams != nil {
+		tscope := NewScope(check.scope, check.scope.Pos(), check.scope.End(), "function type parameters")
+		for _, ident := range ftyp.TypeParams.List {
+			tp := NewTypeParam(ident.Name)
+			typeParams = append(typeParams, tp)
+			obj := NewTypeName(ident.Pos(), check.pkg, ident.Name, tp)
+			scopePos := ident.Pos()
+			check.declare(tscope, ident, obj, scopePos)
+		}
+		check.scope = tscope
+		defer func() {
+			check.scope = origScope
+		}()
+	}
+
 	scope := NewScope(check.scope, token.NoPos, token.NoPos, "function")
 	scope.isFunc = true
 	check.recordScope(ftyp, scope)
@@ -632,10 +650,11 @@ func (check *Checker) structType(styp *Struct, e *ast.StructType, path []*TypeNa
 		return
 	}
 
-	// add type parameters to scope (if any)
-	scope := NewScope(check.scope, e.Pos(), e.End(), "struct type param scope")
+	// Add type parameters to scope (if any)
 	typeParams := []*TypeParam{}
 	if e.TypeParams != nil {
+		origScope := check.scope
+		scope := NewScope(origScope, e.Pos(), e.End(), "struct type parameters")
 		for _, ident := range e.TypeParams.List {
 			tp := NewTypeParam(ident.Name)
 			typeParams = append(typeParams, tp)
@@ -643,11 +662,11 @@ func (check *Checker) structType(styp *Struct, e *ast.StructType, path []*TypeNa
 			scopePos := ident.Pos()
 			check.declare(scope, ident, obj, scopePos)
 		}
+		check.scope = scope
+		defer func() {
+			check.scope = origScope
+		}()
 	}
-	check.scope = scope
-	defer func() {
-		check.scope = scope.Parent()
-	}()
 
 	// struct fields and tags
 	var fields []*Var

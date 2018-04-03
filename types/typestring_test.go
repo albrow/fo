@@ -141,7 +141,7 @@ func TestTypeString(t *testing.T) {
 }
 
 func TestIncompleteInterfaces(t *testing.T) {
-	sig := NewSignature(nil, nil, nil, false)
+	sig := NewSignature(nil, nil, nil, false, nil)
 	for _, test := range []struct {
 		typ  *Interface
 		want string

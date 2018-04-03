@@ -240,6 +240,9 @@ func writeType(buf *bytes.Buffer, typ Type, qf Qualifier, visited []Type) {
 			s = obj.name
 			buf.WriteString(s)
 			// Check for special case of concrete versions of generic types.
+			// TODO(albrow): Should we just add generated concrete struct types to
+			// scope with a generated name (e.g. Box::(string)) so we can avoid this
+			// special case?
 			switch u := t.underlying.(type) {
 			case *ConcreteStruct:
 				if u.typeMap != nil && len(u.typeMap) > 0 {

@@ -1,0 +1,105 @@
+// Copyright 2018 Alex Browne. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+package genericfuncs
+
+func::(T) a(x T) {
+  var _ T = x
+  var _ []T = []T{x}
+  var _ map[T]T = map[T]T{
+    x: x,
+  }
+  var _ [5]T = [5]T{x, x, x, x, x}
+  var _ chan T = make(chan T)
+  var _ func(T) T = func(y T) T {
+    return y
+  }
+  var _ struct{
+    y T
+  } = struct{
+    y T
+  }{
+    y: x,
+  }
+  var _ *T = &x
+  var _ ***T
+  var _ []map[T]chan T = []map[T]chan T{
+    map[T]chan T{
+      x: make(chan T),
+    },
+  }
+}
+
+func::(T) b(x T) T {
+  return x
+}
+
+func::(T) c(x T) []T {
+  return []T{x}
+}
+
+func::(T) d(x T) map[T]T {
+  return map[T]T{
+    x: x,
+  }
+}
+
+func::(T) e(x T) [5]T {
+  return [5]T{x, x, x, x, x}
+}
+
+func::(T) f(x T) chan T {
+  c := make(chan T)
+  c <- x
+  return c
+}
+
+func::(T) g(x T) func(T) T {
+  return func(y T) T {
+    return y
+  }
+}
+
+func::(T) h(x T) struct{y T} {
+  return struct{
+    y T
+  }{
+    y: x,
+  }
+}
+
+func::(T) i(x T) *T {
+  return &x
+}
+
+func::(T) j(x T) ***T {
+  x0 := &x
+  x1 := &x0
+  return &x1
+}
+
+func::(T) k(x T) []map[T]chan T {
+  return []map[T]chan T {
+    map[T]chan T{
+      x: make(chan T),
+    },
+  }
+}
+
+func main() {
+// TODO(albrow): Implement usage of generic functions and uncomment this
+// section.
+
+//  var _ string = a::(string)("")
+//  var _ []string = b::(string)("")
+//  var _ map[string]string = c::(string)("")
+//  var _ [5]string = d::(string)("")
+//  var _ chan string = e::(string)("")
+//  var _ func(string) string = f::(string)("")
+//  var _ struct{h string} = g::(string)("")
+//  var _ string = (g::(string)("")).h
+//  var _ *string = i::(string)("")
+//  var _ ***string = j::(string)("")
+//  var _ []map[string]chan string = k::(string)("")
+}

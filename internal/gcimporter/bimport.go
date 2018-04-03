@@ -284,7 +284,8 @@ func (p *importer) obj(tag int) {
 		pkg, name := p.qualifiedName()
 		params, isddd := p.paramList()
 		result, _ := p.paramList()
-		sig := types.NewSignature(nil, params, result, isddd)
+		// TODO(albrow): implement type parameter parsing here?
+		sig := types.NewSignature(nil, params, result, isddd, nil)
 		p.declare(types.NewFunc(pos, pkg, name, sig))
 
 	default:
@@ -436,7 +437,8 @@ func (p *importer) typ(parent *types.Package) types.Type {
 			result, _ := p.paramList()
 			p.int() // go:nointerface pragma - discarded
 
-			sig := types.NewSignature(recv.At(0), params, result, isddd)
+			// TODO(albrow): implement type parameter parsing here?
+			sig := types.NewSignature(recv.At(0), params, result, isddd, nil)
 			t0.AddMethod(types.NewFunc(pos, parent, name, sig))
 		}
 
@@ -496,7 +498,8 @@ func (p *importer) typ(parent *types.Package) types.Type {
 
 		params, isddd := p.paramList()
 		result, _ := p.paramList()
-		*t = *types.NewSignature(nil, params, result, isddd)
+		// TODO(albrow): implement type parameter parsing here?
+		*t = *types.NewSignature(nil, params, result, isddd, nil)
 		return t
 
 	case interfaceTag:
@@ -615,7 +618,8 @@ func (p *importer) method(parent *types.Package) *types.Func {
 	pkg, name, _ := p.fieldName(parent)
 	params, isddd := p.paramList()
 	result, _ := p.paramList()
-	sig := types.NewSignature(nil, params, result, isddd)
+	// TODO(albrow): implement type parameter parsing here?
+	sig := types.NewSignature(nil, params, result, isddd, nil)
 	return types.NewFunc(pos, pkg, name, sig)
 }
 

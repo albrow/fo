@@ -162,7 +162,10 @@ func NewStruct(fields []*Var, tags []string, typeParams []*TypeParam) *Struct {
 			panic("multiple fields with the same name")
 		}
 	}
-	// TODO: test this
+	if len(tags) > len(fields) {
+		panic("more tags than fields")
+	}
+	// TODO(albrow): test this
 	tset := map[string]struct{}{}
 	for _, t := range typeParams {
 		if _, found := tset[t.String()]; found {
@@ -170,9 +173,6 @@ func NewStruct(fields []*Var, tags []string, typeParams []*TypeParam) *Struct {
 		} else {
 			tset[t.String()] = struct{}{}
 		}
-	}
-	if len(tags) > len(fields) {
-		panic("more tags than fields")
 	}
 	return &Struct{fields: fields, tags: tags, typeParams: typeParams}
 }
@@ -190,6 +190,8 @@ func (s *Struct) Tag(i int) string {
 	}
 	return ""
 }
+
+// TODO(albrow): Add exported function for accessing struct type parameters?
 
 // NewConcrete returns a new concrete instance of the struct type with the given
 // concrete type parameters.
@@ -244,18 +246,26 @@ type Signature struct {
 	// and store it in the Func Object) because when type-checking a function
 	// literal we call the general type checker which returns a general Type.
 	// We then unpack the *Signature and use the scope for the literal body.
-	scope    *Scope // function scope, present for package-local signatures
-	recv     *Var   // nil if not a method
-	params   *Tuple // (incoming) parameters from left to right; or nil
-	results  *Tuple // (outgoing) results from left to right; or nil
-	variadic bool   // true if the last parameter's type is of the form ...T (or string, for append built-in only)
+	scope      *Scope       // function scope, present for package-local signatures
+	recv       *Var         // nil if not a method
+	params     *Tuple       // (incoming) parameters from left to right; or nil
+	results    *Tuple       // (outgoing) results from left to right; or nil
+	variadic   bool         // true if the last parameter's type is of the form ...T (or string, for append built-in only)
+	typeParams []*TypeParam // generic type parameters (if any)
+}
+
+// ConcreteSignature represents a generic signature type with concrete type
+// parameters supplied.
+type ConcreteSignature struct {
+	Signature
+	typeMap map[string]Type
 }
 
 // NewSignature returns a new function type for the given receiver, parameters,
 // and results, either of which may be nil. If variadic is set, the function
 // is variadic, it must have at least one parameter, and the last parameter
 // must be of unnamed slice type.
-func NewSignature(recv *Var, params, results *Tuple, variadic bool) *Signature {
+func NewSignature(recv *Var, params, results *Tuple, variadic bool, typeParams []*TypeParam) *Signature {
 	if variadic {
 		n := params.Len()
 		if n == 0 {
@@ -265,7 +275,16 @@ func NewSignature(recv *Var, params, results *Tuple, variadic bool) *Signature {
 			panic("types.NewSignature: variadic parameter must be of unnamed slice type")
 		}
 	}
-	return &Signature{nil, recv, params, results, variadic}
+	// TODO(albrow): test this
+	tset := map[string]struct{}{}
+	for _, t := range typeParams {
+		if _, found := tset[t.String()]; found {
+			panic("multiple type parameters with the same name")
+		} else {
+			tset[t.String()] = struct{}{}
+		}
+	}
+	return &Signature{nil, recv, params, results, variadic, typeParams}
 }
 
 // Recv returns the receiver of signature s (if a method), or nil if a
@@ -284,6 +303,17 @@ func (s *Signature) Results() *Tuple { return s.results }
 
 // Variadic reports whether the signature s is variadic.
 func (s *Signature) Variadic() bool { return s.variadic }
+
+// NewConcrete returns a new concrete instance of the signature type with the
+// given concrete type parameters.
+func (s *Signature) NewConcrete(typeMap map[string]Type) *ConcreteSignature {
+	return &ConcreteSignature{
+		Signature: *s,
+		typeMap:   typeMap,
+	}
+}
+
+// TODO(albrow): Add exported function for accessing signature type parameters?
 
 // An Interface represents an interface type.
 type Interface struct {

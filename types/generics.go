@@ -14,8 +14,8 @@ func (check *Checker) concreteType(e *ast.Ident, genericObj Object) Type {
 		if named, ok := genericObj.Type().(*Named); ok {
 			switch underlying := named.Underlying().(type) {
 			case *Struct:
-				// TODO(albrow): ache concrete types in some sort of special scope so we
-				// can avoid re-generating the concrete types on each usage.
+				// TODO(albrow): cache concrete types in some sort of special scope so
+				// we can avoid re-generating the concrete types on each usage.
 				typeMap := check.createTypeMap(e.TypeParams, underlying.typeParams)
 				newType := underlying.NewConcrete(typeMap)
 				newTypeName := *genericObj
@@ -134,7 +134,9 @@ func replaceTypesInSignature(root *Signature, typeMapping map[string]Type) *Sign
 		}
 	}
 
-	return NewSignature(newRecv, newParams, newResults, root.variadic)
+	// TODO(albrow): Implement inherited type parameters here.
+
+	return NewSignature(newRecv, newParams, newResults, root.variadic, root.typeParams)
 }
 
 func replaceTypesInNamed(root *Named, typeMapping map[string]Type) *Named {
