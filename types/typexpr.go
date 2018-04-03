@@ -232,6 +232,7 @@ func (check *Checker) funcType(sig *Signature, recvPar *ast.FieldList, ftyp *ast
 	sig.params = NewTuple(params...)
 	sig.results = NewTuple(results...)
 	sig.variadic = variadic
+	sig.typeParams = typeParams
 }
 
 // typExprInternal drives type checking of types.

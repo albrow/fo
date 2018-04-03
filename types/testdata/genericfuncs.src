@@ -4,7 +4,7 @@
 
 package genericfuncs
 
-func::(T) a(x T) {
+func::(T) _(x T) {
   var _ T = x
   var _ []T = []T{x}
   var _ map[T]T = map[T]T{
@@ -31,37 +31,37 @@ func::(T) a(x T) {
   }
 }
 
-func::(T) b(x T) T {
+func::(T) a(x T) T {
   return x
 }
 
-func::(T) c(x T) []T {
+func::(T) b(x T) []T {
   return []T{x}
 }
 
-func::(T) d(x T) map[T]T {
+func::(T) c(x T) map[T]T {
   return map[T]T{
     x: x,
   }
 }
 
-func::(T) e(x T) [5]T {
+func::(T) d(x T) [5]T {
   return [5]T{x, x, x, x, x}
 }
 
-func::(T) f(x T) chan T {
+func::(T) e(x T) chan T {
   c := make(chan T)
   c <- x
   return c
 }
 
-func::(T) g(x T) func(T) T {
+func::(T) f(x T) func(T) T {
   return func(y T) T {
     return y
   }
 }
 
-func::(T) h(x T) struct{y T} {
+func::(T) g(x T) struct{y T} {
   return struct{
     y T
   }{
@@ -69,17 +69,17 @@ func::(T) h(x T) struct{y T} {
   }
 }
 
-func::(T) i(x T) *T {
+func::(T) h(x T) *T {
   return &x
 }
 
-func::(T) j(x T) ***T {
+func::(T) i(x T) ***T {
   x0 := &x
   x1 := &x0
   return &x1
 }
 
-func::(T) k(x T) []map[T]chan T {
+func::(T) j(x T) []map[T]chan T {
   return []map[T]chan T {
     map[T]chan T{
       x: make(chan T),
@@ -87,19 +87,39 @@ func::(T) k(x T) []map[T]chan T {
   }
 }
 
-func main() {
-// TODO(albrow): Implement usage of generic functions and uncomment this
-// section.
+func::(T) k() []T {
+  return []T{}
+}
 
-//  var _ string = a::(string)("")
-//  var _ []string = b::(string)("")
-//  var _ map[string]string = c::(string)("")
-//  var _ [5]string = d::(string)("")
-//  var _ chan string = e::(string)("")
-//  var _ func(string) string = f::(string)("")
-//  var _ struct{h string} = g::(string)("")
-//  var _ string = (g::(string)("")).h
-//  var _ *string = i::(string)("")
-//  var _ ***string = j::(string)("")
-//  var _ []map[string]chan string = k::(string)("")
+func::(T, U) l() map[T]U {
+  return map[T]U{}
+}
+
+func main() {
+  // Return value assignment
+  var _ string = a::(string)("")
+  var _ []string = b::(string)("")
+  var _ map[string]string = c::(string)("")
+  var _ [5]string = d::(string)("")
+  var _ chan string = e::(string)("")
+  var _ func(string) string = f::(string)("")
+  var _ struct{y string} = g::(string)("")
+  var _ string = (g::(string)("")).y
+  var _ *string = h::(string)("")
+  var _ ***string = i::(string)("")
+  var _ []map[string]chan string = j::(string)("")
+  var _ []string = k::(string)()
+  var _ map[int]string = l::(int, string)()
+
+  // Assigning functions as values
+  var _ func(string) string = a::(string)
+  var _ func(string) []string = b::(string)
+  var _ func(string) map[string]string = c::(string)
+  var _ func(string) [5]string = d::(string)
+  var _ func(string) chan string = e::(string)
+  var _ func(string) func(string) string = f::(string)
+  var _ func(string) struct{y string} = g::(string)
+  var _ func(string) *string = h::(string)
+  var _ func(string) ***string = i::(string)
+  var _ func(string) []map[string]chan string = j::(string)
 }

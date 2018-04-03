@@ -145,6 +145,10 @@ func writeType(buf *bytes.Buffer, typ Type, qf Qualifier, visited []Type) {
 		buf.WriteString("func")
 		writeSignature(buf, t, qf, visited)
 
+	case *ConcreteSignature:
+		buf.WriteString("func")
+		writeSignature(buf, &t.Signature, qf, visited)
+
 	case *Interface:
 		// We write the source-level methods and embedded types rather
 		// than the actual method set since resolved method signatures
@@ -245,19 +249,8 @@ func writeType(buf *bytes.Buffer, typ Type, qf Qualifier, visited []Type) {
 			// special case?
 			switch u := t.underlying.(type) {
 			case *ConcreteStruct:
-				if u.typeMap != nil && len(u.typeMap) > 0 {
-					params := []string{}
-					for _, param := range u.typeParams {
-						if concrete, found := u.typeMap[param.String()]; found {
-							params = append(params, concrete.String())
-						} else {
-							params = append(params, "?")
-						}
-					}
-					buf.WriteString("::(")
-					// TODO(albrow): Can we avoid using the strings package here?
-					buf.WriteString(strings.Join(params, ","))
-					buf.WriteByte(')')
+				if u.typeMap != nil {
+					writeConcreteTypeParams(buf, u.typeMap, u.typeParams)
 				}
 			}
 		}
@@ -330,4 +323,19 @@ func writeSignature(buf *bytes.Buffer, sig *Signature, qf Qualifier, visited []T
 
 	// multiple or named result(s)
 	writeTuple(buf, sig.results, false, qf, visited)
+}
+
+func writeConcreteTypeParams(buf *bytes.Buffer, typeMap map[string]Type, typeParams []*TypeParam) {
+	params := []string{}
+	for _, param := range typeParams {
+		if concrete, found := typeMap[param.String()]; found {
+			params = append(params, concrete.String())
+		} else {
+			params = append(params, "?")
+		}
+	}
+	buf.WriteString("::(")
+	// TODO(albrow): Can we avoid using the strings package here?
+	buf.WriteString(strings.Join(params, ","))
+	buf.WriteByte(')')
 }

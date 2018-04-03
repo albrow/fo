@@ -229,6 +229,19 @@ func identical(x, y Type, cmpTags bool, p *ifacePair) bool {
 				identical(x.results, y.results, cmpTags, p)
 		}
 
+	case *ConcreteSignature:
+		if y, ok := y.(*ConcreteSignature); ok {
+			if !identical(&x.Signature, &y.Signature, cmpTags, p) {
+				return false
+			}
+			for name, xParam := range x.typeMap {
+				if !identical(y.typeMap[name], xParam, false, nil) {
+					return false
+				}
+			}
+			return true
+		}
+
 	case *Interface:
 		// Two interface types are identical if they have the same set of methods with
 		// the same names and identical function types. Lower-case method names from

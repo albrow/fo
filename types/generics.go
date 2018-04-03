@@ -14,7 +14,7 @@ func (check *Checker) concreteType(e *ast.Ident, genericObj Object) Type {
 		if named, ok := genericObj.Type().(*Named); ok {
 			switch underlying := named.Underlying().(type) {
 			case *Struct:
-				// TODO(albrow): cache concrete types in some sort of special scope so
+				// TODO(albrow): Cache concrete types in some sort of special scope so
 				// we can avoid re-generating the concrete types on each usage.
 				typeMap := check.createTypeMap(e.TypeParams, underlying.typeParams)
 				newType := underlying.NewConcrete(typeMap)
@@ -26,6 +26,18 @@ func (check *Checker) concreteType(e *ast.Ident, genericObj Object) Type {
 				// newTypeName.name = e.NameWithParams()
 				return &newNamed
 			}
+		}
+	case *Func:
+		if sig, ok := genericObj.typ.(*Signature); ok {
+			// TODO(albrow): Cache concrete types in some sort of special scope so
+			// we can avoid re-generating the concrete types on each usage.
+			// TODO(albrow): Use a named type/function decl here for better error
+			// messages.
+			typeMap := check.createTypeMap(e.TypeParams, sig.typeParams)
+			newSig := replaceTypesInSignature(sig, typeMap)
+			newType := newSig.NewConcrete(typeMap)
+			// newTypeName.name = e.NameWithParams()
+			return newType
 		}
 	}
 
@@ -125,7 +137,7 @@ func replaceTypesInSignature(root *Signature, typeMapping map[string]Type) *Sign
 	}
 
 	var newResults *Tuple
-	if root.params != nil && len(root.params.vars) > 0 {
+	if root.results != nil && len(root.results.vars) > 0 {
 		newResults = &Tuple{}
 		for _, result := range root.results.vars {
 			newResult := *result
@@ -134,7 +146,7 @@ func replaceTypesInSignature(root *Signature, typeMapping map[string]Type) *Sign
 		}
 	}
 
-	// TODO(albrow): Implement inherited type parameters here.
+	// TODO(albrow): Implement inherited type parameters here?
 
 	return NewSignature(newRecv, newParams, newResults, root.variadic, root.typeParams)
 }
