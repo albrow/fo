@@ -1041,6 +1041,13 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 			//           the exact position where the closure appears
 			//           in the source; e.g., variables declared below
 			//           must not be visible).
+
+			// TODO(albrow): Test this
+			// TODO(albrow): Eventually implement support for generic anonymous
+			// functions
+			if len(sig.typeParams) > 0 {
+				check.error(e.Pos(), "type parameters not supported for anonymous functions")
+			}
 			check.funcBody(check.decl, "", sig, e.Body)
 			x.mode = value
 			x.typ = sig
