@@ -929,12 +929,6 @@ func (p *printer) print(args ...interface{}) {
 		case *ast.TypeParamList:
 			p.print(token.DOUBLE_COLON)
 			p.print(token.LPAREN)
-			p.identList(x.List, false)
-			p.print(token.RPAREN)
-
-		case *ast.ConcreteTypeParamList:
-			p.print(token.DOUBLE_COLON)
-			p.print(token.LPAREN)
 			p.exprList(token.NoPos, x.List, 1, noIndent, token.NoPos)
 			p.print(token.RPAREN)
 

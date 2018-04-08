@@ -182,19 +182,6 @@ func identical(x, y Type, cmpTags bool, p *ifacePair) bool {
 			}
 		}
 
-	case *ConcreteStruct:
-		if y, ok := y.(*ConcreteStruct); ok {
-			if !identical(&x.Struct, &y.Struct, cmpTags, p) {
-				return false
-			}
-			for name, xParam := range x.typeMap {
-				if !identical(y.typeMap[name], xParam, false, nil) {
-					return false
-				}
-			}
-			return true
-		}
-
 	case *Pointer:
 		// Two pointer types are identical if they have identical base types.
 		if y, ok := y.(*Pointer); ok {
@@ -224,6 +211,11 @@ func identical(x, y Type, cmpTags bool, p *ifacePair) bool {
 		// and either both functions are variadic or neither is. Parameter and result
 		// names are not required to match.
 		if y, ok := y.(*Signature); ok {
+			// TODO(albrow): test this case. Especially when two signatures use
+			// different parameter names.
+			if len(x.typeParams) != len(y.typeParams) {
+				return false
+			}
 			return x.variadic == y.variadic &&
 				identical(x.params, y.params, cmpTags, p) &&
 				identical(x.results, y.results, cmpTags, p)
@@ -231,11 +223,18 @@ func identical(x, y Type, cmpTags bool, p *ifacePair) bool {
 
 	case *ConcreteSignature:
 		if y, ok := y.(*ConcreteSignature); ok {
-			if !identical(&x.Signature, &y.Signature, cmpTags, p) {
+			if !identical(x.Signature, y.Signature, cmpTags, p) {
 				return false
 			}
+			if len(y.typeMap) != len(x.typeMap) {
+				return false
+			}
+			// TODO(albrow): test this case. Especially when two signatures use
+			// different parameter names. Probably need a code change here.
 			for name, xParam := range x.typeMap {
-				if !identical(y.typeMap[name], xParam, false, nil) {
+				if yParam, found := y.typeMap[name]; !found {
+					return false
+				} else if !identical(yParam, xParam, false, nil) {
 					return false
 				}
 			}
@@ -310,25 +309,29 @@ func identical(x, y Type, cmpTags bool, p *ifacePair) bool {
 		// Two named types are identical if their type names originate
 		// in the same type declaration.
 		if y, ok := y.(*Named); ok {
-			// We use a special case here for concrete versions of generic types.
-			// TODO(albrow): Cache concrete types in some sort of special scope. If we
-			// do that, we can compare the objects directly, just like we do with
-			// normal named types.
-			switch xu := x.underlying.(type) {
-			case *ConcreteStruct:
-				if x.obj.Id() != y.obj.Id() {
-					return false
-				}
-				yu, ok := y.underlying.(*ConcreteStruct)
-				if !ok {
-					return false
-				}
-				if !identical(xu, yu, false, nil) {
-					return false
-				}
-				return true
-			}
 			return x.obj == y.obj
+		}
+
+	case *ConcreteNamed:
+		// Two concrete named types are identical if their generic named types have
+		// the same id and the concrete type parameters are the same.
+		if y, ok := y.(*ConcreteNamed); ok {
+			if x.Named.obj.Id() != y.Named.obj.Id() {
+				return false
+			}
+			if len(x.typeMap) != len(y.typeMap) {
+				return false
+			}
+			// TODO(albrow): test this case. Especially when two signatures use
+			// different parameter names. Probably need a code change here.
+			for name, xParam := range x.typeMap {
+				if yParam, found := y.typeMap[name]; !found {
+					return false
+				} else if !identical(yParam, xParam, false, nil) {
+					return false
+				}
+			}
+			return true
 		}
 
 	case *TypeParam:

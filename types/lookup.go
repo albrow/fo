@@ -49,6 +49,16 @@ func LookupFieldOrMethod(T Type, addressable bool, pkg *Package, name string) (o
 			}
 			return
 		}
+	} else if t, _ := T.(*ConcreteNamed); t != nil {
+		// TODO(albrow): Reduce code duplication for the *Named and *ConcreteNamed
+		// cases here.
+		if p, _ := t.underlying.(*Pointer); p != nil {
+			obj, index, indirect = lookupFieldOrMethod(p, false, pkg, name)
+			if _, ok := obj.(*Func); ok {
+				return nil, nil, false
+			}
+			return
+		}
 	}
 
 	return lookupFieldOrMethod(T, addressable, pkg, name)
@@ -125,6 +135,38 @@ func lookupFieldOrMethod(T Type, addressable bool, pkg *Package, name string) (o
 
 				// continue with underlying type
 				typ = named.underlying
+			} else if concrete, _ := typ.(*ConcreteNamed); concrete != nil {
+				// TODO(albrow): Reduce code duplication for the *Named and
+				// *ConcreteNamed cases.
+				named := concrete.Named
+				if seen[named] {
+					// We have seen this type before, at a more shallow depth
+					// (note that multiples of this type at the current depth
+					// were consolidated before). The type at that depth shadows
+					// this same type at the current depth, so we can ignore
+					// this one.
+					continue
+				}
+				if seen == nil {
+					seen = make(map[*Named]bool)
+				}
+				seen[named] = true
+
+				// look for a matching attached method
+				if i, m := lookupMethod(named.methods, pkg, name); m != nil {
+					// potential match
+					assert(m.typ != nil)
+					index = concat(e.index, i)
+					if obj != nil || e.multiples {
+						return nil, index, false // collision
+					}
+					obj = m
+					indirect = e.indirect
+					continue // we can't have a matching field or interface method
+				}
+
+				// continue with underlying type
+				typ = named.underlying
 			}
 
 			switch t := typ.(type) {
@@ -133,43 +175,6 @@ func lookupFieldOrMethod(T Type, addressable bool, pkg *Package, name string) (o
 				for i, f := range t.fields {
 					if f.sameId(pkg, name) {
 						assert(f.typ != nil)
-						index = concat(e.index, i)
-						if obj != nil || e.multiples {
-							return nil, index, false // collision
-						}
-						obj = f
-						indirect = e.indirect
-						continue // we can't have a matching interface method
-					}
-					// Collect embedded struct fields for searching the next
-					// lower depth, but only if we have not seen a match yet
-					// (if we have a match it is either the desired field or
-					// we have a name collision on the same depth; in either
-					// case we don't need to look further).
-					// Embedded fields are always of the form T or *T where
-					// T is a type name. If e.typ appeared multiple times at
-					// this depth, f.typ appears multiple times at the next
-					// depth.
-					if obj == nil && f.anonymous {
-						typ, isPtr := deref(f.typ)
-						// TODO(gri) optimization: ignore types that can't
-						// have fields or methods (only Named, Struct, and
-						// Interface types need to be considered).
-						next = append(next, embeddedType{typ, concat(e.index, i), e.indirect || isPtr, e.multiples})
-					}
-				}
-
-				// TODO(albrow): reduce code duplication between cases for *Struct and
-				// *ConcreteStruct
-			case *ConcreteStruct:
-				// look for a matching field and collect embedded types
-				for i, f := range t.fields {
-					if f.sameId(pkg, name) {
-						assert(f.typ != nil)
-						// Replace types according to the typeMap
-						newField := *f
-						newField.typ = replaceTypes(f.typ, t.typeMap)
-						f = &newField
 						index = concat(e.index, i)
 						if obj != nil || e.multiples {
 							return nil, index, false // collision

@@ -6,7 +6,7 @@ package genericstructs
 
 import "bytes"
 
-type A struct::(T) {
+type A::(T) struct {
   a T
   b []T
   c map[T]T
@@ -21,7 +21,7 @@ type A struct::(T) {
   k []map[T]chan T
 }
 
-type B struct::(T, U) {
+type B::(T, U) struct {
   a map[T]U
 }
 

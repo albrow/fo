@@ -91,9 +91,10 @@ var tests = [][]string{
 	{"testdata/labels.src"},
 	{"testdata/issues.src"},
 	{"testdata/blank.src"},
+	{"testdata/genericnamed.src"},
 	{"testdata/genericfuncs.src"},
 	{"testdata/genericstructs.src"},
-	{"testdata/genericstructsinherited.src"},
+	{"testdata/genericsinherited.src"},
 }
 
 var fset = token.NewFileSet()

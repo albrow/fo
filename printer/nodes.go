@@ -863,16 +863,10 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int) {
 
 	case *ast.StructType:
 		p.print(token.STRUCT)
-		if x.TypeParams != nil {
-			p.print(x.TypeParams)
-		}
 		p.fieldList(x.Fields, true, x.Incomplete)
 
 	case *ast.FuncType:
 		p.print(token.FUNC)
-		if x.TypeParams != nil {
-			p.print(x.TypeParams)
-		}
 		p.signature(x.Params, x.Results)
 
 	case *ast.InterfaceType:
@@ -1636,9 +1630,6 @@ func (p *printer) distanceFrom(from token.Pos) int {
 func (p *printer) funcDecl(d *ast.FuncDecl) {
 	p.setComment(d.Doc)
 	p.print(d.Pos(), token.FUNC)
-	if d.Type.TypeParams != nil {
-		p.print(d.Type.TypeParams)
-	}
 	p.print(blank)
 	if d.Recv != nil {
 		p.parameters(d.Recv) // method: print receiver

@@ -543,9 +543,9 @@ func (p *parser) parseIdent() *ast.Ident {
 	} else {
 		p.expect(token.IDENT) // use expect() error handling
 	}
-	var typeParams *ast.ConcreteTypeParamList
+	var typeParams *ast.TypeParamList
 	if p.tok == token.DOUBLE_COLON {
-		typeParams = p.parseConcreteTypeParamList()
+		typeParams = p.parseTypeParamList()
 	}
 	return &ast.Ident{
 		NamePos:    pos,
@@ -589,19 +589,6 @@ func (p *parser) parseExprList(lhs bool) (list []ast.Expr) {
 func (p *parser) parseTypeParamList() *ast.TypeParamList {
 	dcolon := p.expect(token.DOUBLE_COLON)
 	lparen := p.expect(token.LPAREN)
-	list := p.parseIdentList()
-	rparen := p.expect(token.RPAREN)
-	return &ast.TypeParamList{
-		Dcolon: dcolon,
-		Lparen: lparen,
-		List:   list,
-		Rparen: rparen,
-	}
-}
-
-func (p *parser) parseConcreteTypeParamList() *ast.ConcreteTypeParamList {
-	dcolon := p.expect(token.DOUBLE_COLON)
-	lparen := p.expect(token.LPAREN)
 
 	list := []ast.Expr{}
 	list = append(list, p.parseType())
@@ -611,7 +598,7 @@ func (p *parser) parseConcreteTypeParamList() *ast.ConcreteTypeParamList {
 	}
 
 	rparen := p.expect(token.RPAREN)
-	return &ast.ConcreteTypeParamList{
+	return &ast.TypeParamList{
 		Dcolon: dcolon,
 		Lparen: lparen,
 		List:   list,
@@ -792,13 +779,6 @@ func (p *parser) parseStructType() *ast.StructType {
 	}
 
 	pos := p.expect(token.STRUCT)
-
-	// If the next token is a '::' then we expect a list of generic parameters.
-	var typeParams *ast.TypeParamList
-	if p.tok == token.DOUBLE_COLON {
-		typeParams = p.parseTypeParamList()
-	}
-
 	lbrace := p.expect(token.LBRACE)
 	scope := ast.NewScope(nil) // struct scope
 	var list []*ast.Field
@@ -811,8 +791,7 @@ func (p *parser) parseStructType() *ast.StructType {
 	rbrace := p.expect(token.RBRACE)
 
 	return &ast.StructType{
-		Struct:     pos,
-		TypeParams: typeParams,
+		Struct: pos,
 		Fields: &ast.FieldList{
 			Opening: lbrace,
 			List:    list,
@@ -971,15 +950,10 @@ func (p *parser) parseFuncType() (*ast.FuncType, *ast.Scope) {
 	}
 
 	pos := p.expect(token.FUNC)
-	// If the next token is a '::' then we expect a list of generic parameters.
-	var typeParams *ast.TypeParamList
-	if p.tok == token.DOUBLE_COLON {
-		typeParams = p.parseTypeParamList()
-	}
 	scope := ast.NewScope(p.topScope) // function scope
 	params, results := p.parseSignature(scope)
 
-	return &ast.FuncType{Func: pos, TypeParams: typeParams, Params: params, Results: results}, scope
+	return &ast.FuncType{Func: pos, Params: params, Results: results}, scope
 }
 
 func (p *parser) parseMethodSpec(scope *ast.Scope) *ast.Field {
@@ -2395,12 +2369,6 @@ func (p *parser) parseTypeSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.
 	}
 
 	ident := p.parseIdent()
-	if ident.TypeParams != nil {
-		p.error(
-			ident.TypeParams.Pos(),
-			fmt.Sprintf("unexpected type parameters for identifier %s", ident.Name),
-		)
-	}
 
 	// Go spec: The scope of a type identifier declared inside a function begins
 	// at the identifier in the TypeSpec and ends at the end of the innermost
@@ -2459,25 +2427,12 @@ func (p *parser) parseFuncDecl() *ast.FuncDecl {
 	pos := p.expect(token.FUNC)
 	scope := ast.NewScope(p.topScope) // function scope
 
-	// If the next token is a '::' then we expect a list of generic parameters.
-	var typeParams *ast.TypeParamList
-	if p.tok == token.DOUBLE_COLON {
-		typeParams = p.parseTypeParamList()
-	}
-
 	var recv *ast.FieldList
 	if p.tok == token.LPAREN {
 		recv = p.parseParameters(scope, false)
 	}
 
 	ident := p.parseIdent()
-	if ident.TypeParams != nil {
-		p.error(
-			ident.TypeParams.Pos(),
-			fmt.Sprintf("unexpected type parameters for identifier %s", ident.Name),
-		)
-	}
-
 	params, results := p.parseSignature(scope)
 
 	var body *ast.BlockStmt
@@ -2491,10 +2446,9 @@ func (p *parser) parseFuncDecl() *ast.FuncDecl {
 		Recv: recv,
 		Name: ident,
 		Type: &ast.FuncType{
-			Func:       pos,
-			TypeParams: typeParams,
-			Params:     params,
-			Results:    results,
+			Func:    pos,
+			Params:  params,
+			Results: results,
 		},
 		Body: body,
 	}

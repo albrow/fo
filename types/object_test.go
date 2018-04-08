@@ -25,7 +25,7 @@ func TestIsAlias(t *testing.T) {
 	// various other types
 	pkg := NewPackage("p", "p")
 	t1 := NewTypeName(0, pkg, "t1", nil)
-	n1 := NewNamed(t1, new(Struct), nil)
+	n1 := NewNamed(t1, new(Struct), nil, nil)
 	for _, test := range []struct {
 		name  *TypeName
 		alias bool

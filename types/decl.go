@@ -82,7 +82,7 @@ func (check *Checker) objDecl(obj Object, def *Named, path []*TypeName) {
 		check.varDecl(obj, d.lhs, d.typ, d.init)
 	case *TypeName:
 		// invalid recursive types are detected via path
-		check.typeDecl(obj, d.typ, def, path, d.alias)
+		check.typeDecl(obj, d.typ, def, path, d.alias, d.typeParams)
 	case *Func:
 		// functions may be recursive - no need to track dependencies
 		check.funcDecl(obj, d)
@@ -220,7 +220,7 @@ func (n *Named) setUnderlying(typ Type) {
 	}
 }
 
-func (check *Checker) typeDecl(obj *TypeName, typ ast.Expr, def *Named, path []*TypeName, alias bool) {
+func (check *Checker) typeDecl(obj *TypeName, typ ast.Expr, def *Named, path []*TypeName, alias bool, tpList *ast.TypeParamList) {
 	assert(obj.typ == nil)
 
 	// type declarations cannot use iota
@@ -236,6 +236,29 @@ func (check *Checker) typeDecl(obj *TypeName, typ ast.Expr, def *Named, path []*
 		named := &Named{obj: obj}
 		def.setUnderlying(named)
 		obj.typ = named // make sure recursive type declarations terminate
+
+		// Add type parameters to scope (if any)
+		var typeParams []*TypeParam
+		if tpList != nil {
+			origScope := check.scope
+			tpScope := NewScope(check.scope, check.scope.Pos(), check.scope.End(), "named type type parameters")
+			for _, expr := range tpList.List {
+				ident, ok := expr.(*ast.Ident)
+				if !ok {
+					check.errorf(expr.Pos(), "cannot use %s as type parameter name", expr)
+				}
+				tp := NewTypeParam(ident.Name)
+				typeParams = append(typeParams, tp)
+				paramObj := NewTypeName(ident.Pos(), check.pkg, ident.Name, tp)
+				scopePos := ident.Pos()
+				check.declare(tpScope, ident, paramObj, scopePos)
+			}
+			check.scope = tpScope
+			defer func() {
+				check.scope = origScope
+			}()
+		}
+		named.typeParams = typeParams
 
 		// determine underlying type of named
 		check.typExpr(typ, named, append(path, obj))
@@ -254,7 +277,6 @@ func (check *Checker) typeDecl(obj *TypeName, typ ast.Expr, def *Named, path []*
 		// Determine the (final, unnamed) underlying type by resolving
 		// any forward chain (they always end in an unnamed type).
 		named.underlying = underlying(named.underlying)
-
 	}
 
 	// check and add associated methods
@@ -332,10 +354,15 @@ func (check *Checker) funcDecl(obj *Func, decl *declInfo) {
 	// func declarations cannot use iota
 	assert(check.iota == nil)
 
+	var typeParams *ast.TypeParamList
+	if decl.fdecl != nil {
+		typeParams = decl.fdecl.Name.TypeParams
+	}
+
+	fdecl := decl.fdecl
 	sig := new(Signature)
 	obj.typ = sig // guard against cycles
-	fdecl := decl.fdecl
-	check.funcType(sig, fdecl.Recv, fdecl.Type)
+	check.funcType(sig, fdecl.Recv, fdecl.Type, typeParams)
 	if sig.recv == nil && obj.name == "init" && (sig.params.Len() > 0 || sig.results.Len() > 0) {
 		check.errorf(fdecl.Pos(), "func init must have no arguments and no return values")
 		// ok to continue
@@ -455,7 +482,8 @@ func (check *Checker) declStmt(decl ast.Decl) {
 				// the innermost containing block."
 				scopePos := s.Name.Pos()
 				check.declare(check.scope, s.Name, obj, scopePos)
-				check.typeDecl(obj, s.Type, nil, nil, s.Assign.IsValid())
+				// TODO(albrow): add type param names here
+				check.typeDecl(obj, s.Type, nil, nil, s.Assign.IsValid(), s.Name.TypeParams)
 
 			default:
 				check.invalidAST(s.Pos(), "const, type, or var declaration expected")

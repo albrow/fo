@@ -4,33 +4,40 @@
 
 package genericstructsinherited
 
-type A struct::(T) {
-  v T
+type A::(T) struct {
+   v T
 }
 
-type B struct::(T, U) {
+type B::(T, U) struct {
   v0 T
   v1 U
   v2 map[T]U
 }
 
-type Awrap struct::(T) {
+type Awrap::(T) struct {
   a A::(T)
 }
 
-type Bwrap struct::(T, U) {
+type Bwrap::(T, U) struct {
   b B::(T, U)
 }
 
-type Bpart struct::(T) {
+type Bpart::(T) struct {
   b B::(string, T)
 }
 
-type Adouble struct::(T) {
+type Adouble::(T) struct {
   aw Awrap::(T)
 }
 
+type C::(T, U) map[T]U
+
+type Cpart::(T) struct {
+  c C::(T, struct{})
+} 
+
 func main() {
+  // Variable assignment and initialization
   var _ = Awrap::(string) {
     a: A::(string) {
       v: "",
@@ -64,4 +71,28 @@ func main() {
       },
     },
   }
+
+  var _ = Cpart::(float64) {
+    c: map[float64]struct{}{},
+  }
+
+  // Variable assignment from fields
+  aWrap := Awrap::(int) {
+    a: A::(int) {
+      v: 24,
+    },
+  }
+  var _ int = aWrap.a.v
+
+  var bPart = Bpart::(uint8) {
+    b: B::(string, uint8) {
+      v0: "",
+      v1: 2,
+      v2: map[string]uint8{
+        "": 3,
+      },
+    },
+  }
+  var _ map[string]uint8 = bPart.b.v2
+  var _ uint8 = bPart.b.v2[""]
 }

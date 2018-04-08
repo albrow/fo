@@ -284,7 +284,7 @@ func (p *importer) obj(tag int) {
 		pkg, name := p.qualifiedName()
 		params, isddd := p.paramList()
 		result, _ := p.paramList()
-		// TODO(albrow): implement type parameter parsing here?
+		// TODO(albrow): support type parameters here?
 		sig := types.NewSignature(nil, params, result, isddd, nil)
 		p.declare(types.NewFunc(pos, pkg, name, sig))
 
@@ -409,7 +409,8 @@ func (p *importer) typ(parent *types.Package) types.Type {
 		}
 
 		// associate new named type with obj if it doesn't exist yet
-		t0 := types.NewNamed(obj.(*types.TypeName), nil, nil)
+		// TODO(albrow): support type parameters here?
+		t0 := types.NewNamed(obj.(*types.TypeName), nil, nil, nil)
 
 		// but record the existing type, if any
 		t := obj.Type().(*types.Named)
@@ -437,7 +438,7 @@ func (p *importer) typ(parent *types.Package) types.Type {
 			result, _ := p.paramList()
 			p.int() // go:nointerface pragma - discarded
 
-			// TODO(albrow): implement type parameter parsing here?
+			// TODO(albrow): support type parameters here?
 			sig := types.NewSignature(recv.At(0), params, result, isddd, nil)
 			t0.AddMethod(types.NewFunc(pos, parent, name, sig))
 		}
@@ -498,7 +499,7 @@ func (p *importer) typ(parent *types.Package) types.Type {
 
 		params, isddd := p.paramList()
 		result, _ := p.paramList()
-		// TODO(albrow): implement type parameter parsing here?
+		// TODO(albrow): support type parameters here?
 		*t = *types.NewSignature(nil, params, result, isddd, nil)
 		return t
 
@@ -565,7 +566,7 @@ func (p *importer) typ(parent *types.Package) types.Type {
 }
 
 // TODO(albrow): implement type parameter parsing here?
-func (p *importer) fieldList(parent *types.Package) (fields []*types.Var, tags []string, typeParams []*types.TypeParam) {
+func (p *importer) fieldList(parent *types.Package) (fields []*types.Var, tags []string) {
 	if n := p.int(); n > 0 {
 		fields = make([]*types.Var, n)
 		tags = make([]string, n)
@@ -618,7 +619,7 @@ func (p *importer) method(parent *types.Package) *types.Func {
 	pkg, name, _ := p.fieldName(parent)
 	params, isddd := p.paramList()
 	result, _ := p.paramList()
-	// TODO(albrow): implement type parameter parsing here?
+	// TODO(albrow): support type parameters here?
 	sig := types.NewSignature(nil, params, result, isddd, nil)
 	return types.NewFunc(pos, pkg, name, sig)
 }

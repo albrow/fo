@@ -4,7 +4,7 @@
 
 package genericfuncs
 
-func::(T) _(x T) {
+func _::(T)(x T) {
   var _ T = x
   var _ []T = []T{x}
   var _ map[T]T = map[T]T{
@@ -31,37 +31,37 @@ func::(T) _(x T) {
   }
 }
 
-func::(T) a(x T) T {
+func a::(T)(x T) T {
   return x
 }
 
-func::(T) b(x T) []T {
+func b::(T)(x T) []T {
   return []T{x}
 }
 
-func::(T) c(x T) map[T]T {
+func c::(T)(x T) map[T]T {
   return map[T]T{
     x: x,
   }
 }
 
-func::(T) d(x T) [5]T {
+func d::(T)(x T) [5]T {
   return [5]T{x, x, x, x, x}
 }
 
-func::(T) e(x T) chan T {
+func e::(T)(x T) chan T {
   c := make(chan T)
   c <- x
   return c
 }
 
-func::(T) f(x T) func(T) T {
+func f::(T)(x T) func(T) T {
   return func(y T) T {
     return y
   }
 }
 
-func::(T) g(x T) struct{y T} {
+func g::(T)(x T) struct{y T} {
   return struct{
     y T
   }{
@@ -69,17 +69,17 @@ func::(T) g(x T) struct{y T} {
   }
 }
 
-func::(T) h(x T) *T {
+func h::(T)(x T) *T {
   return &x
 }
 
-func::(T) i(x T) ***T {
+func i::(T)(x T) ***T {
   x0 := &x
   x1 := &x0
   return &x1
 }
 
-func::(T) j(x T) []map[T]chan T {
+func j::(T)(x T) []map[T]chan T {
   return []map[T]chan T {
     map[T]chan T{
       x: make(chan T),
@@ -87,11 +87,11 @@ func::(T) j(x T) []map[T]chan T {
   }
 }
 
-func::(T) k() []T {
+func k::(T)() []T {
   return []T{}
 }
 
-func::(T, U) l() map[T]U {
+func l::(T, U)() map[T]U {
   return map[T]U{}
 }
 

@@ -43,6 +43,9 @@ func (check *Checker) ident(x *operand, e *ast.Ident, def *Named, path []*TypeNa
 		// For generic types, we generate the corresponding concrete type on the
 		// fly.
 		typ = check.concreteType(e, obj)
+		if typ == nil {
+			return
+		}
 	}
 
 	// The object may be dot-imported: If so, remove its package from
@@ -152,20 +155,25 @@ func (check *Checker) typ(e ast.Expr) Type {
 }
 
 // funcType type-checks a function or method type.
-func (check *Checker) funcType(sig *Signature, recvPar *ast.FieldList, ftyp *ast.FuncType) {
+func (check *Checker) funcType(sig *Signature, recvPar *ast.FieldList, ftyp *ast.FuncType, tpList *ast.TypeParamList) {
+
 	// Add type parameters to scope (if any)
-	origScope := check.scope
-	typeParams := []*TypeParam{}
-	if ftyp.TypeParams != nil {
-		tscope := NewScope(check.scope, check.scope.Pos(), check.scope.End(), "function type parameters")
-		for _, ident := range ftyp.TypeParams.List {
+	var typeParams []*TypeParam
+	if tpList != nil {
+		origScope := check.scope
+		tpScope := NewScope(check.scope, check.scope.Pos(), check.scope.End(), "function type parameters")
+		for _, expr := range tpList.List {
+			ident, ok := expr.(*ast.Ident)
+			if !ok {
+				check.errorf(expr.Pos(), "cannot use %s as type parameter name", expr)
+			}
 			tp := NewTypeParam(ident.Name)
 			typeParams = append(typeParams, tp)
 			obj := NewTypeName(ident.Pos(), check.pkg, ident.Name, tp)
 			scopePos := ident.Pos()
-			check.declare(tscope, ident, obj, scopePos)
+			check.declare(tpScope, ident, obj, scopePos)
 		}
-		check.scope = tscope
+		check.scope = tpScope
 		defer func() {
 			check.scope = origScope
 		}()
@@ -199,7 +207,27 @@ func (check *Checker) funcType(sig *Signature, recvPar *ast.FieldList, ftyp *ast
 		// (ignore invalid types - error was reported before)
 		if t, _ := deref(recv.typ); t != Typ[Invalid] {
 			var err string
-			if T, _ := t.(*Named); T != nil {
+			// TODO(albrow): Reduce code duplication for the Named and ConcreteNamed
+			// cases here.
+			if T, ok := t.(*ConcreteNamed); ok {
+				// spec: "The type denoted by T is called the receiver base type; it must not
+				// be a pointer or interface type and it must be declared in the same package
+				// as the method."
+				if T.obj.pkg != check.pkg {
+					err = "type not defined in this package"
+				} else {
+					// TODO(gri) This is not correct if the underlying type is unknown yet.
+					switch u := T.underlying.(type) {
+					case *Basic:
+						// unsafe.Pointer is treated like a regular pointer
+						if u.kind == UnsafePointer {
+							err = "unsafe.Pointer"
+						}
+					case *Pointer, *Interface:
+						err = "pointer or interface type"
+					}
+				}
+			} else if T, _ := t.(*Named); T != nil {
 				// spec: "The type denoted by T is called the receiver base type; it must not
 				// be a pointer or interface type and it must be declared in the same package
 				// as the method."
@@ -310,7 +338,7 @@ func (check *Checker) typExprInternal(e ast.Expr, def *Named, path []*TypeName) 
 	case *ast.FuncType:
 		typ := new(Signature)
 		def.setUnderlying(typ)
-		check.funcType(typ, nil, e)
+		check.funcType(typ, nil, e, nil)
 		return typ
 
 	case *ast.InterfaceType:
@@ -651,24 +679,6 @@ func (check *Checker) structType(styp *Struct, e *ast.StructType, path []*TypeNa
 		return
 	}
 
-	// Add type parameters to scope (if any)
-	typeParams := []*TypeParam{}
-	if e.TypeParams != nil {
-		origScope := check.scope
-		scope := NewScope(origScope, e.Pos(), e.End(), "struct type parameters")
-		for _, ident := range e.TypeParams.List {
-			tp := NewTypeParam(ident.Name)
-			typeParams = append(typeParams, tp)
-			obj := NewTypeName(ident.Pos(), check.pkg, ident.Name, tp)
-			scopePos := ident.Pos()
-			check.declare(scope, ident, obj, scopePos)
-		}
-		check.scope = scope
-		defer func() {
-			check.scope = origScope
-		}()
-	}
-
 	// struct fields and tags
 	var fields []*Var
 	var tags []string
@@ -746,7 +756,6 @@ func (check *Checker) structType(styp *Struct, e *ast.StructType, path []*TypeNa
 
 	styp.fields = fields
 	styp.tags = tags
-	styp.typeParams = typeParams
 }
 
 func anonymousFieldIdent(e ast.Expr) *ast.Ident {

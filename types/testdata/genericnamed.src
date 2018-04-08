@@ -1,0 +1,40 @@
+// Copyright 2018 Alex Browne. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+package genericnamed
+
+type A::(T) T
+type B::(T) []T
+type C::(T) map[T]T
+type D::(T) [5]T
+type E::(T) chan T
+type F::(T) func(T) T
+type G::(T) *T
+type H::(T) []map[T]chan T
+type I::(T, U) map[T]U
+
+func main() {
+  // Variable assignments
+  var _ A::(int) = 0
+  var _ B::(int) = []int{1, 2, 3}
+  var _ C::(int) = map[int]int{
+    1: 2,
+  }
+  var _ D::(int) = [5]int{1, 2, 3, 4, 5}
+  var _ E::(int) = make(chan int)
+  var _ F::(int) = func(int) int {return 0}
+  var i int
+  var _ G::(int) = &i
+  var _ H::(int) = []map[int]chan int{
+    map[int]chan int{
+      0: make(chan int),
+    },
+  }
+  var _ I::(string, bool) = map[string]bool{
+    "": true,
+  }
+
+  // Assignments with a second concrete type
+  var _ A::(string) = ""
+}

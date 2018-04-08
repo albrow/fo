@@ -11,21 +11,17 @@ import (
 func (check *Checker) concreteType(e *ast.Ident, genericObj Object) Type {
 	switch genericObj := genericObj.(type) {
 	case *TypeName:
-		if named, ok := genericObj.Type().(*Named); ok {
-			switch underlying := named.Underlying().(type) {
-			case *Struct:
-				// TODO(albrow): Cache concrete types in some sort of special scope so
-				// we can avoid re-generating the concrete types on each usage.
-				typeMap := check.createTypeMap(e.TypeParams, underlying.typeParams)
-				newType := underlying.NewConcrete(typeMap)
-				newTypeName := *genericObj
-				newNamed := *named
-				newNamed.underlying = newType
-				newNamed.obj = &newTypeName
-				newTypeName.typ = &newNamed
-				// newTypeName.name = e.NameWithParams()
-				return &newNamed
-			}
+		if named, ok := genericObj.typ.(*Named); ok {
+			typeMap := check.createTypeMap(e.TypeParams, named.typeParams)
+			newNamed := replaceTypesInNamed(named, typeMap)
+			newNamed.typeParams = nil
+			typeParams := make([]*TypeParam, len(named.typeParams))
+			copy(typeParams, named.typeParams)
+			newType := NewConcreteNamed(newNamed, typeParams, typeMap)
+			newObj := *genericObj
+			newType.obj = &newObj
+			newObj.typ = newType
+			return newType
 		}
 	case *Func:
 		if sig, ok := genericObj.typ.(*Signature); ok {
@@ -35,8 +31,10 @@ func (check *Checker) concreteType(e *ast.Ident, genericObj Object) Type {
 			// messages.
 			typeMap := check.createTypeMap(e.TypeParams, sig.typeParams)
 			newSig := replaceTypesInSignature(sig, typeMap)
-			newType := newSig.NewConcrete(typeMap)
-			// newTypeName.name = e.NameWithParams()
+			newSig.typeParams = nil
+			typeParams := make([]*TypeParam, len(sig.typeParams))
+			copy(typeParams, sig.typeParams)
+			newType := NewConcreteSignature(newSig, typeParams, typeMap)
 			return newType
 		}
 	}
@@ -47,7 +45,11 @@ func (check *Checker) concreteType(e *ast.Ident, genericObj Object) Type {
 
 // TODO(albrow): catch case where the wrong number of type parameters has been
 // given and test it.
-func (check *Checker) createTypeMap(params *ast.ConcreteTypeParamList, genericParams []*TypeParam) map[string]Type {
+func (check *Checker) createTypeMap(params *ast.TypeParamList, genericParams []*TypeParam) map[string]Type {
+	if len(params.List) != len(genericParams) {
+		check.errorf(check.pos, "wrong number of type parameters (expected %d but got %d)", len(genericParams), len(params.List))
+		return nil
+	}
 	typeMap := map[string]Type{}
 	for i, typ := range params.List {
 		var x operand
@@ -70,6 +72,14 @@ func replaceTypes(root Type, typeMapping map[string]Type) Type {
 	switch t := root.(type) {
 	case *TypeParam:
 		if newType, found := typeMapping[t.String()]; found {
+			// This part is important; if the concrete type is also a type parameter,
+			// don't do the replacement. We assume that we're dealing with an
+			// inherited type parameter and that the concrete form of the parent will
+			// fill in this missing type parameter in the future. If it is not filled
+			// in correctly in the future, we know how to generate an error.
+			if _, newIsTypeParam := newType.(*TypeParam); newIsTypeParam {
+				return t
+			}
 			return newType
 		}
 		// TODO(albrow): handle this error?
@@ -83,14 +93,10 @@ func replaceTypes(root Type, typeMapping map[string]Type) Type {
 		newSlice.elem = replaceTypes(t.elem, typeMapping)
 		return &newSlice
 	case *Map:
-		_, keyParameterized := t.key.(*TypeParam)
-		_, valParameterized := t.elem.(*TypeParam)
-		if keyParameterized || valParameterized {
-			newMap := *t
-			newMap.key = replaceTypes(t.key, typeMapping)
-			newMap.elem = replaceTypes(t.elem, typeMapping)
-			return &newMap
-		}
+		newMap := *t
+		newMap.key = replaceTypes(t.key, typeMapping)
+		newMap.elem = replaceTypes(t.elem, typeMapping)
+		return &newMap
 	case *Array:
 		newArray := *t
 		newArray.elem = replaceTypes(t.elem, typeMapping)
@@ -105,6 +111,8 @@ func replaceTypes(root Type, typeMapping map[string]Type) Type {
 		return replaceTypesInSignature(t, typeMapping)
 	case *Named:
 		return replaceTypesInNamed(t, typeMapping)
+	case *ConcreteNamed:
+		return replaceTypesInConcreteNamed(t, typeMapping)
 	}
 	return root
 }
@@ -116,7 +124,7 @@ func replaceTypesInStruct(root *Struct, typeMapping map[string]Type) *Struct {
 		newField.typ = replaceTypes(field.Type(), typeMapping)
 		fields = append(fields, &newField)
 	}
-	return NewStruct(fields, root.tags, root.typeParams)
+	return NewStruct(fields, root.tags)
 }
 
 func replaceTypesInSignature(root *Signature, typeMapping map[string]Type) *Signature {
@@ -152,23 +160,35 @@ func replaceTypesInSignature(root *Signature, typeMapping map[string]Type) *Sign
 }
 
 func replaceTypesInNamed(root *Named, typeMapping map[string]Type) *Named {
-	switch u := root.underlying.(type) {
-	case *ConcreteStruct:
-		newTypeMap := map[string]Type{}
-		for key, given := range u.typeMap {
-			if param, ok := given.(*TypeParam); ok {
-				if inherited, found := typeMapping[param.String()]; found {
+	newUnderlying := replaceTypes(root.underlying, typeMapping)
+	newNamed := *root
+	newNamed.underlying = newUnderlying
+	newObj := *root.obj
+	newObj.typ = &newNamed
+	newNamed.obj = &newObj
+	return &newNamed
+}
+
+// TODO(albrow): optimize by doing nothing in the case where the new typeMapping
+// is equivalent to the old.
+func replaceTypesInConcreteNamed(root *ConcreteNamed, typeMapping map[string]Type) *ConcreteNamed {
+	newTypeMap := map[string]Type{}
+	for key, given := range root.typeMap {
+		if param, givenIsTypeParam := given.(*TypeParam); givenIsTypeParam {
+			if inherited, found := typeMapping[param.String()]; found {
+				if _, inheritedIsTypeParam := inherited.(*TypeParam); !inheritedIsTypeParam {
 					newTypeMap[key] = inherited
 					continue
 				}
 			}
-			newTypeMap[key] = given
 		}
-		newU := *u
-		newU.typeMap = newTypeMap
-		newRoot := *root
-		newRoot.underlying = &newU
-		return &newRoot
+		newTypeMap[key] = given
 	}
-	return root
+	newNamed := replaceTypesInNamed(root.Named, newTypeMap)
+	newType := NewConcreteNamed(newNamed, root.typeParams, newTypeMap)
+	newNamed.typeParams = nil
+	newObj := *root.obj
+	newObj.typ = newType
+	newType.obj = &newObj
+	return newType
 }

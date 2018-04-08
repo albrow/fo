@@ -7,7 +7,9 @@
 
 package types
 
-import "github.com/albrow/fo/constant"
+import (
+	"github.com/albrow/fo/constant"
+)
 
 // Conversion type-checks the conversion T(x).
 // The result is in x.

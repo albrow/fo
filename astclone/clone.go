@@ -56,14 +56,6 @@ func Clone(node ast.Node) ast.Node {
 		return &ast.TypeParamList{
 			Dcolon: n.Dcolon,
 			Lparen: n.Lparen,
-			List:   cloneIdentList(n.List),
-			Rparen: n.Rparen,
-		}
-
-	case *ast.ConcreteTypeParamList:
-		return &ast.ConcreteTypeParamList{
-			Dcolon: n.Dcolon,
-			Lparen: n.Lparen,
 			List:   cloneExprList(n.List),
 			Rparen: n.Rparen,
 		}
@@ -177,13 +169,8 @@ func Clone(node ast.Node) ast.Node {
 		}
 
 	case *ast.StructType:
-		var typeParams *ast.TypeParamList
-		if n.TypeParams != nil {
-			typeParams = Clone(n.TypeParams).(*ast.TypeParamList)
-		}
 		return &ast.StructType{
 			Struct:     n.Struct,
-			TypeParams: typeParams,
 			Fields:     cloneFieldList(n.Fields),
 			Incomplete: n.Incomplete,
 		}
@@ -524,15 +511,10 @@ func cloneIdent(n *ast.Ident) *ast.Ident {
 	if n == nil {
 		return nil
 	}
-	var typeParams *ast.ConcreteTypeParamList
-	if n.TypeParams != nil {
-		typeParams = Clone(n.TypeParams).(*ast.ConcreteTypeParamList)
-	}
 	return &ast.Ident{
-		NamePos:    n.NamePos,
-		Name:       n.Name,
-		TypeParams: typeParams,
-		Obj:        cloneObject(n.Obj),
+		NamePos: n.NamePos,
+		Name:    n.Name,
+		Obj:     cloneObject(n.Obj),
 	}
 }
 
@@ -617,7 +599,7 @@ func cloneCommentGroup(n *ast.CommentGroup) *ast.CommentGroup {
 // Functions for cloning things which do not implement ast.Node.
 
 func cloneObject(o *ast.Object) *ast.Object {
-	// TODO: *ast.Objects tend to be recursive data structures, so a simple
+	// TODO(albrow): *ast.Objects tend to be recursive data structures, so a simple
 	// recursive approach here will result in a stack overflow. Can we
 	// intelligently clone *ast.Objects while avoiding a stack overflow?
 	return o

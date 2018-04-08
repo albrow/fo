@@ -410,7 +410,8 @@ func (p *parser) parseNamedType(n int) types.Type {
 		// a named type may be referred to before the underlying type
 		// is known - set it up
 		tname := types.NewTypeName(token.NoPos, pkg, name, nil)
-		types.NewNamed(tname, nil, nil)
+		// TODO(albrow): support type parameters here?
+		types.NewNamed(tname, nil, nil, nil)
 		scope.Insert(tname)
 		obj = tname
 	}
@@ -444,7 +445,7 @@ func (p *parser) parseNamedType(n int) types.Type {
 		results := p.parseResultList(pkg)
 		p.expect(';')
 
-		// TODO(albrow): implement type parameter parsing here?
+		// TODO(albrow): support type parameters here?
 		sig := types.NewSignature(receiver, params, results, isVariadic, nil)
 		nt.AddMethod(types.NewFunc(token.NoPos, pkg, name, sig))
 	}
@@ -522,8 +523,7 @@ func (p *parser) parseStructType(pkg *types.Package) types.Type {
 	}
 	p.expect('}')
 
-	// TODO(albrow): implement type parameter parsing here?
-	return types.NewStruct(fields, tags, nil)
+	return types.NewStruct(fields, tags)
 }
 
 // ParamList = "(" [ { Parameter "," } Parameter ] ")" .
@@ -569,7 +569,7 @@ func (p *parser) parseResultList(pkg *types.Package) *types.Tuple {
 func (p *parser) parseFunctionType(pkg *types.Package) *types.Signature {
 	params, isVariadic := p.parseParamList(pkg)
 	results := p.parseResultList(pkg)
-	// TODO(albrow): implement type parameter parsing here?
+	// TODO(albrow): support type parameters here?
 	return types.NewSignature(nil, params, results, isVariadic, nil)
 }
 

@@ -139,23 +139,15 @@ func (tp TypeParam) String() string {
 
 // A Struct represents a struct type.
 type Struct struct {
-	fields     []*Var
-	tags       []string // field tags; nil if there are no tags
-	typeParams []*TypeParam
-}
-
-// ConcreteStruct represents a generic struct type with concrete type parameters
-// supplied.
-type ConcreteStruct struct {
-	Struct
-	typeMap map[string]Type
+	fields []*Var
+	tags   []string // field tags; nil if there are no tags
 }
 
 // NewStruct returns a new struct with the given fields and corresponding field tags.
 // If a field with index i has a tag, tags[i] must be that tag, but len(tags) may be
 // only as long as required to hold the tag with the largest index i. Consequently,
 // if no field has a tag, tags may be nil.
-func NewStruct(fields []*Var, tags []string, typeParams []*TypeParam) *Struct {
+func NewStruct(fields []*Var, tags []string) *Struct {
 	var fset objset
 	for _, f := range fields {
 		if f.name != "_" && fset.insert(f) != nil {
@@ -165,16 +157,7 @@ func NewStruct(fields []*Var, tags []string, typeParams []*TypeParam) *Struct {
 	if len(tags) > len(fields) {
 		panic("more tags than fields")
 	}
-	// TODO(albrow): test this
-	tset := map[string]struct{}{}
-	for _, t := range typeParams {
-		if _, found := tset[t.String()]; found {
-			panic("multiple type parameters with the same name")
-		} else {
-			tset[t.String()] = struct{}{}
-		}
-	}
-	return &Struct{fields: fields, tags: tags, typeParams: typeParams}
+	return &Struct{fields: fields, tags: tags}
 }
 
 // NumFields returns the number of fields in the struct (including blank and anonymous fields).
@@ -189,17 +172,6 @@ func (s *Struct) Tag(i int) string {
 		return s.tags[i]
 	}
 	return ""
-}
-
-// TODO(albrow): Add exported function for accessing struct type parameters?
-
-// NewConcrete returns a new concrete instance of the struct type with the given
-// concrete type parameters.
-func (s *Struct) NewConcrete(typeMap map[string]Type) *ConcreteStruct {
-	return &ConcreteStruct{
-		Struct:  *s,
-		typeMap: typeMap,
-	}
 }
 
 // A Pointer represents a pointer type.
@@ -254,13 +226,6 @@ type Signature struct {
 	typeParams []*TypeParam // generic type parameters (if any)
 }
 
-// ConcreteSignature represents a generic signature type with concrete type
-// parameters supplied.
-type ConcreteSignature struct {
-	Signature
-	typeMap map[string]Type
-}
-
 // NewSignature returns a new function type for the given receiver, parameters,
 // and results, either of which may be nil. If variadic is set, the function
 // is variadic, it must have at least one parameter, and the last parameter
@@ -275,15 +240,20 @@ func NewSignature(recv *Var, params, results *Tuple, variadic bool, typeParams [
 			panic("types.NewSignature: variadic parameter must be of unnamed slice type")
 		}
 	}
+
 	// TODO(albrow): test this
-	tset := map[string]struct{}{}
-	for _, t := range typeParams {
-		if _, found := tset[t.String()]; found {
-			panic("multiple type parameters with the same name")
-		} else {
-			tset[t.String()] = struct{}{}
+	var tset map[string]struct{}
+	if len(typeParams) > 0 {
+		tset = map[string]struct{}{}
+		for _, t := range typeParams {
+			if _, found := tset[t.String()]; found {
+				panic("types.NewSignature: cannot have multiple type parameters with the same name")
+			} else {
+				tset[t.String()] = struct{}{}
+			}
 		}
 	}
+
 	return &Signature{nil, recv, params, results, variadic, typeParams}
 }
 
@@ -304,16 +274,25 @@ func (s *Signature) Results() *Tuple { return s.results }
 // Variadic reports whether the signature s is variadic.
 func (s *Signature) Variadic() bool { return s.variadic }
 
-// NewConcrete returns a new concrete instance of the signature type with the
-// given concrete type parameters.
-func (s *Signature) NewConcrete(typeMap map[string]Type) *ConcreteSignature {
-	return &ConcreteSignature{
-		Signature: *s,
-		typeMap:   typeMap,
-	}
+// TODO(albrow): Add exported function for accessing signature type parameters?
+
+// ConcreteSignature is the corresponding concrete type of a Signature for which
+// concrete type parameters have been provided.
+type ConcreteSignature struct {
+	*Signature
+	typeParams []*TypeParam
+	typeMap    map[string]Type // map of type parameter name to concrete type
 }
 
-// TODO(albrow): Add exported function for accessing signature type parameters?
+// NewConcreteSignature returns the concrete signature type corresponding to a
+// generic signature type with the given concrete type parameters.
+func NewConcreteSignature(sig *Signature, typeParams []*TypeParam, typeMap map[string]Type) *ConcreteSignature {
+	return &ConcreteSignature{
+		Signature:  sig,
+		typeParams: typeParams,
+		typeMap:    typeMap,
+	}
+}
 
 // An Interface represents an interface type.
 type Interface struct {
@@ -466,19 +445,34 @@ func (c *Chan) Elem() Type { return c.elem }
 
 // A Named represents a named type.
 type Named struct {
-	obj        *TypeName // corresponding declared object
-	underlying Type      // possibly a *Named during setup; never a *Named once set up completely
-	methods    []*Func   // methods declared for this type (not the method set of this type)
+	obj        *TypeName    // corresponding declared object
+	underlying Type         // possibly a *Named during setup; never a *Named once set up completely
+	methods    []*Func      // methods declared for this type (not the method set of this type)
+	typeParams []*TypeParam // generic type parameters (if any)
 }
 
 // NewNamed returns a new named type for the given type name, underlying type, and associated methods.
 // If the given type name obj doesn't have a type yet, its type is set to the returned named type.
 // The underlying type must not be a *Named.
-func NewNamed(obj *TypeName, underlying Type, methods []*Func) *Named {
+func NewNamed(obj *TypeName, underlying Type, methods []*Func, typeParams []*TypeParam) *Named {
 	if _, ok := underlying.(*Named); ok {
 		panic("types.NewNamed: underlying type must not be *Named")
 	}
-	typ := &Named{obj: obj, underlying: underlying, methods: methods}
+
+	// TODO(albrow): test this
+	var tset map[string]struct{}
+	if len(typeParams) > 0 {
+		tset = map[string]struct{}{}
+		for _, t := range typeParams {
+			if _, found := tset[t.String()]; found {
+				panic("types.NewNamed: cannot have multiple type parameters with the same name")
+			} else {
+				tset[t.String()] = struct{}{}
+			}
+		}
+	}
+
+	typ := &Named{obj: obj, underlying: underlying, methods: methods, typeParams: typeParams}
 	if obj.typ == nil {
 		obj.typ = typ
 	}
@@ -509,6 +503,24 @@ func (t *Named) SetUnderlying(underlying Type) {
 func (t *Named) AddMethod(m *Func) {
 	if i, _ := lookupMethod(t.methods, m.pkg, m.name); i < 0 {
 		t.methods = append(t.methods, m)
+	}
+}
+
+// ConcreteNamed is the corresponding concrete type of a Named type for which
+// concrete type parameters have been provided.
+type ConcreteNamed struct {
+	*Named
+	typeParams []*TypeParam
+	typeMap    map[string]Type // map of type parameter name to concrete type
+}
+
+// NewConcreteNamed returns the concrete named type corresponding to a
+// generic named type with the given concrete type parameters.
+func NewConcreteNamed(named *Named, typeParams []*TypeParam, typeMap map[string]Type) *ConcreteNamed {
+	return &ConcreteNamed{
+		Named:      named,
+		typeParams: typeParams,
+		typeMap:    typeMap,
 	}
 }
 

@@ -147,7 +147,7 @@ func writeType(buf *bytes.Buffer, typ Type, qf Qualifier, visited []Type) {
 
 	case *ConcreteSignature:
 		buf.WriteString("func")
-		writeSignature(buf, &t.Signature, qf, visited)
+		writeSignature(buf, t.Signature, qf, visited)
 
 	case *Interface:
 		// We write the source-level methods and embedded types rather
@@ -243,15 +243,8 @@ func writeType(buf *bytes.Buffer, typ Type, qf Qualifier, visited []Type) {
 			// ambiguity.
 			s = obj.name
 			buf.WriteString(s)
-			// Check for special case of concrete versions of generic types.
-			// TODO(albrow): Should we just add generated concrete struct types to
-			// scope with a generated name (e.g. Box::(string)) so we can avoid this
-			// special case?
-			switch u := t.underlying.(type) {
-			case *ConcreteStruct:
-				if u.typeMap != nil {
-					writeConcreteTypeParams(buf, u.typeMap, u.typeParams)
-				}
+			if named, ok := obj.typ.(*ConcreteNamed); ok && len(named.typeMap) > 0 {
+				writeConcreteTypeParams(buf, named.typeMap, named.typeParams)
 			}
 		}
 
