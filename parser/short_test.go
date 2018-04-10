@@ -75,12 +75,19 @@ var valids = []string{
 	`package p; var x map[T::(U)]V::(W)`,
 	`package p; var x = map[T::(U)]V::(W){}`,
 	`package p; var x chan T::(U)`,
+	`package p; var x = make(chan T::(U))`,
 	`package p; var x func(T::(U))`,
 	`package p; var x = func(T::(U)) {}`,
 	`package p; var x func() T::(U)`,
 	`package p; var x = func() T::(U) {}`,
-	`package p; var x = y.T::(U){}`,
 	`package p; var x y.T::(U)`,
+	`package p; var x = y.T::(U){}`,
+	`package p; var x T::(interface{}, chan <-int, struct{}, map[int]string)`,
+	`package p; var x = T::(interface{}, chan <-int, struct{}, map[int]string){}`,
+	`package p; var x T::(bytes.Buffer, io.Writer)`,
+	`package p; var x = T::(bytes.Buffer, io.Writer){}`,
+	`package p; var x T::(U::(string, int), V::(bool))`,
+	`package p; var x = T::(U::(string, int), V::(bool)){}`,
 
 	// Short assignments
 	`package p; func _() { x := T::(U){} }`,
@@ -96,6 +103,7 @@ var valids = []string{
 	`package p; func _() T::(U) { return T::(U){} }`,
 	`package p; func _() { switch n := x.(type) { case T::(U): break } }`,
 	`package p; func _() { _ = x.(T::(U)) }`,
+	`package p; func _() { _ = T::(U)(x) }`,
 }
 
 func TestValid(t *testing.T) {
@@ -177,6 +185,8 @@ var invalids = []string{
 	`package p; func f() { if true {} else defer /* ERROR "expected if statement or block" */ f() }`,
 
 	// Fo extensions
+
+	// Wrong type parameter syntax
 	`package p; type T::() /* ERROR "expected type, found '\)'" */ struct { val V }`,
 	`package p; type T::(V struct /* ERROR "expected '\)', found 'struct'" */ { val V }`,
 	`package p; type T::(V, ) /* ERROR "expected type, found '\)'" */ struct { val V }`,
@@ -192,7 +202,7 @@ var invalids = []string{
 	`package p; func _(T::() /* ERROR "expected type, found '\)'" */ ) {}`,
 	`package p; func _() T::() /* ERROR "expected type, found '\)'" */ {}`,
 
-	// // Type parameters on idents which don't support them
+	// Type parameters on idents which don't support them
 	`package p; func _() { T:; for { break T:: /* ERROR "type parameters not allowed for labels" */ (U) } }`,
 	`package p; import x:: /* ERROR "type parameters not allowed in import statement" */ (T) "fmt"`,
 	`package p; type T struct:: /* ERROR "expected '{', found '::'" */ (U){}`,
