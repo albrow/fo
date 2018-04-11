@@ -11,25 +11,41 @@ import (
 // such a way that both signatures and named types can be used directly as
 // fields in these generic-specific data structures?
 
-type genericDecl struct {
+type GenericDecl struct {
 	name       string
 	typ        Type
 	typeParams []*TypeParam
-	usages     map[string]*genericUsage
+	usages     map[string]*GenericUsage
 }
 
-type genericUsage struct {
+func (decl *GenericDecl) Name() string {
+	return decl.name
+}
+
+func (decl *GenericDecl) TypeParams() []*TypeParam {
+	return decl.typeParams
+}
+
+func (decl *GenericDecl) Usages() map[string]*GenericUsage {
+	return decl.Usages()
+}
+
+type GenericUsage struct {
 	typeMap map[string]Type
 	typ     Type
+}
+
+func (usg *GenericUsage) TypeMap() map[string]Type {
+	return usg.TypeMap()
 }
 
 func addGenericDecl(obj Object, typeParams []*TypeParam) {
 	pkg := obj.Pkg()
 	name := obj.Name()
 	if pkg.generics == nil {
-		pkg.generics = map[string]*genericDecl{}
+		pkg.generics = map[string]*GenericDecl{}
 	}
-	pkg.generics[name] = &genericDecl{
+	pkg.generics[name] = &GenericDecl{
 		name:       name,
 		typ:        obj.Type(),
 		typeParams: typeParams,
@@ -48,7 +64,7 @@ func addGenericUsage(genericObj Object, typ Type, typeMap map[string]Type) {
 	pkg := genericObj.Pkg()
 	name := genericObj.Name()
 	if pkg.generics == nil {
-		pkg.generics = map[string]*genericDecl{}
+		pkg.generics = map[string]*GenericDecl{}
 	}
 	genDecl, found := pkg.generics[name]
 	if !found {
@@ -56,9 +72,9 @@ func addGenericUsage(genericObj Object, typ Type, typeMap map[string]Type) {
 		panic(fmt.Errorf("declaration not found for generic object %s", genericObj.Id()))
 	}
 	if genDecl.usages == nil {
-		genDecl.usages = map[string]*genericUsage{}
+		genDecl.usages = map[string]*GenericUsage{}
 	}
-	genDecl.usages[usageKey(typeMap, genDecl.typeParams)] = &genericUsage{
+	genDecl.usages[usageKey(typeMap, genDecl.typeParams)] = &GenericUsage{
 		typ:     typ,
 		typeMap: typeMap,
 	}
