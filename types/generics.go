@@ -2,9 +2,78 @@ package types
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/albrow/fo/ast"
 )
+
+// TODO(albrow): Create interfaces to capture genericDecl and genericUsage in
+// such a way that both signatures and named types can be used directly as
+// fields in these generic-specific data structures?
+
+type genericDecl struct {
+	name       string
+	typ        Type
+	typeParams []*TypeParam
+	usages     map[string]*genericUsage
+}
+
+type genericUsage struct {
+	typeMap map[string]Type
+	typ     Type
+}
+
+func addGenericDecl(obj Object, typeParams []*TypeParam) {
+	pkg := obj.Pkg()
+	name := obj.Name()
+	if pkg.generics == nil {
+		pkg.generics = map[string]*genericDecl{}
+	}
+	pkg.generics[name] = &genericDecl{
+		name:       name,
+		typ:        obj.Type(),
+		typeParams: typeParams,
+	}
+}
+
+func addGenericUsage(genericObj Object, typ Type, typeMap map[string]Type) {
+	for _, typ := range typeMap {
+		if _, ok := typ.(*TypeParam); ok {
+			// If the type map includes a type parameter, it is not yet complete and
+			// includes inherited type parameters. In this case, it is not a true
+			// concrete usage, so we don't add it to the usage list.
+			return
+		}
+	}
+	pkg := genericObj.Pkg()
+	name := genericObj.Name()
+	if pkg.generics == nil {
+		pkg.generics = map[string]*genericDecl{}
+	}
+	genDecl, found := pkg.generics[name]
+	if !found {
+		// TODO(albrow): can we avoid panicking here?
+		panic(fmt.Errorf("declaration not found for generic object %s", genericObj.Id()))
+	}
+	if genDecl.usages == nil {
+		genDecl.usages = map[string]*genericUsage{}
+	}
+	genDecl.usages[usageKey(typeMap, genDecl.typeParams)] = &genericUsage{
+		typ:     typ,
+		typeMap: typeMap,
+	}
+}
+
+// usageKey returns a unique key for a particular usage which is based on its
+// type parameters. Another usage with the same type parameters will have the
+// same key.
+func usageKey(typeMap map[string]Type, typeParams []*TypeParam) string {
+	stringParams := []string{}
+	for _, param := range typeParams {
+		stringParams = append(stringParams, typeMap[param.String()].String())
+	}
+	return strings.Join(stringParams, ",")
+}
 
 // concreteType returns a new type with the concrete type parameters of e
 // applied.
@@ -21,6 +90,7 @@ func (check *Checker) concreteType(e *ast.Ident, genericObj Object) Type {
 			newObj := *genericObj
 			newType.obj = &newObj
 			newObj.typ = newType
+			addGenericUsage(genericObj, newType, typeMap)
 			return newType
 		}
 	case *Func:
@@ -35,6 +105,7 @@ func (check *Checker) concreteType(e *ast.Ident, genericObj Object) Type {
 			typeParams := make([]*TypeParam, len(sig.typeParams))
 			copy(typeParams, sig.typeParams)
 			newType := NewConcreteSignature(newSig, typeParams, typeMap)
+			addGenericUsage(genericObj, newType, typeMap)
 			return newType
 		}
 	}
@@ -190,5 +261,6 @@ func replaceTypesInConcreteNamed(root *ConcreteNamed, typeMapping map[string]Typ
 	newObj := *root.obj
 	newObj.typ = newType
 	newType.obj = &newObj
+	addGenericUsage(root.obj, newType, newTypeMap)
 	return newType
 }

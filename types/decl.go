@@ -259,6 +259,9 @@ func (check *Checker) typeDecl(obj *TypeName, typ ast.Expr, def *Named, path []*
 			}()
 		}
 		named.typeParams = typeParams
+		if named.typeParams != nil {
+			addGenericDecl(obj, named.typeParams)
+		}
 
 		// determine underlying type of named
 		check.typExpr(typ, named, append(path, obj))
@@ -373,6 +376,10 @@ func (check *Checker) funcDecl(obj *Func, decl *declInfo) {
 	if !check.conf.IgnoreFuncBodies && fdecl.Body != nil {
 		check.later(obj.name, decl, sig, fdecl.Body)
 	}
+
+	if sig.typeParams != nil {
+		addGenericDecl(obj, sig.typeParams)
+	}
 }
 
 func (check *Checker) declStmt(decl ast.Decl) {
@@ -482,7 +489,6 @@ func (check *Checker) declStmt(decl ast.Decl) {
 				// the innermost containing block."
 				scopePos := s.Name.Pos()
 				check.declare(check.scope, s.Name, obj, scopePos)
-				// TODO(albrow): add type param names here
 				check.typeDecl(obj, s.Type, nil, nil, s.Assign.IsValid(), s.Name.TypeParams)
 
 			default:
