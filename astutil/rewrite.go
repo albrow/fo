@@ -232,7 +232,7 @@ func (a *application) apply(parent ast.Node, name string, iter *iterator, n ast.
 		// nothing to do
 
 	case *ast.Ident:
-		a.apply(n, "GenIdent", nil, n.TypeParams)
+		a.apply(n, "Ident", nil, n.TypeParams)
 
 	case *ast.TypeParamList:
 		a.applyList(n, "List")

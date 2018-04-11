@@ -27,7 +27,7 @@ func (decl *GenericDecl) TypeParams() []*TypeParam {
 }
 
 func (decl *GenericDecl) Usages() map[string]*GenericUsage {
-	return decl.Usages()
+	return decl.usages
 }
 
 type GenericUsage struct {
@@ -36,7 +36,7 @@ type GenericUsage struct {
 }
 
 func (usg *GenericUsage) TypeMap() map[string]Type {
-	return usg.TypeMap()
+	return usg.typeMap
 }
 
 func addGenericDecl(obj Object, typeParams []*TypeParam) {

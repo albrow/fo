@@ -511,10 +511,16 @@ func cloneIdent(n *ast.Ident) *ast.Ident {
 	if n == nil {
 		return nil
 	}
+	var typeParamList *ast.TypeParamList
+	if n.TypeParams != nil {
+		typeParamList = new(ast.TypeParamList)
+		typeParamList.List = cloneExprList(n.TypeParams.List)
+	}
 	return &ast.Ident{
-		NamePos: n.NamePos,
-		Name:    n.Name,
-		Obj:     cloneObject(n.Obj),
+		NamePos:    n.NamePos,
+		Name:       n.Name,
+		Obj:        cloneObject(n.Obj),
+		TypeParams: typeParamList,
 	}
 }
 
