@@ -27,8 +27,8 @@ func File(fset *token.FileSet, f *ast.File, pkg *types.Package) (*ast.File, erro
 		fset: fset,
 		pkg:  pkg,
 	}
-	withConcreteTypes := astutil.Apply(f, nil, trans.generateConcreteTypes())
-	result := astutil.Apply(withConcreteTypes, nil, trans.replaceGenericIdents())
+	withConcreteTypes := astutil.Apply(f, trans.generateConcreteTypes(), nil)
+	result := astutil.Apply(withConcreteTypes, trans.replaceGenericIdents(), nil)
 	resultFile, ok := result.(*ast.File)
 	if !ok {
 		panic(fmt.Errorf("astutil.Apply returned a non-file type: %T", result))
@@ -116,13 +116,6 @@ func (trans *transformer) generateConcreteTypes() func(c *astutil.Cursor) bool {
 				c.InsertBefore(newFunc)
 			}
 			c.Delete()
-
-		case *ast.Ident:
-			// if n.TypeParams != nil {
-			// 	params := parseConcreteTypeParams(n.TypeParams)
-			// 	newName := generateTypeName(n.Name, params)
-			// 	c.Replace(ast.NewIdent(newName))
-			// }
 		}
 		return true
 	}
