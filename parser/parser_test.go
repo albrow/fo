@@ -1,5 +1,5 @@
 // Copyright 2009 The Go Authors. All rights reserved.
-// Modified work copyright 2018 Alex Browne. All rights reserved.
+// Modified work copyright 2028 Alex Browne. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/albrow/fo/ast"
+	"github.com/albrow/fo/astcmp"
 	"github.com/albrow/fo/token"
 )
 
@@ -546,5 +547,712 @@ type x int // comment
 	comment := f.Decls[0].(*ast.GenDecl).Specs[0].(*ast.TypeSpec).Comment.List[0].Text
 	if comment != "// comment" {
 		t.Errorf("got %q, want %q", comment, "// comment")
+	}
+}
+func TestTypeDecls(t *testing.T) {
+	testCases := []struct {
+		src      string
+		expected ast.Node
+	}{
+		{
+			// Ambiguous case. Could be type parameters or array type. Here, we expect
+			// `"type" identifier ArrayType` and the type-checker will perform
+			// disambiguation later on.
+			src: "package p; type a[T]string",
+			expected: &ast.File{
+				Name: ast.NewIdent("p"),
+				Decls: []ast.Decl{
+					&ast.GenDecl{
+						Tok: token.TYPE,
+						Specs: []ast.Spec{
+							&ast.TypeSpec{
+								Name: ast.NewIdent("a"),
+								Type: &ast.ArrayType{
+									Len: ast.NewIdent("T"),
+									Elt: ast.NewIdent("string"),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// ArrayType with literal number
+			src: "package p; type a [5]string",
+			expected: &ast.File{
+				Name: ast.NewIdent("p"),
+				Decls: []ast.Decl{
+					&ast.GenDecl{
+						Tok: token.TYPE,
+						Specs: []ast.Spec{
+							&ast.TypeSpec{
+								Name: ast.NewIdent("a"),
+								Type: &ast.ArrayType{
+									Len: &ast.BasicLit{
+										Kind:  token.INT,
+										Value: "5",
+									},
+									Elt: ast.NewIdent("string"),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// ArrayType with ellipsis
+			src: "package p; type a [...]string",
+			expected: &ast.File{
+				Name: ast.NewIdent("p"),
+				Decls: []ast.Decl{
+					&ast.GenDecl{
+						Tok: token.TYPE,
+						Specs: []ast.Spec{
+							&ast.TypeSpec{
+								Name: ast.NewIdent("a"),
+								Type: &ast.ArrayType{
+									Len: &ast.Ellipsis{},
+									Elt: ast.NewIdent("string"),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// TypeParamDecl
+			src: "package p; type a[T, U] map[T]U",
+			expected: &ast.File{
+				Name: ast.NewIdent("p"),
+				Decls: []ast.Decl{
+					&ast.GenDecl{
+						Tok: token.TYPE,
+						Specs: []ast.Spec{
+							&ast.TypeSpec{
+								Name: ast.NewIdent("a"),
+								TypeParams: &ast.TypeParamDecl{
+									Names: []*ast.Ident{
+										ast.NewIdent("T"),
+										ast.NewIdent("U"),
+									},
+								},
+								Type: &ast.MapType{
+									Key:   ast.NewIdent("T"),
+									Value: ast.NewIdent("U"),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		testParseFile(t, tc.src, tc.expected)
+	}
+}
+
+func TestBracketExpression(t *testing.T) {
+	testCases := []struct {
+		src      string
+		expected ast.Node
+	}{
+		{
+			// Ambiguous case. Could be type parameters or index expression. Expect an
+			// *ast.IndexExpr.
+			src: "a[T]",
+			expected: &ast.IndexExpr{
+				X:     ast.NewIdent("a"),
+				Index: ast.NewIdent("T"),
+			},
+		},
+		{
+			// Ambiguous case as a function call. Expect *ast.CallExpr where X is an
+			// *ast.IndexExpr.
+			src: "a[T]()",
+			expected: &ast.CallExpr{
+				Fun: &ast.IndexExpr{
+					X:     ast.NewIdent("a"),
+					Index: ast.NewIdent("T"),
+				},
+			},
+		},
+		{
+			// The braces disambiguate the index expression. Expect *ast.CompositeLit
+			// where Type is *ast.TypeParamExpr.
+			src: "a[T]{}",
+			expected: &ast.CompositeLit{
+				Type: &ast.TypeParamExpr{
+					X: ast.NewIdent("a"),
+					Params: []ast.Expr{
+						ast.NewIdent("T"),
+					},
+				},
+			},
+		},
+		{
+			// The comma disambiguates the expression. Expect *ast.TypeParamExpr.
+			src: "a[T, U]",
+			expected: &ast.TypeParamExpr{
+				X: ast.NewIdent("a"),
+				Params: []ast.Expr{
+					ast.NewIdent("T"),
+					ast.NewIdent("U"),
+				},
+			},
+		},
+		{
+			// The colon disambiguates the expression. Expect *ast.SliceExpr.
+			src: "a[T:U]",
+			expected: &ast.SliceExpr{
+				X:    ast.NewIdent("a"),
+				Low:  ast.NewIdent("T"),
+				High: ast.NewIdent("U"),
+			},
+		},
+		{
+			// *ast.SliceExpr with low, high, and max.
+			src: "a[T:U:V]",
+			expected: &ast.SliceExpr{
+				X:      ast.NewIdent("a"),
+				Low:    ast.NewIdent("T"),
+				High:   ast.NewIdent("U"),
+				Max:    ast.NewIdent("V"),
+				Slice3: true,
+			},
+		},
+		{
+			// *ast.SliceExpr with high only.
+			src: "a[:T]",
+			expected: &ast.SliceExpr{
+				X:    ast.NewIdent("a"),
+				High: ast.NewIdent("T"),
+			},
+		},
+		{
+			// *ast.SliceExpr with low only.
+			src: "a[T:]",
+			expected: &ast.SliceExpr{
+				X:   ast.NewIdent("a"),
+				Low: ast.NewIdent("T"),
+			},
+		},
+		{
+			// *ast.SliceExpr with high and max only.
+			src: "a[:T:U]",
+			expected: &ast.SliceExpr{
+				X:      ast.NewIdent("a"),
+				High:   ast.NewIdent("T"),
+				Max:    ast.NewIdent("U"),
+				Slice3: true,
+			},
+		},
+		{
+			// nested *ast.SliceExpr.
+			src: "a[T:][:U]",
+			expected: &ast.SliceExpr{
+				X: &ast.SliceExpr{
+					X:   ast.NewIdent("a"),
+					Low: ast.NewIdent("T"),
+				},
+				High: ast.NewIdent("U"),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		testParseExpr(t, tc.src, tc.expected)
+	}
+}
+
+func TestParseParameterList(t *testing.T) {
+	testCases := []struct {
+		src      string
+		expected ast.Node
+	}{
+		{
+			// Ident SliceType
+			src: "func (x []int)",
+			expected: &ast.FuncType{
+				Params: &ast.FieldList{
+					List: []*ast.Field{
+						&ast.Field{
+							Names: []*ast.Ident{
+								ast.NewIdent("x"),
+							},
+							Type: &ast.ArrayType{
+								Elt: ast.NewIdent("int"),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// Ident ArrayType
+			src: "func (x [5]int)",
+			expected: &ast.FuncType{
+				Params: &ast.FieldList{
+					List: []*ast.Field{
+						&ast.Field{
+							Names: []*ast.Ident{
+								ast.NewIdent("x"),
+							},
+							Type: &ast.ArrayType{
+								Elt: ast.NewIdent("int"),
+								Len: &ast.BasicLit{
+									Kind:  token.INT,
+									Value: "5",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// Ident ArrayType (with ellipsis)
+			// Technically this is not valid, but the parser permits it anyways.
+			src: "func (x [...]int)",
+			expected: &ast.FuncType{
+				Params: &ast.FieldList{
+					List: []*ast.Field{
+						&ast.Field{
+							Names: []*ast.Ident{
+								ast.NewIdent("x"),
+							},
+							Type: &ast.ArrayType{
+								Elt: ast.NewIdent("int"),
+								Len: &ast.Ellipsis{},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// Ident TypeParamExpr
+			src: "func (x T[U])",
+			expected: &ast.FuncType{
+				Params: &ast.FieldList{
+					List: []*ast.Field{
+						&ast.Field{
+							Names: []*ast.Ident{
+								ast.NewIdent("x"),
+							},
+							Type: &ast.TypeParamExpr{
+								X: ast.NewIdent("T"),
+								Params: []ast.Expr{
+									ast.NewIdent("U"),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// IdentifierList SliceType
+			src: "func (x, y, z []int)",
+			expected: &ast.FuncType{
+				Params: &ast.FieldList{
+					List: []*ast.Field{
+						&ast.Field{
+							Names: []*ast.Ident{
+								ast.NewIdent("x"),
+								ast.NewIdent("y"),
+								ast.NewIdent("z"),
+							},
+							Type: &ast.ArrayType{
+								Elt: ast.NewIdent("int"),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// IdentifierList SliceType { "," IdentifierList SliceType }
+			src: "func (x, y, z []int, a, b, c []string)",
+			expected: &ast.FuncType{
+				Params: &ast.FieldList{
+					List: []*ast.Field{
+						&ast.Field{
+							Names: []*ast.Ident{
+								ast.NewIdent("x"),
+								ast.NewIdent("y"),
+								ast.NewIdent("z"),
+							},
+							Type: &ast.ArrayType{
+								Elt: ast.NewIdent("int"),
+							},
+						},
+						&ast.Field{
+							Names: []*ast.Ident{
+								ast.NewIdent("a"),
+								ast.NewIdent("b"),
+								ast.NewIdent("c"),
+							},
+							Type: &ast.ArrayType{
+								Elt: ast.NewIdent("string"),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// Type { "," Type } (anonymous parameters)
+			src: "func ([]int, []string, []bool)",
+			expected: &ast.FuncType{
+				Params: &ast.FieldList{
+					List: []*ast.Field{
+						&ast.Field{
+							Type: &ast.ArrayType{
+								Elt: ast.NewIdent("int"),
+							},
+						},
+						&ast.Field{
+							Type: &ast.ArrayType{
+								Elt: ast.NewIdent("string"),
+							},
+						},
+						&ast.Field{
+							Type: &ast.ArrayType{
+								Elt: ast.NewIdent("bool"),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// TypeParamExpr { "," TypeParamExpr } (anonymous parameters with type
+			// TypeParamExpr)
+			src: "func (T[U, V], T[U])",
+			expected: &ast.FuncType{
+				Params: &ast.FieldList{
+					List: []*ast.Field{
+						&ast.Field{
+							Type: &ast.TypeParamExpr{
+								X: ast.NewIdent("T"),
+								Params: []ast.Expr{
+									ast.NewIdent("U"),
+									ast.NewIdent("V"),
+								},
+							},
+						},
+						&ast.Field{
+							Type: &ast.TypeParamExpr{
+								X: ast.NewIdent("T"),
+								Params: []ast.Expr{
+									ast.NewIdent("U"),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// "*" TypeParamExpr { "," "*" TypeParamExpr } (anonymous parameters with
+			// type pointer to TypeParamExpr)
+			src: "func (*T[U, V], *T[U])",
+			expected: &ast.FuncType{
+				Params: &ast.FieldList{
+					List: []*ast.Field{
+						&ast.Field{
+							Type: &ast.StarExpr{
+								X: &ast.TypeParamExpr{
+									X: ast.NewIdent("T"),
+									Params: []ast.Expr{
+										ast.NewIdent("U"),
+										ast.NewIdent("V"),
+									},
+								},
+							},
+						},
+						&ast.Field{
+							Type: &ast.StarExpr{
+								X: &ast.TypeParamExpr{
+									X: ast.NewIdent("T"),
+									Params: []ast.Expr{
+										ast.NewIdent("U"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		testParseExpr(t, tc.src, tc.expected)
+	}
+}
+
+func TestParseFieldDecl(t *testing.T) {
+	testCases := []struct {
+		src      string
+		expected ast.Node
+	}{
+		{
+			// Ident SliceType
+			src: "struct{x []int}",
+			expected: &ast.StructType{
+				Fields: &ast.FieldList{
+					List: []*ast.Field{
+						&ast.Field{
+							Names: []*ast.Ident{
+								ast.NewIdent("x"),
+							},
+							Type: &ast.ArrayType{
+								Elt: ast.NewIdent("int"),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// Ident ArrayType
+			src: "struct{x [5]int}",
+			expected: &ast.StructType{
+				Fields: &ast.FieldList{
+					List: []*ast.Field{
+						&ast.Field{
+							Names: []*ast.Ident{
+								ast.NewIdent("x"),
+							},
+							Type: &ast.ArrayType{
+								Elt: ast.NewIdent("int"),
+								Len: &ast.BasicLit{
+									Kind:  token.INT,
+									Value: "5",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// Ident ArrayType (with ellipsis)
+			// Technically this is not valid, but the parser permits it anyways.
+			src: "struct{x [...]int}",
+			expected: &ast.StructType{
+				Fields: &ast.FieldList{
+					List: []*ast.Field{
+						&ast.Field{
+							Names: []*ast.Ident{
+								ast.NewIdent("x"),
+							},
+							Type: &ast.ArrayType{
+								Elt: ast.NewIdent("int"),
+								Len: &ast.Ellipsis{},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// Ident TypeParamExpr
+			src: "struct{x T[U]}",
+			expected: &ast.StructType{
+				Fields: &ast.FieldList{
+					List: []*ast.Field{
+						&ast.Field{
+							Names: []*ast.Ident{
+								ast.NewIdent("x"),
+							},
+							Type: &ast.TypeParamExpr{
+								X: ast.NewIdent("T"),
+								Params: []ast.Expr{
+									ast.NewIdent("U"),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// IdentifierList SliceType
+			src: "struct{x, y, z []int}",
+			expected: &ast.StructType{
+				Fields: &ast.FieldList{
+					List: []*ast.Field{
+						&ast.Field{
+							Names: []*ast.Ident{
+								ast.NewIdent("x"),
+								ast.NewIdent("y"),
+								ast.NewIdent("z"),
+							},
+							Type: &ast.ArrayType{
+								Elt: ast.NewIdent("int"),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// IdentifierList SliceType { ";" IdentifierList SliceType }
+			src: "struct{x, y, z []int; a, b, c []string}",
+			expected: &ast.StructType{
+				Fields: &ast.FieldList{
+					List: []*ast.Field{
+						&ast.Field{
+							Names: []*ast.Ident{
+								ast.NewIdent("x"),
+								ast.NewIdent("y"),
+								ast.NewIdent("z"),
+							},
+							Type: &ast.ArrayType{
+								Elt: ast.NewIdent("int"),
+							},
+						},
+						&ast.Field{
+							Names: []*ast.Ident{
+								ast.NewIdent("a"),
+								ast.NewIdent("b"),
+								ast.NewIdent("c"),
+							},
+							Type: &ast.ArrayType{
+								Elt: ast.NewIdent("string"),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// TypeParamExpr { ";" TypeParamExpr } (embedded fields with type
+			// TypeParamExpr)
+			src: "struct{T[U, V]; T[U]}",
+			expected: &ast.StructType{
+				Fields: &ast.FieldList{
+					List: []*ast.Field{
+						&ast.Field{
+							Type: &ast.TypeParamExpr{
+								X: ast.NewIdent("T"),
+								Params: []ast.Expr{
+									ast.NewIdent("U"),
+									ast.NewIdent("V"),
+								},
+							},
+						},
+						&ast.Field{
+							Type: &ast.TypeParamExpr{
+								X: ast.NewIdent("T"),
+								Params: []ast.Expr{
+									ast.NewIdent("U"),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// "*" TypeParamExpr { ";" "*" TypeParamExpr } (embedded fields with type
+			// pointer to TypeParamExpr)
+			src: "struct{*T[U, V]; *T[U]}",
+			expected: &ast.StructType{
+				Fields: &ast.FieldList{
+					List: []*ast.Field{
+						&ast.Field{
+							Type: &ast.StarExpr{
+								X: &ast.TypeParamExpr{
+									X: ast.NewIdent("T"),
+									Params: []ast.Expr{
+										ast.NewIdent("U"),
+										ast.NewIdent("V"),
+									},
+								},
+							},
+						},
+						&ast.Field{
+							Type: &ast.StarExpr{
+								X: &ast.TypeParamExpr{
+									X: ast.NewIdent("T"),
+									Params: []ast.Expr{
+										ast.NewIdent("U"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		testParseExpr(t, tc.src, tc.expected)
+	}
+}
+
+func testParseExpr(t *testing.T, src string, expected ast.Node) {
+	t.Helper()
+	got, err := ParseExpr(src)
+	if err != nil {
+		t.Errorf("ParseExpr(%q): %v", src, err)
+		return
+	}
+	if !astcmp.Equal(expected, got, astcmp.IgnorePos) {
+		exBuff := &bytes.Buffer{}
+		if err := ast.Fprint(exBuff, token.NewFileSet(), expected, nil); err != nil {
+			t.Fatalf("ast.Fprint returned error: %v", err)
+			return
+		}
+		gotBuff := &bytes.Buffer{}
+		if err := ast.Fprint(gotBuff, token.NewFileSet(), got, nil); err != nil {
+			t.Fatalf("ast.Fprint returned error: %v", err)
+			return
+		}
+
+		t.Errorf(
+			"ParseExpr(%q):\n\nExpected:\n%s\nGot:\n%s\n",
+			src,
+			exBuff.String(),
+			gotBuff.String(),
+		)
+	}
+}
+
+func testParseFile(t *testing.T, src string, expected ast.Node) {
+	t.Helper()
+	fset := token.NewFileSet()
+	got, err := ParseFile(fset, "", src, AllErrors)
+	if err != nil {
+		t.Errorf("ParseExpr(%q): %v", src, err)
+		return
+	}
+	if !astcmp.Equal(expected, got, astcmp.IgnorePos|astcmp.IgnoreUnresolved) {
+		exBuff := &bytes.Buffer{}
+		if err := ast.Fprint(exBuff, token.NewFileSet(), expected, nil); err != nil {
+			t.Fatalf("ast.Fprint returned error: %v", err)
+			return
+		}
+		gotBuff := &bytes.Buffer{}
+		if err := ast.Fprint(gotBuff, token.NewFileSet(), got, nil); err != nil {
+			t.Fatalf("ast.Fprint returned error: %v", err)
+			return
+		}
+
+		t.Errorf(
+			"ParseExpr(%q):\n\nExpected:\n%s\nGot:\n%s\n",
+			src,
+			exBuff.String(),
+			gotBuff.String(),
+		)
 	}
 }

@@ -688,9 +688,6 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int) {
 
 	case *ast.Ident:
 		p.print(x)
-		if x.TypeParams != nil {
-			p.print(x.TypeParams)
-		}
 
 	case *ast.BinaryExpr:
 		if depth < 1 {
@@ -890,6 +887,8 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int) {
 		}
 		p.print(blank)
 		p.expr(x.Value)
+
+	// TODO(albrow): Implement printing TypeParamExpr and TypeParamDecl
 
 	default:
 		panic("unreachable")

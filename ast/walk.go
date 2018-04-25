@@ -88,16 +88,11 @@ func Walk(v Visitor, node Node) {
 		}
 
 	// Expressions
-	case *BadExpr, *BasicLit:
+	case *BadExpr, *BasicLit, *Ident:
 		// nothing to do
 
-	case *Ident:
-		if n.TypeParams != nil {
-			Walk(v, n.TypeParams)
-		}
-
-	case *TypeParamList:
-		for _, f := range n.List {
+	case *TypeParamDecl:
+		for _, f := range n.Names {
 			Walk(v, f)
 		}
 

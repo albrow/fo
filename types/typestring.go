@@ -327,8 +327,8 @@ func writeConcreteTypeParams(buf *bytes.Buffer, typeMap map[string]Type, typePar
 			params = append(params, "?")
 		}
 	}
-	buf.WriteString("::(")
+	buf.WriteString("[")
 	// TODO(albrow): Can we avoid using the strings package here?
 	buf.WriteString(strings.Join(params, ","))
-	buf.WriteByte(')')
+	buf.WriteByte(']')
 }

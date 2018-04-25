@@ -83,12 +83,11 @@ const (
 	COMMA  // ,
 	PERIOD // .
 
-	RPAREN       // )
-	RBRACK       // ]
-	RBRACE       // }
-	SEMICOLON    // ;
-	COLON        // :
-	DOUBLE_COLON // ::
+	RPAREN    // )
+	RBRACK    // ]
+	RBRACE    // }
+	SEMICOLON // ;
+	COLON     // :
 	operator_end
 
 	keyword_beg
@@ -188,12 +187,11 @@ var tokens = [...]string{
 	COMMA:  ",",
 	PERIOD: ".",
 
-	RPAREN:       ")",
-	RBRACK:       "]",
-	RBRACE:       "}",
-	SEMICOLON:    ";",
-	COLON:        ":",
-	DOUBLE_COLON: "::",
+	RPAREN:    ")",
+	RBRACK:    "]",
+	RBRACE:    "}",
+	SEMICOLON: ";",
+	COLON:     ":",
 
 	BREAK:    "break",
 	CASE:     "case",

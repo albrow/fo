@@ -17,9 +17,9 @@ import (
 func TestTransformStructTypeUnused(t *testing.T) {
 	src := `package main
 
-type T::(U) struct {}
+type T[U] struct {}
 
-func f::(T)(x T) {}
+func f[T](x T) {}
 
 func main() { }
 `
@@ -35,29 +35,29 @@ func main() {}
 func TestTransformStructTypeLiterals(t *testing.T) {
 	src := `package main
 
-type Box::(T) struct {
+type Box[T] struct {
 	val T
 }
 
-type Tuple::(T, U) struct {
+type Tuple[T, U] struct {
 	first T
 	second U
 }
 
-type Map::(T, U) struct {
+type Map[T, U] struct {
 	m map[T]U
 }
 
 func main() {
-	var _ = Box::(string){}
-	var _ = &Box::(int){}
-	var _ = []Box::(string){}
-	var _ = [2]Box::(int){}
-	var _ = map[string]Box::(string){}
+	var _ = Box[string]{}
+	var _ = &Box[int]{}
+	var _ = []Box[string]{}
+	var _ = [2]Box[int]{}
+	var _ = map[string]Box[string]{}
 
-	var _ = Map::(string, int){}
+	var _ = Map[string, int]{}
 
-	var _ = Tuple::(int, string) {
+	var _ = Tuple[int, string] {
 		first: 2,
 		second: "foo",
 	}
@@ -107,12 +107,12 @@ func TestTransformStructTypeSelectorUsage(t *testing.T) {
 
 import "bytes"
 
-type Box::(T) struct{
+type Box[T] struct{
 	val T
 }
 
 func main() {
-	var _ = Box::(bytes.Buffer){}
+	var _ = Box[bytes.Buffer]{}
 }
 `
 
@@ -134,16 +134,16 @@ func main() {
 func TestTransformStructTypeFuncArgs(t *testing.T) {
 	src := `package main
 
-type Either::(T, U) struct {
+type Either[T, U] struct {
 	left T
 	right U
 }
 
-func getData() Either::(int, string) {
-	return Either::(int, string){}
+func getData() Either[int, string] {
+	return Either[int, string]{}
 }
 
-func handleEither(e Either::(error, string)) {
+func handleEither(e Either[error, string]) {
 }
 
 func main() { }
@@ -178,12 +178,12 @@ func main() {}
 func TestTransformStructTypeMethodReceiver(t *testing.T) {
 	src := `package main
 
-type Maybe::(T) struct {
+type Maybe[T] struct {
 	val T
 	valid bool
 }
 
-func (m Maybe::(string)) IsValid() bool {
+func (m Maybe[string]) IsValid() bool {
 	return m.valid
 }
 
@@ -210,15 +210,15 @@ func main() {}
 func TestTransformStructTypeSwitch(t *testing.T) {
 	src := `package main
 
-type Box::(T) struct {
+type Box[T] struct {
 	val T
 }
 
 func main() {
-	var x interface{} = Box::(int){}
+	var x interface{} = Box[int]{}
 	switch x.(type) {
-	case Box::(int):
-	case Box::(string):
+	case Box[int]:
+	case Box[string]:
 	}
 }
 `
@@ -249,14 +249,14 @@ func main() {
 func TestTransformStructTypeAssert(t *testing.T) {
 	src := `package main
 
-type Box::(T) struct {
+type Box[T] struct {
 	val T
 }
 
 func main() {
-	var x interface{} = Box::(int){}
-	_ = x.(Box::(int))
-	_ = x.(Box::(string))
+	var x interface{} = Box[int]{}
+	_ = x.(Box[int])
+	_ = x.(Box[string])
 }
 `
 
@@ -286,19 +286,19 @@ func TestTransformFuncDecl(t *testing.T) {
 
 import "fmt"
 
-func Print::(T)(t T) {
+func Print[T](t T) {
 	fmt.Println(t)
 }
 
-func MakeSlice::(T)() []T {
+func MakeSlice[T]() []T {
 	return make([]T, 0)
 }
 
 func main() {
-	Print::(int)(5)
-	Print::(int)(42)
-	Print::(string)("foo")
-	MakeSlice::(string)()
+	Print[int](5)
+	Print[int](42)
+	Print[string]("foo")
+	MakeSlice[string]()
 }
 `
 
@@ -331,34 +331,34 @@ func main() {
 func TestTransformStructTypeInherited(t *testing.T) {
 	src := `package main
 
-type Tuple::(T, U) struct {
+type Tuple[T, U] struct {
 	first T
 	second U
 }
 
-type BoxedTuple::(T, U) struct {
-	val Tuple::(T, U)
+type BoxedTuple[T, U] struct {
+	val Tuple[T, U]
 }
 
-type BoxedTupleString::(T) struct {
-	val Tuple::(string, T)
+type BoxedTupleString[T] struct {
+	val Tuple[string, T]
 }
 
 func main() {
-	var _ = BoxedTuple::(string, int){
-		val: Tuple::(string, int){
+	var _ = BoxedTuple[string, int]{
+		val: Tuple[string, int]{
 			first: "foo",
 			second: 42,
 		},
 	}
-	var _ = BoxedTuple::(float64, int){}
-	var _ = BoxedTupleString::(bool){
-		val: Tuple::(string, bool) {
+	var _ = BoxedTuple[float64, int]{}
+	var _ = BoxedTupleString[bool]{
+		val: Tuple[string, bool] {
 			first: "abc",
 			second: true,
 		},
 	}
-	var _ = BoxedTupleString::(uint){}
+	var _ = BoxedTupleString[uint]{}
 }
 `
 
@@ -425,28 +425,28 @@ func main() {
 func TestTransformFuncDeclInherited(t *testing.T) {
 	src := `package main
 
-type Tuple::(T, U) struct {
+type Tuple[T, U] struct {
 	first T
 	second U
 }
 
-func NewTuple::(T, U)(first T, second U) Tuple::(T, U) {
-	return Tuple::(T, U){
+func NewTuple[T, U](first T, second U) Tuple[T, U] {
+	return Tuple[T, U]{
 		first: first,
 		second: second,
 	}
 }
 
-func NewTupleString::(T)(first string, second T) Tuple::(string, T) {
-	return Tuple::(string, T) {
+func NewTupleString[T](first string, second T) Tuple[string, T] {
+	return Tuple[string, T] {
 		first: first,
 		second: second,
 	}
 }
 
 func main() {
-	var _ = NewTuple::(bool, int64)(true, 42)
-	var _ = NewTupleString::(float64)("foo", 12.34)
+	var _ = NewTuple[bool, int64](true, 42)
+	var _ = NewTupleString[float64]("foo", 12.34)
 }
 `
 

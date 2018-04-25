@@ -178,8 +178,6 @@ var unresolved = new(ast.Object)
 // identifiers.
 //
 func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
-	// TODO: do we need to modify this to work with *ast.GenIdent?
-
 	// nothing to do if x is not an identifier or the blank identifier
 	ident, _ := x.(*ast.Ident)
 	if ident == nil {
@@ -543,14 +541,10 @@ func (p *parser) parseIdent() *ast.Ident {
 	} else {
 		p.expect(token.IDENT) // use expect() error handling
 	}
-	var typeParams *ast.TypeParamList
-	if p.tok == token.DOUBLE_COLON {
-		typeParams = p.parseTypeParamList()
-	}
+
 	return &ast.Ident{
-		NamePos:    pos,
-		Name:       name,
-		TypeParams: typeParams,
+		NamePos: pos,
+		Name:    name,
 	}
 }
 
@@ -584,26 +578,6 @@ func (p *parser) parseExprList(lhs bool) (list []ast.Expr) {
 	}
 
 	return
-}
-
-func (p *parser) parseTypeParamList() *ast.TypeParamList {
-	dcolon := p.expect(token.DOUBLE_COLON)
-	lparen := p.expect(token.LPAREN)
-
-	list := []ast.Expr{}
-	list = append(list, p.parseType())
-	for p.tok == token.COMMA {
-		p.next()
-		list = append(list, p.parseType())
-	}
-
-	rparen := p.expect(token.RPAREN)
-	return &ast.TypeParamList{
-		Dcolon: dcolon,
-		Lparen: lparen,
-		List:   list,
-		Rparen: rparen,
-	}
 }
 
 func (p *parser) parseLhsList() []ast.Expr {
@@ -662,24 +636,40 @@ func (p *parser) parseType() ast.Expr {
 	return typ
 }
 
-// If the result is an identifier, it is not resolved.
-func (p *parser) parseTypeName() ast.Expr {
+// If the result is an identifier, it is not resolved. If allowTypeParams is
+// true, a bracket following the type name will be interpreted as the start of
+// a TypeParamExpr.
+func (p *parser) parseTypeName(allowTypeParams bool) ast.Expr {
 	if p.trace {
 		defer un(trace(p, "TypeName"))
 	}
 
-	ident := p.parseIdent()
+	var x ast.Expr = p.parseIdent()
 	// don't resolve ident yet - it may be a parameter or field name
 
 	if p.tok == token.PERIOD {
 		// ident is a package name
 		p.next()
-		p.resolve(ident)
+		p.resolve(x)
 		sel := p.parseIdent()
-		return &ast.SelectorExpr{X: ident, Sel: sel}
+		x = &ast.SelectorExpr{X: x, Sel: sel}
 	}
 
-	return ident
+	// Sometimes we don't want to jump ahead and parse the bracket as the start of
+	// a type parameter expression.
+	if allowTypeParams && p.tok == token.LBRACK && x != nil {
+		lbrack := p.expect(token.LBRACK)
+		params := p.parseTypeList()
+		rbrack := p.expect(token.RBRACK)
+		return &ast.TypeParamExpr{
+			X:      x,
+			Lbrack: lbrack,
+			Params: params,
+			Rbrack: rbrack,
+		}
+	}
+
+	return x
 }
 
 func (p *parser) parseArrayType() ast.Expr {
@@ -730,22 +720,95 @@ func (p *parser) parseFieldDecl(scope *ast.Scope) *ast.Field {
 	// 1st FieldDecl
 	// A type name used as an anonymous field looks like a field identifier.
 	var list []ast.Expr
+	var typ ast.Expr
+	var idents []*ast.Ident
 	for {
-		list = append(list, p.parseVarType(false))
+		// TODO(albrow): Reduce code duplication between this and function parameter
+		// parsing.
+		x := p.parseVarType(false, false)
+
+		if p.tok == token.LBRACK {
+			// We need to disambiguate between TypeParamExpr and
+			// (Ident SliceType | Ident ArrayType)
+			lbrack := p.expect(token.LBRACK)
+			if p.tok == token.IDENT {
+				// If the token is an ident it's still ambiguous because it could be a
+				// constant. We have to look ahead one more token to try to
+				// disambiguate.
+				p.exprLev++
+				len := p.parseRhs()
+				p.exprLev--
+				if p.tok == token.COMMA {
+					// TypeParamExpr
+					p.next()
+					params := append([]ast.Expr{len}, p.parseTypeList()...)
+					rbrack := p.expect(token.RBRACK)
+					x = &ast.TypeParamExpr{
+						X:      x,
+						Lbrack: lbrack,
+						Params: params,
+						Rbrack: rbrack,
+					}
+				} else if p.tok == token.RBRACK {
+					// Still ambiguous. We need to look one more token ahead.
+					rbrack := p.expect(token.RBRACK)
+					if p.tok == token.SEMICOLON || p.tok == token.STRING || p.tok == token.RBRACE {
+						// TypeParamExpr
+						// We reached the end of this field decl which means the type
+						// is a TypeParamExpr and not an ArrayType.
+						x = &ast.TypeParamExpr{
+							X:      x,
+							Lbrack: lbrack,
+							Params: []ast.Expr{p.checkExprOrType(len)},
+							Rbrack: rbrack,
+						}
+					} else {
+						// Identifier ArrayType (with constant as the len)
+						// Because something follows the closing bracket, it must be an
+						// ArrayType.
+						elt := p.parseType()
+						typ = &ast.ArrayType{Lbrack: lbrack, Len: len, Elt: elt}
+						idents = p.makeIdentList(append(list, x))
+						break
+					}
+				}
+			} else {
+				// Ident SliceType | Ident ArrayType
+				p.exprLev++
+				var len ast.Expr
+				// always permit ellipsis for more fault-tolerant parsing
+				if p.tok == token.ELLIPSIS {
+					len = &ast.Ellipsis{Ellipsis: p.pos}
+					p.next()
+				} else if p.tok != token.RBRACK {
+					len = p.parseRhs()
+				}
+				p.exprLev--
+				p.expect(token.RBRACK)
+				elt := p.parseType()
+				typ = &ast.ArrayType{Lbrack: lbrack, Len: len, Elt: elt}
+				idents = p.makeIdentList(append(list, x))
+				break
+			}
+		}
+
+		list = append(list, x)
 		if p.tok != token.COMMA {
 			break
 		}
 		p.next()
 	}
 
-	typ := p.tryVarType(false)
+	if typ == nil {
+		typ = p.tryVarType(false, true)
+
+	}
 
 	// analyze case
-	var idents []*ast.Ident
-	if typ != nil {
+	if typ != nil && len(idents) == 0 {
 		// IdentifierList Type
 		idents = p.makeIdentList(list)
-	} else {
+	} else if typ == nil && len(idents) == 0 {
 		// ["*"] TypeName (AnonymousField)
 		typ = list[0] // we always have at least one element
 		if n := len(list); n > 1 {
@@ -812,11 +875,11 @@ func (p *parser) parsePointerType() *ast.StarExpr {
 }
 
 // If the result is an identifier, it is not resolved.
-func (p *parser) tryVarType(isParam bool) ast.Expr {
+func (p *parser) tryVarType(isParam bool, allowTypeParams bool) ast.Expr {
 	if isParam && p.tok == token.ELLIPSIS {
 		pos := p.pos
 		p.next()
-		typ := p.tryIdentOrType() // don't use parseType so we can provide better error message
+		typ := p.tryIdentOrType(isParam, allowTypeParams) // don't use parseType so we can provide better error message
 		if typ != nil {
 			p.resolve(typ)
 		} else {
@@ -825,12 +888,13 @@ func (p *parser) tryVarType(isParam bool) ast.Expr {
 		}
 		return &ast.Ellipsis{Ellipsis: pos, Elt: typ}
 	}
-	return p.tryIdentOrType()
+
+	return p.tryIdentOrType(isParam, allowTypeParams)
 }
 
 // If the result is an identifier, it is not resolved.
-func (p *parser) parseVarType(isParam bool) ast.Expr {
-	typ := p.tryVarType(isParam)
+func (p *parser) parseVarType(isParam bool, allowTypeParams bool) ast.Expr {
+	typ := p.tryVarType(isParam, allowTypeParams)
 	if typ == nil {
 		pos := p.pos
 		p.errorExpected(pos, "type")
@@ -849,7 +913,92 @@ func (p *parser) parseParameterList(scope *ast.Scope, ellipsisOk bool) (params [
 	// A list of identifiers looks like a list of type names.
 	var list []ast.Expr
 	for {
-		list = append(list, p.parseVarType(ellipsisOk))
+		x := p.parseVarType(ellipsisOk, false)
+
+		if p.tok == token.LBRACK {
+			// We need to disambiguate between TypeParamExpr and
+			// IdentifierList (SliceType | ArrayType)
+			lbrack := p.expect(token.LBRACK)
+			if p.tok == token.IDENT {
+				// If the token is an ident it's still ambiguous because it could be a
+				// constant. We have to look ahead one more token to try to
+				// disambiguate.
+				p.exprLev++
+				len := p.parseRhs()
+				p.exprLev--
+				if p.tok == token.COMMA {
+					// TypeParamExpr
+					p.next()
+					params := append([]ast.Expr{len}, p.parseTypeList()...)
+					rbrack := p.expect(token.RBRACK)
+					x = &ast.TypeParamExpr{
+						X:      x,
+						Lbrack: lbrack,
+						Params: params,
+						Rbrack: rbrack,
+					}
+				} else if p.tok == token.RBRACK {
+					// Still ambiguous. We need to look one more token ahead.
+					rbrack := p.expect(token.RBRACK)
+					if p.tok == token.COMMA || p.tok == token.SEMICOLON || p.tok == token.RPAREN {
+						// TypeParamExpr
+						// Since nothing follows the closing bracket, we know we have a
+						// TypeParamExpr and not an ArrayType.
+						x = &ast.TypeParamExpr{
+							X:      x,
+							Lbrack: lbrack,
+							Params: []ast.Expr{p.checkExprOrType(len)},
+							Rbrack: rbrack,
+						}
+					} else {
+						// Identifier ArrayType (with constant as the len)
+						// Since something follows the closing bracket, we know we have an
+						// ArrayType and not a TypeParamExpr.
+						list = append(list, x)
+						elt := p.parseType()
+						typ := &ast.ArrayType{Lbrack: lbrack, Len: len, Elt: elt}
+						idents := p.makeIdentList(list)
+						field := &ast.Field{Names: idents, Type: typ}
+						params = append(params, field)
+						p.declare(field, nil, scope, ast.Var, idents...)
+						p.resolve(typ)
+						if !p.atComma("parameter list", token.RPAREN) {
+							return
+						}
+						p.next()
+						break
+					}
+				}
+			} else {
+				// IdentifierList (SliceType | ArrayType)
+				list = append(list, x)
+				p.exprLev++
+				var len ast.Expr
+				// always permit ellipsis for more fault-tolerant parsing
+				if p.tok == token.ELLIPSIS {
+					len = &ast.Ellipsis{Ellipsis: p.pos}
+					p.next()
+				} else if p.tok != token.RBRACK {
+					len = p.parseRhs()
+				}
+				p.exprLev--
+				p.expect(token.RBRACK)
+				elt := p.parseType()
+				typ := &ast.ArrayType{Lbrack: lbrack, Len: len, Elt: elt}
+				idents := p.makeIdentList(list)
+				field := &ast.Field{Names: idents, Type: typ}
+				params = append(params, field)
+				p.declare(field, nil, scope, ast.Var, idents...)
+				p.resolve(typ)
+				if !p.atComma("parameter list", token.RPAREN) {
+					return
+				}
+				p.next()
+				break
+			}
+		}
+
+		list = append(list, x)
 		if p.tok != token.COMMA {
 			break
 		}
@@ -859,10 +1008,22 @@ func (p *parser) parseParameterList(scope *ast.Scope, ellipsisOk bool) (params [
 		}
 	}
 
-	// analyze case
-	if typ := p.tryVarType(ellipsisOk); typ != nil {
-		// IdentifierList Type
+	if p.tok == token.RPAREN && len(params) == 0 {
+		// Type { "," Type } (anonymous parameters)
+		params = make([]*ast.Field, len(list))
+		for i, typ := range list {
+			p.resolve(typ)
+			params[i] = &ast.Field{Type: typ}
+		}
+	}
+
+	if len(params) == 0 {
+		// If we reached here, we just parsed an IdentifierList. We now expect:
+		//
+		//   Type { "," IdentifierList Type }
+		//
 		idents := p.makeIdentList(list)
+		typ := p.parseVarType(ellipsisOk, true)
 		field := &ast.Field{Names: idents, Type: typ}
 		params = append(params, field)
 		// Go spec: The scope of an identifier denoting a function
@@ -873,29 +1034,28 @@ func (p *parser) parseParameterList(scope *ast.Scope, ellipsisOk bool) (params [
 			return
 		}
 		p.next()
-		for p.tok != token.RPAREN && p.tok != token.EOF {
-			idents := p.parseIdentList()
-			typ := p.parseVarType(ellipsisOk)
-			field := &ast.Field{Names: idents, Type: typ}
-			params = append(params, field)
-			// Go spec: The scope of an identifier denoting a function
-			// parameter or result variable is the function body.
-			p.declare(field, nil, scope, ast.Var, idents...)
-			p.resolve(typ)
-			if !p.atComma("parameter list", token.RPAREN) {
-				break
-			}
-			p.next()
-		}
-		return
 	}
 
-	// Type { "," Type } (anonymous parameters)
-	params = make([]*ast.Field, len(list))
-	for i, typ := range list {
+	for p.tok != token.RPAREN && p.tok != token.EOF {
+		// If we reach here, we parsed at least one parameter and we need to parse
+		// the rest. We expect:
+		//
+		//   IdentifierList Type { "," IdentifierList Type }
+		//
+		idents := p.parseIdentList()
+		typ := p.parseVarType(ellipsisOk, true)
+		field := &ast.Field{Names: idents, Type: typ}
+		params = append(params, field)
+		// Go spec: The scope of an identifier denoting a function
+		// parameter or result variable is the function body.
+		p.declare(field, nil, scope, ast.Var, idents...)
 		p.resolve(typ)
-		params[i] = &ast.Field{Type: typ}
+		if !p.atComma("parameter list", token.RPAREN) {
+			break
+		}
+		p.next()
 	}
+
 	return
 }
 
@@ -964,7 +1124,7 @@ func (p *parser) parseMethodSpec(scope *ast.Scope) *ast.Field {
 	doc := p.leadComment
 	var idents []*ast.Ident
 	var typ ast.Expr
-	x := p.parseTypeName()
+	x := p.parseTypeName(false)
 	if ident, isIdent := x.(*ast.Ident); isIdent && p.tok == token.LPAREN {
 		// method
 		idents = []*ast.Ident{ident}
@@ -1048,10 +1208,11 @@ func (p *parser) parseChanType() *ast.ChanType {
 }
 
 // If the result is an identifier, it is not resolved.
-func (p *parser) tryIdentOrType() ast.Expr {
+func (p *parser) tryIdentOrType(isParam bool, allowTypeParams bool) ast.Expr {
+
 	switch p.tok {
 	case token.IDENT:
-		return p.parseTypeName()
+		return p.parseTypeName(allowTypeParams)
 	case token.LBRACK:
 		return p.parseArrayType()
 	case token.STRUCT:
@@ -1080,7 +1241,7 @@ func (p *parser) tryIdentOrType() ast.Expr {
 }
 
 func (p *parser) tryType() ast.Expr {
-	typ := p.tryIdentOrType()
+	typ := p.tryIdentOrType(false, true)
 	if typ != nil {
 		p.resolve(typ)
 	}
@@ -1188,7 +1349,7 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 		return p.parseFuncTypeOrLit()
 	}
 
-	if typ := p.tryIdentOrType(); typ != nil {
+	if typ := p.tryIdentOrType(false, true); typ != nil {
 		// could be type for composite literal or conversion
 		_, isIdent := typ.(*ast.Ident)
 		assert(!isIdent, "type cannot be identifier")
@@ -1230,56 +1391,88 @@ func (p *parser) parseTypeAssertion(x ast.Expr) ast.Expr {
 	return &ast.TypeAssertExpr{X: x, Type: typ, Lparen: lparen, Rparen: rparen}
 }
 
-func (p *parser) parseIndexOrSlice(x ast.Expr) ast.Expr {
+func (p *parser) parseBracketExpr(x ast.Expr) ast.Expr {
 	if p.trace {
-		defer un(trace(p, "IndexOrSlice"))
+		defer un(trace(p, "BracketExpr"))
 	}
 
 	const N = 3 // change the 3 to 2 to disable 3-index slices
 	lbrack := p.expect(token.LBRACK)
+
 	p.exprLev++
 	var index [N]ast.Expr
 	var colons [N - 1]token.Pos
-	if p.tok != token.COLON {
-		index[0] = p.parseRhs()
-	}
 	ncolons := 0
+
+	if p.tok != token.COLON {
+		// At this point we know there is at least one expression inside the
+		// brackets and that it is not preceded by a colon.
+		index[0] = p.parseRhsOrType()
+
+		switch p.tok {
+		case token.RBRACK:
+			// If there is only a single expression inside the brackets, we have an
+			// ambiguous index expression. This might be a type parameter expression, in
+			// which case we expect the type-checker to disambiguate.
+			rbrack := p.expect(token.RBRACK)
+			p.exprLev--
+			return &ast.IndexExpr{X: x, Lbrack: lbrack, Index: index[0], Rbrack: rbrack}
+		case token.COLON:
+			// If the next token is a colon, we are dealing with a slice expression with
+			// 2 or 3 indexes. Handle this below.
+		case token.COMMA:
+			// If the next token is a comma, we are dealing with a type parameter
+			// expression.
+			p.expect(token.COMMA)
+			params := append([]ast.Expr{index[0]}, p.parseTypeList()...)
+			rbrack := p.expect(token.RBRACK)
+			p.exprLev--
+			return &ast.TypeParamExpr{
+				X:      x,
+				Lbrack: lbrack,
+				Params: params,
+				Rbrack: rbrack,
+			}
+		default:
+			p.errorExpected(p.pos, "generic type parameters or index or slice expression")
+			p.exprLev--
+			return &ast.BadExpr{From: lbrack, To: p.pos}
+		}
+	}
+
+	// If we reached here, we are dealing with a slice expression.
+	if index[0] != nil {
+		// A TypeParameterExpr allows types in between the brackets, but a slice
+		// expression does not. Therefore we need to more narowly check that the
+		// index is an expression and not a type.
+		p.checkExpr(index[0])
+	}
 	for p.tok == token.COLON && ncolons < len(colons) {
 		colons[ncolons] = p.pos
 		ncolons++
 		p.next()
-		if p.tok == token.DOUBLE_COLON {
-			// The DOUBLE_COLON token was added by Fo. Add a special case here so that
-			// we return the same error message that vanila Go does.
-			p.error(colons[0], "2nd index required in 3-index slice")
-			index[1] = &ast.BadExpr{From: colons[0] + 1, To: colons[1]}
-		} else if p.tok != token.COLON && p.tok != token.RBRACK && p.tok != token.EOF {
+		if p.tok != token.COLON && p.tok != token.RBRACK && p.tok != token.EOF {
 			index[ncolons] = p.parseRhs()
 		}
 	}
 	p.exprLev--
 	rbrack := p.expect(token.RBRACK)
 
-	if ncolons > 0 {
-		// slice expression
-		slice3 := false
-		if ncolons == 2 {
-			slice3 = true
-			// Check presence of 2nd and 3rd index here rather than during type-checking
-			// to prevent erroneous programs from passing through gofmt (was issue 7305).
-			if index[1] == nil {
-				p.error(colons[0], "2nd index required in 3-index slice")
-				index[1] = &ast.BadExpr{From: colons[0] + 1, To: colons[1]}
-			}
-			if index[2] == nil {
-				p.error(colons[1], "3rd index required in 3-index slice")
-				index[2] = &ast.BadExpr{From: colons[1] + 1, To: rbrack}
-			}
+	slice3 := false
+	if ncolons == 2 {
+		slice3 = true
+		// Check presence of 2nd and 3rd index here rather than during type-checking
+		// to prevent erroneous programs from passing through gofmt (was issue 7305).
+		if index[1] == nil {
+			p.error(colons[0], "2nd index required in 3-index slice")
+			index[1] = &ast.BadExpr{From: colons[0] + 1, To: colons[1]}
 		}
-		return &ast.SliceExpr{X: x, Lbrack: lbrack, Low: index[0], High: index[1], Max: index[2], Slice3: slice3, Rbrack: rbrack}
+		if index[2] == nil {
+			p.error(colons[1], "3rd index required in 3-index slice")
+			index[2] = &ast.BadExpr{From: colons[1] + 1, To: rbrack}
+		}
 	}
-
-	return &ast.IndexExpr{X: x, Lbrack: lbrack, Index: index[0], Rbrack: rbrack}
+	return &ast.SliceExpr{X: x, Lbrack: lbrack, Low: index[0], High: index[1], Max: index[2], Slice3: slice3, Rbrack: rbrack}
 }
 
 func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
@@ -1381,6 +1574,26 @@ func (p *parser) parseElementList() (list []ast.Expr) {
 	return
 }
 
+// parseGenericLiteralValue is like parseLiteralValue but is designed to work
+// when typ is a generic type with concrete type parameters supplied. If typ is
+// an ambiguous IndexExpr, it will disambiguate it by returning a new
+// CompositeLit expression wherein the type is converted from an IndexExpr to a
+// TypeParamExpr.
+func (p *parser) parseGenericLiteralValue(typ ast.Expr) ast.Expr {
+	if x, ok := typ.(*ast.IndexExpr); ok {
+		// IndexExpr is sometimes ambiguous. However, if we know that the parser
+		// expected a type as part of a literal value, we can disambiguate because
+		// arrays and slices cannot hold types.
+		typ = &ast.TypeParamExpr{
+			X:      x.X,
+			Lbrack: x.Lbrack,
+			Params: []ast.Expr{x.Index},
+			Rbrack: x.Rbrack,
+		}
+	}
+	return p.parseLiteralValue(typ)
+}
+
 func (p *parser) parseLiteralValue(typ ast.Expr) ast.Expr {
 	if p.trace {
 		defer un(trace(p, "LiteralValue"))
@@ -1410,6 +1623,10 @@ func (p *parser) checkExpr(x ast.Expr) ast.Expr {
 	case *ast.SelectorExpr:
 	case *ast.IndexExpr:
 	case *ast.SliceExpr:
+	case *ast.TypeParamExpr:
+		// TypeParamExpr may be a function value in which case it is considered an
+		// expression. It may also be a Type which is not an expression. We have
+		// to let the type checker handle this.
 	case *ast.TypeAssertExpr:
 		// If t.Type == nil we have a type assertion of the form
 		// y.(type), which is only allowed in type switch expressions.
@@ -1433,6 +1650,7 @@ func isTypeName(x ast.Expr) bool {
 	switch t := x.(type) {
 	case *ast.BadExpr:
 	case *ast.Ident:
+	case *ast.TypeParamExpr:
 	case *ast.SelectorExpr:
 		_, isIdent := t.X.(*ast.Ident)
 		return isIdent
@@ -1447,6 +1665,7 @@ func isLiteralType(x ast.Expr) bool {
 	switch t := x.(type) {
 	case *ast.BadExpr:
 	case *ast.Ident:
+	case *ast.TypeParamExpr:
 	case *ast.SelectorExpr:
 		_, isIdent := t.X.(*ast.Ident)
 		return isIdent
@@ -1525,7 +1744,10 @@ L:
 			if lhs {
 				p.resolve(x)
 			}
-			x = p.parseIndexOrSlice(p.checkExpr(x))
+			x = p.parseBracketExpr(p.checkExpr(x))
+			if p.tok == token.LBRACE && p.exprLev >= 0 {
+				x = p.parseGenericLiteralValue(x)
+			}
 		case token.LPAREN:
 			if lhs {
 				p.resolve(x)
@@ -1836,12 +2058,6 @@ func (p *parser) parseBranchStmt(tok token.Token) *ast.BranchStmt {
 	var label *ast.Ident
 	if tok != token.FALLTHROUGH && p.tok == token.IDENT {
 		label = p.parseIdent()
-		if label.TypeParams != nil {
-			p.error(
-				label.TypeParams.Pos(),
-				"type parameters not allowed for labels",
-			)
-		}
 		// add to list of unresolved targets
 		n := len(p.targetStack) - 1
 		p.targetStack[n] = append(p.targetStack[n], label)
@@ -2283,12 +2499,6 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 		p.next()
 	case token.IDENT:
 		ident = p.parseIdent()
-		if ident.TypeParams != nil {
-			p.error(
-				ident.TypeParams.Pos(),
-				"type parameters not allowed in import statement",
-			)
-		}
 	}
 
 	pos := p.pos
@@ -2369,18 +2579,77 @@ func (p *parser) parseTypeSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.
 	}
 
 	ident := p.parseIdent()
+	spec := &ast.TypeSpec{Doc: doc, Name: ident}
 
 	// Go spec: The scope of a type identifier declared inside a function begins
 	// at the identifier in the TypeSpec and ends at the end of the innermost
 	// containing block.
 	// (Global identifiers are resolved in a separate phase after parsing.)
-	spec := &ast.TypeSpec{Doc: doc, Name: ident}
 	p.declare(spec, nil, p.topScope, ast.Typ, ident)
 	if p.tok == token.ASSIGN {
 		spec.Assign = p.pos
 		p.next()
 	}
-	spec.Type = p.parseType()
+
+	if p.tok == token.LBRACK {
+		// If the next token is a '[' we are either dealing with an array type or
+		// a set of type parameters. We can sometimes disambiguate by looking ahead.
+		lbrack := p.expect(token.LBRACK)
+
+		if p.tok == token.IDENT {
+
+			first := p.parseIdent()
+			if p.tok == token.COMMA {
+				// The comma disambiguates. We are dealing with a list of type parameter
+				// names.
+				p.next()
+				names := append([]*ast.Ident{first}, p.parseIdentList()...)
+				rbrack := p.expect(token.RBRACK)
+				spec.TypeParams = &ast.TypeParamDecl{
+					Lbrack: lbrack,
+					Names:  names,
+					Rbrack: rbrack,
+				}
+
+				// We expect the type to follow the type parameters.
+				spec.Type = p.parseType()
+
+			} else {
+				// We have an ambiguous expression. It may be a TypeParamDecl with a
+				// single type parameter or an ArrayType with an identifier as the
+				// length. The type-checker will disambiguate.
+				p.expect(token.RBRACK)
+				elt := p.parseType()
+				spec.Type = &ast.ArrayType{
+					Lbrack: lbrack,
+					Len:    first,
+					Elt:    elt,
+				}
+			}
+
+		} else {
+			// We are dealing with an array type, which means we are in the middle
+			// of parsing the type.
+			p.exprLev++
+			var len ast.Expr
+			// always permit ellipsis for more fault-tolerant parsing
+			if p.tok == token.ELLIPSIS {
+				len = &ast.Ellipsis{Ellipsis: p.pos}
+				p.next()
+			} else if p.tok != token.RBRACK {
+				len = p.parseRhs()
+			}
+			p.exprLev--
+			p.expect(token.RBRACK)
+			elt := p.parseType()
+
+			spec.Type = &ast.ArrayType{Lbrack: lbrack, Len: len, Elt: elt}
+		}
+	} else {
+		// For all other cases, we expect the type to follow the name.
+		spec.Type = p.parseType()
+	}
+
 	p.expectSemi() // call before accessing p.linecomment
 	spec.Comment = p.lineComment
 
@@ -2433,6 +2702,12 @@ func (p *parser) parseFuncDecl() *ast.FuncDecl {
 	}
 
 	ident := p.parseIdent()
+
+	var typeParams *ast.TypeParamDecl
+	if p.tok == token.LBRACK {
+		typeParams = p.parseTypeParamDecl()
+	}
+
 	params, results := p.parseSignature(scope)
 
 	var body *ast.BlockStmt
@@ -2442,9 +2717,10 @@ func (p *parser) parseFuncDecl() *ast.FuncDecl {
 	p.expectSemi()
 
 	decl := &ast.FuncDecl{
-		Doc:  doc,
-		Recv: recv,
-		Name: ident,
+		Doc:        doc,
+		Recv:       recv,
+		Name:       ident,
+		TypeParams: typeParams,
 		Type: &ast.FuncType{
 			Func:    pos,
 			Params:  params,
@@ -2493,6 +2769,17 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 	return p.parseGenDecl(p.tok, f)
 }
 
+func (p *parser) parseTypeParamDecl() *ast.TypeParamDecl {
+	lbrack := p.expect(token.LBRACK)
+	names := p.parseIdentList()
+	rbrack := p.expect(token.RBRACK)
+	return &ast.TypeParamDecl{
+		Lbrack: lbrack,
+		Names:  names,
+		Rbrack: rbrack,
+	}
+}
+
 // ----------------------------------------------------------------------------
 // Source files
 
@@ -2515,12 +2802,6 @@ func (p *parser) parseFile() *ast.File {
 	ident := p.parseIdent()
 	if ident.Name == "_" && p.mode&DeclarationErrors != 0 {
 		p.error(p.pos, "invalid package name _")
-	}
-	if ident.TypeParams != nil {
-		p.error(
-			ident.TypeParams.Pos(),
-			"type parameters not allowed in package name",
-		)
 	}
 	p.expectSemi()
 

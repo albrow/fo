@@ -220,11 +220,28 @@ func (n *Named) setUnderlying(typ Type) {
 	}
 }
 
-func (check *Checker) typeDecl(obj *TypeName, typ ast.Expr, def *Named, path []*TypeName, alias bool, tpList *ast.TypeParamList) {
+func (check *Checker) typeDecl(obj *TypeName, typ ast.Expr, def *Named, path []*TypeName, alias bool, tpList *ast.TypeParamDecl) {
 	assert(obj.typ == nil)
 
 	// type declarations cannot use iota
 	assert(check.iota == nil)
+
+	// Disambiguate cases where `ArrayType` should actually be
+	// `TypeParamDecl Type`.
+	if arrayType, ok := typ.(*ast.ArrayType); ok {
+		if length, ok := arrayType.Len.(*ast.Ident); ok {
+			if _, obj := check.scope.LookupParent(length.Name, length.NamePos); obj == nil {
+				// If the ident inside the brackets is not a declared type, assume we
+				// are actually dealing with a TypeParamDecl.
+				tpList = &ast.TypeParamDecl{
+					Lbrack: arrayType.Lbrack,
+					Names:  []*ast.Ident{length},
+					Rbrack: arrayType.Lbrack + token.Pos(len(length.Name)),
+				}
+				typ = arrayType.Elt
+			}
+		}
+	}
 
 	if alias {
 
@@ -242,11 +259,7 @@ func (check *Checker) typeDecl(obj *TypeName, typ ast.Expr, def *Named, path []*
 		if tpList != nil {
 			origScope := check.scope
 			tpScope := NewScope(check.scope, check.scope.Pos(), check.scope.End(), "named type type parameters")
-			for _, expr := range tpList.List {
-				ident, ok := expr.(*ast.Ident)
-				if !ok {
-					check.errorf(expr.Pos(), "cannot use %s as type parameter name", expr)
-				}
+			for _, ident := range tpList.Names {
 				tp := NewTypeParam(ident.Name)
 				typeParams = append(typeParams, tp)
 				paramObj := NewTypeName(ident.Pos(), check.pkg, ident.Name, tp)
@@ -357,9 +370,9 @@ func (check *Checker) funcDecl(obj *Func, decl *declInfo) {
 	// func declarations cannot use iota
 	assert(check.iota == nil)
 
-	var typeParams *ast.TypeParamList
+	var typeParams *ast.TypeParamDecl
 	if decl.fdecl != nil {
-		typeParams = decl.fdecl.Name.TypeParams
+		typeParams = decl.fdecl.TypeParams
 	}
 
 	fdecl := decl.fdecl
@@ -489,7 +502,7 @@ func (check *Checker) declStmt(decl ast.Decl) {
 				// the innermost containing block."
 				scopePos := s.Name.Pos()
 				check.declare(check.scope, s.Name, obj, scopePos)
-				check.typeDecl(obj, s.Type, nil, nil, s.Assign.IsValid(), s.Name.TypeParams)
+				check.typeDecl(obj, s.Type, nil, nil, s.Assign.IsValid(), s.TypeParams)
 
 			default:
 				check.invalidAST(s.Pos(), "const, type, or var declaration expected")

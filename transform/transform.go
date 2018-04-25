@@ -48,22 +48,23 @@ func concreteTypeName(decl *types.GenericDecl, usg *types.GenericUsage) string {
 	return decl.Name() + "__" + strings.Join(stringParams, "__")
 }
 
-func concreteTypeIdent(id *ast.Ident) *ast.Ident {
-	if id.TypeParams == nil {
-		return id
+func concreteTypeExpr(e *ast.TypeParamExpr) *ast.Ident {
+	switch x := e.X.(type) {
+	case *ast.Ident:
+		newIdent := astclone.Clone(x).(*ast.Ident)
+		stringParams := []string{}
+		for _, param := range e.Params {
+			buf := bytes.Buffer{}
+			format.Node(&buf, token.NewFileSet(), param)
+			typeString := buf.String()
+			safeParam := strings.Replace(typeString, ".", "_", -1)
+			stringParams = append(stringParams, safeParam)
+		}
+		newIdent.Name = newIdent.Name + "__" + strings.Join(stringParams, "__")
+		return newIdent
+	default:
+		panic(fmt.Errorf("type parameters for expr %s of type %T are not yet supported", e.X, e.X))
 	}
-	newIdent := astclone.Clone(id).(*ast.Ident)
-	newIdent.TypeParams = nil
-	stringParams := []string{}
-	for _, param := range id.TypeParams.List {
-		buf := bytes.Buffer{}
-		format.Node(&buf, token.NewFileSet(), param)
-		typeString := buf.String()
-		safeParam := strings.Replace(typeString, ".", "_", -1)
-		stringParams = append(stringParams, safeParam)
-	}
-	newIdent.Name = newIdent.Name + "__" + strings.Join(stringParams, "__")
-	return newIdent
 }
 
 func (trans *transformer) generateConcreteTypes() func(c *astutil.Cursor) bool {
@@ -79,7 +80,7 @@ func (trans *transformer) generateConcreteTypes() func(c *astutil.Cursor) bool {
 					used = true
 					continue
 				}
-				if typeSpec.Name.TypeParams == nil {
+				if _, found := trans.pkg.Generics()[typeSpec.Name.Name]; !found {
 					newTypeSpecs = append(newTypeSpecs, typeSpec)
 					used = true
 					continue
@@ -105,7 +106,7 @@ func (trans *transformer) generateConcreteTypes() func(c *astutil.Cursor) bool {
 				c.Delete()
 			}
 		case *ast.FuncDecl:
-			if n.Name.TypeParams == nil {
+			if n.TypeParams == nil {
 				return false
 			}
 			newFuncs := trans.generateFuncDecls(c, n)
@@ -124,9 +125,23 @@ func (trans *transformer) generateConcreteTypes() func(c *astutil.Cursor) bool {
 func (trans *transformer) replaceGenericIdents() func(c *astutil.Cursor) bool {
 	return func(c *astutil.Cursor) bool {
 		switch n := c.Node().(type) {
-		case *ast.Ident:
-			if n.TypeParams != nil {
-				c.Replace(concreteTypeIdent(n))
+		case *ast.TypeParamExpr:
+			c.Replace(concreteTypeExpr(n))
+		case *ast.IndexExpr:
+			// Check if we are dealing with an ambiguous IndexExpr from the parser. In
+			// some cases we need to disambiguate this by upgrading to a
+			// TypeParamExpr.
+			switch x := n.X.(type) {
+			case *ast.Ident:
+				if _, found := trans.pkg.Generics()[x.Name]; found {
+					typeParamExpr := &ast.TypeParamExpr{
+						X:      n.X,
+						Lbrack: n.Lbrack,
+						Params: []ast.Expr{n.Index},
+						Rbrack: n.Rbrack,
+					}
+					c.Replace(concreteTypeExpr(typeParamExpr))
+				}
 			}
 		}
 		return true
@@ -140,9 +155,26 @@ func (trans *transformer) generateTypeSpecs(typeSpec *ast.TypeSpec) []ast.Spec {
 		panic(fmt.Errorf("could not find generic type declaration for %s", name))
 	}
 	var results []ast.Spec
+	// Check if we are dealing with an ambiguous ArrayType from the parser. In
+	// some cases we need to disambiguate this by adding type parameters and
+	// changing the type.
+	if typeSpec.TypeParams == nil {
+		if arrayType, ok := typeSpec.Type.(*ast.ArrayType); ok {
+			if length, ok := arrayType.Len.(*ast.Ident); ok {
+				typeSpec = astclone.Clone(typeSpec).(*ast.TypeSpec)
+				typeSpec.TypeParams = &ast.TypeParamDecl{
+					Lbrack: arrayType.Lbrack,
+					Names:  []*ast.Ident{},
+					Rbrack: arrayType.Lbrack + token.Pos(len(length.Name)),
+				}
+				typeSpec.Type = arrayType.Elt
+			}
+		}
+	}
 	for _, usg := range genericDecl.Usages() {
 		newTypeSpec := astclone.Clone(typeSpec).(*ast.TypeSpec)
 		newTypeSpec.Name = ast.NewIdent(concreteTypeName(genericDecl, usg))
+		newTypeSpec.TypeParams = nil
 		replaceIdentsInScope(newTypeSpec, usg.TypeMap())
 		results = append(results, newTypeSpec)
 	}
@@ -159,6 +191,7 @@ func (trans *transformer) generateFuncDecls(c *astutil.Cursor, funcDecl *ast.Fun
 	for _, usg := range genericDecl.Usages() {
 		newFuncDecl := astclone.Clone(funcDecl).(*ast.FuncDecl)
 		newFuncDecl.Name = ast.NewIdent(concreteTypeName(genericDecl, usg))
+		newFuncDecl.TypeParams = nil
 		replaceIdentsInScope(newFuncDecl, usg.TypeMap())
 		results = append(results, newFuncDecl)
 	}

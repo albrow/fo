@@ -4,48 +4,48 @@
 
 package genericstructsinherited
 
-type A::(T) struct {
+type A[T] struct {
    v T
 }
 
-type B::(T, U) struct {
+type B[T, U] struct {
   v0 T
   v1 U
   v2 map[T]U
 }
 
-type Awrap::(T) struct {
-  a A::(T)
+type Awrap[T] struct {
+  a A[T]
 }
 
-type Bwrap::(T, U) struct {
-  b B::(T, U)
+type Bwrap[T, U] struct {
+  b B[T, U]
 }
 
-type Bpart::(T) struct {
-  b B::(string, T)
+type Bpart[T] struct {
+  b B[string, T]
 }
 
-type Adouble::(T) struct {
-  aw Awrap::(T)
+type Adouble[T] struct {
+  aw Awrap[T]
 }
 
-type C::(T, U) map[T]U
+type C[T, U] map[T]U
 
-type Cpart::(T) struct {
-  c C::(T, struct{})
+type Cpart[T] struct {
+  c C[T, struct{}]
 } 
 
 func main() {
   // Variable assignment and initialization
-  var _ = Awrap::(string) {
-    a: A::(string) {
+  var _ = Awrap[string] {
+    a: A[string] {
       v: "",
     },
   }
 
-  var _ = Bwrap::(int, bool) {
-    b: B::(int, bool) {
+  var _ = Bwrap[int, bool] {
+    b: B[int, bool] {
       v0: 0,
       v1: false,
       v2: map[int]bool{
@@ -54,8 +54,8 @@ func main() {
     },
   }
 
-  var _ = Bpart::(float64) {
-    b: B::(string, float64) {
+  var _ = Bpart[float64] {
+    b: B[string, float64] {
       v0: "",
       v1: 2,
       v2: map[string]float64{
@@ -64,28 +64,28 @@ func main() {
     },
   }
 
-  var _ = Adouble::(uint) {
-    aw: Awrap::(uint) {
-      a: A::(uint) {
+  var _ = Adouble[uint] {
+    aw: Awrap[uint] {
+      a: A[uint] {
         v: 123,
       },
     },
   }
 
-  var _ = Cpart::(float64) {
+  var _ = Cpart[float64] {
     c: map[float64]struct{}{},
   }
 
   // Variable assignment from fields
-  aWrap := Awrap::(int) {
-    a: A::(int) {
+  aWrap := Awrap[int] {
+    a: A[int] {
       v: 24,
     },
   }
   var _ int = aWrap.a.v
 
-  var bPart = Bpart::(uint8) {
-    b: B::(string, uint8) {
+  var bPart = Bpart[uint8] {
+    b: B[string, uint8] {
       v0: "",
       v1: 2,
       v2: map[string]uint8{

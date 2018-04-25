@@ -9,7 +9,6 @@
 package ast
 
 import (
-	"fmt"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -239,10 +238,9 @@ type (
 
 	// An Ident node represents an identifier.
 	Ident struct {
-		NamePos    token.Pos      // identifier position
-		Name       string         // identifier name
-		TypeParams *TypeParamList // list of type parameters
-		Obj        *Object        // denoted object; or nil
+		NamePos token.Pos // identifier position
+		Name    string    // identifier name
+		Obj     *Object   // denoted object; or nil
 	}
 
 	// An Ellipsis node stands for the "..." type in a
@@ -295,7 +293,7 @@ type (
 		Rbrack token.Pos // position of "]"
 	}
 
-	// An SliceExpr node represents an expression followed by slice indices.
+	// SliceExpr node represents an expression followed by slice indices.
 	SliceExpr struct {
 		X      Expr      // expression
 		Lbrack token.Pos // position of "["
@@ -303,6 +301,15 @@ type (
 		High   Expr      // end of slice range; or nil
 		Max    Expr      // maximum capacity of slice; or nil
 		Slice3 bool      // true if 3-index slice (2 colons present)
+		Rbrack token.Pos // position of "]"
+	}
+
+	// TypeParamExpr represents a type or identifier followed by a list of
+	// type parameters.
+	TypeParamExpr struct {
+		X      Expr      // type name or identifier
+		Lbrack token.Pos // position of "["
+		Params []Expr    // list of type names or identifiers
 		Rbrack token.Pos // position of "]"
 	}
 
@@ -422,32 +429,25 @@ type (
 )
 
 type (
-	// TypeParamList is a list of type parameters, which may be either names (in
-	// the context of type or function declarations) or concrete types (in the
-	// case of literal expressions or function/method calls). For example:
-	//
-	//   ::(T)
-	//   ::(T, U, V)
-	//   ::(string, int)
-	//
-	TypeParamList struct {
-		Dcolon token.Pos // position of "::"
-		Lparen token.Pos // position of "("
-		List   []Expr    // list of either type parameter names or concrete types
-		Rparen token.Pos // position of ")"
+	// TypeParamDecl is a list of type parameter names used in function or type
+	// declarations.
+	TypeParamDecl struct {
+		Lbrack token.Pos // position of "["
+		Names  []*Ident  // list of type parameter names
+		Rbrack token.Pos // position of "]"
 	}
 )
 
-func (l *TypeParamList) Pos() token.Pos {
-	if l.Dcolon.IsValid() {
-		return l.Dcolon
+func (l *TypeParamDecl) Pos() token.Pos {
+	if l.Lbrack.IsValid() {
+		return l.Lbrack
 	}
 	return token.NoPos
 }
 
-func (l *TypeParamList) End() token.Pos {
-	if l.Rparen.IsValid() {
-		return l.Rparen + 1
+func (l *TypeParamDecl) End() token.Pos {
+	if l.Rbrack.IsValid() {
+		return l.Rbrack + 1
 	}
 	return token.NoPos
 }
@@ -469,6 +469,7 @@ func (x *ParenExpr) Pos() token.Pos      { return x.Lparen }
 func (x *SelectorExpr) Pos() token.Pos   { return x.X.Pos() }
 func (x *IndexExpr) Pos() token.Pos      { return x.X.Pos() }
 func (x *SliceExpr) Pos() token.Pos      { return x.X.Pos() }
+func (x *TypeParamExpr) Pos() token.Pos  { return x.Lbrack }
 func (x *TypeAssertExpr) Pos() token.Pos { return x.X.Pos() }
 func (x *CallExpr) Pos() token.Pos       { return x.Fun.Pos() }
 func (x *StarExpr) Pos() token.Pos       { return x.Star }
@@ -502,6 +503,7 @@ func (x *ParenExpr) End() token.Pos      { return x.Rparen + 1 }
 func (x *SelectorExpr) End() token.Pos   { return x.Sel.End() }
 func (x *IndexExpr) End() token.Pos      { return x.Rbrack + 1 }
 func (x *SliceExpr) End() token.Pos      { return x.Rbrack + 1 }
+func (x *TypeParamExpr) End() token.Pos  { return x.Rbrack + 1 }
 func (x *TypeAssertExpr) End() token.Pos { return x.Rparen + 1 }
 func (x *CallExpr) End() token.Pos       { return x.Rparen + 1 }
 func (x *StarExpr) End() token.Pos       { return x.X.End() }
@@ -533,6 +535,7 @@ func (*ParenExpr) exprNode()      {}
 func (*SelectorExpr) exprNode()   {}
 func (*IndexExpr) exprNode()      {}
 func (*SliceExpr) exprNode()      {}
+func (*TypeParamExpr) exprNode()  {}
 func (*TypeAssertExpr) exprNode() {}
 func (*CallExpr) exprNode()       {}
 func (*StarExpr) exprNode()       {}
@@ -573,21 +576,9 @@ func IsExported(name string) bool {
 //
 func (id *Ident) IsExported() bool { return IsExported(id.Name) }
 
-func (id *Ident) NameWithParams() string {
-	// TODO(albrow): Can this be optimized? Maybe we can avoid importing fmt?
-	if id.TypeParams == nil {
-		return id.Name
-	}
-	params := []string{}
-	for _, param := range id.TypeParams.List {
-		params = append(params, fmt.Sprint(param))
-	}
-	return id.Name + "::(" + strings.Join(params, ",") + ")"
-}
-
 func (id *Ident) String() string {
 	if id != nil {
-		return id.NameWithParams()
+		return id.Name
 	}
 	return "<nil>"
 }
@@ -898,11 +889,12 @@ type (
 
 	// A TypeSpec node represents a type declaration (TypeSpec production).
 	TypeSpec struct {
-		Doc     *CommentGroup // associated documentation; or nil
-		Name    *Ident        // type name
-		Assign  token.Pos     // position of '=', if any
-		Type    Expr          // *Ident, *ParenExpr, *SelectorExpr, *StarExpr, or any of the *XxxTypes
-		Comment *CommentGroup // line comments; or nil
+		Doc        *CommentGroup  // associated documentation; or nil
+		Name       *Ident         // type name
+		TypeParams *TypeParamDecl // type parameters; or nil
+		Assign     token.Pos      // position of '=', if any
+		Type       Expr           // *Ident, *ParenExpr, *SelectorExpr, *StarExpr, or any of the *XxxTypes
+		Comment    *CommentGroup  // line comments; or nil
 	}
 )
 
@@ -975,11 +967,12 @@ type (
 
 	// A FuncDecl node represents a function declaration.
 	FuncDecl struct {
-		Doc  *CommentGroup // associated documentation; or nil
-		Recv *FieldList    // receiver (methods); or nil (functions)
-		Name *Ident        // function/method name
-		Type *FuncType     // function signature: parameters, results, and position of "func" keyword
-		Body *BlockStmt    // function body; or nil for external (non-Go) function
+		Doc        *CommentGroup  // associated documentation; or nil
+		Recv       *FieldList     // receiver (methods); or nil (functions)
+		Name       *Ident         // function/method name
+		TypeParams *TypeParamDecl // type parameters; or nil
+		Type       *FuncType      // function signature: parameters, results, and position of "func" keyword
+		Body       *BlockStmt     // function body; or nil for external (non-Go) function
 	}
 )
 

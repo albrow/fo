@@ -6,7 +6,7 @@ package genericstructs
 
 import "bytes"
 
-type A::(T) struct {
+type A[T] struct {
   a T
   b []T
   c map[T]T
@@ -21,13 +21,13 @@ type A::(T) struct {
   k []map[T]chan T
 }
 
-type B::(T, U) struct {
+type B[T, U] struct {
   a map[T]U
 }
 
 func main() {
   // Variable assignment
-  a := A::(string){}
+  a := A[string]{}
   var _ string = a.a
   var _ []string = a.b
   var _ map[string]string = a.c
@@ -40,16 +40,16 @@ func main() {
   var _ ***string = a.j
   var _ []map[string]chan string = a.k
 
-  b := B::(int, float64){}
+  b := B[int, float64]{}
   var _ map[int]float64 = b.a
 
-  var _ A::(uint) = A::(uint){}
-  var _ B::(bool, int8) = B::(bool, int8){}
-  var _ A::(bytes.Buffer) = A::(bytes.Buffer){}
+  var _ A[uint] = A[uint]{}
+  var _ B[bool, int8] = B[bool, int8]{}
+  var _ A[bytes.Buffer] = A[bytes.Buffer]{}
 
   // Struct initialization
   s := ""
-  var _ = A::(string){
+  var _ = A[string]{
     a: "",
     b: []string{""},
     c: map[string]string{
@@ -72,25 +72,25 @@ func main() {
   }
 
   // Concrete types in type switches
-  var x interface{} = A::(int){}
+  var x interface{} = A[int]{}
 	switch x.(type) {
-	case A::(int):
-	case A::(string):
+	case A[int]:
+	case A[string]:
 	}
 
   // Concrete types in type assertions
-  var y interface{} = A::(int){}
-	_ = y.(A::(int))
-	_ = y.(A::(string))
+  var y interface{} = A[int]{}
+	_ = y.(A[int])
+	_ = y.(A[string])
 }
 
 // Usage of concrete struct types in function signatures
-func _() A::(int) {
-	return A::(int){}
+func _() A[int] {
+	return A[int]{}
 }
 
-func _(_ A::(int)) {
+func _(_ A[int]) {
 }
 
-func (A::(int)) _() {
+func (A[int]) _() {
 }

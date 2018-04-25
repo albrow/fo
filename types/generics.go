@@ -52,7 +52,7 @@ func addGenericDecl(obj Object, typeParams []*TypeParam) {
 	}
 }
 
-func addGenericUsage(genericObj Object, typ Type, typeMap map[string]Type) {
+func addGenericUsage(genObj Object, typ Type, typeMap map[string]Type) {
 	for _, typ := range typeMap {
 		if _, ok := typ.(*TypeParam); ok {
 			// If the type map includes a type parameter, it is not yet complete and
@@ -61,15 +61,15 @@ func addGenericUsage(genericObj Object, typ Type, typeMap map[string]Type) {
 			return
 		}
 	}
-	pkg := genericObj.Pkg()
-	name := genericObj.Name()
+	pkg := genObj.Pkg()
+	name := genObj.Name()
 	if pkg.generics == nil {
 		pkg.generics = map[string]*GenericDecl{}
 	}
 	genDecl, found := pkg.generics[name]
 	if !found {
 		// TODO(albrow): can we avoid panicking here?
-		panic(fmt.Errorf("declaration not found for generic object %s", genericObj.Id()))
+		panic(fmt.Errorf("declaration not found for generic object %s", genObj.Id()))
 	}
 	if genDecl.usages == nil {
 		genDecl.usages = map[string]*GenericUsage{}
@@ -93,52 +93,63 @@ func usageKey(typeMap map[string]Type, typeParams []*TypeParam) string {
 
 // concreteType returns a new type with the concrete type parameters of e
 // applied.
-func (check *Checker) concreteType(e *ast.Ident, genericObj Object) Type {
-	switch genericObj := genericObj.(type) {
-	case *TypeName:
-		if named, ok := genericObj.typ.(*Named); ok {
-			typeMap := check.createTypeMap(e.TypeParams, named.typeParams)
-			newNamed := replaceTypesInNamed(named, typeMap)
-			newNamed.typeParams = nil
-			typeParams := make([]*TypeParam, len(named.typeParams))
-			copy(typeParams, named.typeParams)
-			newType := NewConcreteNamed(newNamed, typeParams, typeMap)
-			newObj := *genericObj
-			newType.obj = &newObj
-			newObj.typ = newType
-			addGenericUsage(genericObj, newType, typeMap)
-			return newType
+//
+// TODO(albrow): Cache concrete types in some sort of special scope so
+// we can avoid re-generating the concrete types on each usage.
+// TODO(albrow): Use a named type/function decl here for better error
+// messages.
+func (check *Checker) concreteType(expr *ast.TypeParamExpr, genType Type) Type {
+	switch genType := genType.(type) {
+	case *Named:
+		typeMap := check.createTypeMap(expr.Params, genType.typeParams)
+		newNamed := replaceTypesInNamed(genType, typeMap)
+		newNamed.typeParams = nil
+		typeParams := make([]*TypeParam, len(genType.typeParams))
+		copy(typeParams, genType.typeParams)
+		newType := NewConcreteNamed(newNamed, typeParams, typeMap)
+		newObj := *genType.obj
+		newType.obj = &newObj
+		newObj.typ = newType
+		addGenericUsage(genType.obj, newType, typeMap)
+
+		return newType
+	case *Signature:
+		// We need to lookup the object here. TODO(albrow): can we somehow make this
+		// more efficient? Presumably the object was already looked up when we
+		// determined the type of expr.X.
+		var genObj Object
+		switch x := expr.X.(type) {
+		case *ast.Ident:
+			_, obj := check.scope.LookupParent(x.Name, expr.Pos())
+			if obj == nil {
+				check.errorf(x.Pos(), "undeclared name: %s", x.Name)
+			}
+			genObj = obj
+		default:
+			check.errorf(expr.Pos(), "internal type %T in TypeParamExpr not yet supported", expr.X)
 		}
-	case *Func:
-		if sig, ok := genericObj.typ.(*Signature); ok {
-			// TODO(albrow): Cache concrete types in some sort of special scope so
-			// we can avoid re-generating the concrete types on each usage.
-			// TODO(albrow): Use a named type/function decl here for better error
-			// messages.
-			typeMap := check.createTypeMap(e.TypeParams, sig.typeParams)
-			newSig := replaceTypesInSignature(sig, typeMap)
-			newSig.typeParams = nil
-			typeParams := make([]*TypeParam, len(sig.typeParams))
-			copy(typeParams, sig.typeParams)
-			newType := NewConcreteSignature(newSig, typeParams, typeMap)
-			addGenericUsage(genericObj, newType, typeMap)
-			return newType
-		}
+		typeMap := check.createTypeMap(expr.Params, genType.typeParams)
+		newSig := replaceTypesInSignature(genType, typeMap)
+		newSig.typeParams = nil
+		typeParams := make([]*TypeParam, len(genType.typeParams))
+		copy(typeParams, genType.typeParams)
+		newType := NewConcreteSignature(newSig, typeParams, typeMap)
+		addGenericUsage(genObj, newType, typeMap)
+		return newType
 	}
 
-	check.errorf(check.pos, "unexpected generic type for ident %s: %T", e.Name, genericObj)
+	check.errorf(check.pos, "unexpected generic for %s: %T", expr.X, genType)
 	return nil
 }
 
-// TODO(albrow): catch case where the wrong number of type parameters has been
-// given and test it.
-func (check *Checker) createTypeMap(params *ast.TypeParamList, genericParams []*TypeParam) map[string]Type {
-	if len(params.List) != len(genericParams) {
-		check.errorf(check.pos, "wrong number of type parameters (expected %d but got %d)", len(genericParams), len(params.List))
+// TODO(albrow): test case with wrong number of type parameters.
+func (check *Checker) createTypeMap(params []ast.Expr, genericParams []*TypeParam) map[string]Type {
+	if len(params) != len(genericParams) {
+		check.errorf(check.pos, "wrong number of type parameters (expected %d but got %d)", len(genericParams), len(params))
 		return nil
 	}
 	typeMap := map[string]Type{}
-	for i, typ := range params.List {
+	for i, typ := range params {
 		var x operand
 		check.rawExpr(&x, typ, nil)
 		if x.typ != nil {
@@ -240,8 +251,6 @@ func replaceTypesInSignature(root *Signature, typeMapping map[string]Type) *Sign
 			newResults.vars = append(newResults.vars, &newResult)
 		}
 	}
-
-	// TODO(albrow): Implement inherited type parameters here?
 
 	return NewSignature(newRecv, newParams, newResults, root.variadic, root.typeParams)
 }

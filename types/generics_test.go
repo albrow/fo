@@ -29,12 +29,12 @@ func parseTestSource(t *testing.T, src string) *Package {
 func TestGenericsUsageSingleCase(t *testing.T) {
 	var src = `package genericstest
 
-type A::(T) T
+type A[T] T
 
 func main() {
-	var _ = A::(string)("")
-	var _ = A::(bool)(true)
-	var _ = A::(bool)(true)
+	var _ = A[string]("")
+	var _ A[bool] = true
+	var _ = A[bool](true)
 }
 `
 
@@ -70,16 +70,16 @@ func main() {
 func TestGenericsUsageInherited(t *testing.T) {
 	src := `package genericstest
 
-type A::(T, U) map[T]U
+type A[T, U] map[T]U
 
-type APart::(T) struct {
-  val A::(string, T)
+type APart[T] struct {
+  val A[string, T]
 } 
 
 func main() {
-	var _ = APart::(int){}
-	var _ = APart::(bool){
-		val: A::(string, bool){
+	var _ = APart[int]{}
+	var _ = APart[bool]{
+		val: A[string, bool]{
 			"": true,
 		},
 	}

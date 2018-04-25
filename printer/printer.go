@@ -926,12 +926,6 @@ func (p *printer) print(args ...interface{}) {
 			impliedSemi = true
 			p.lastTok = token.IDENT
 
-		case *ast.TypeParamList:
-			p.print(token.DOUBLE_COLON)
-			p.print(token.LPAREN)
-			p.exprList(token.NoPos, x.List, 1, noIndent, token.NoPos)
-			p.print(token.RPAREN)
-
 		case *ast.BasicLit:
 			data = x.Value
 			isLit = true

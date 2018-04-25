@@ -228,14 +228,8 @@ func (a *application) apply(parent ast.Node, name string, iter *iterator, n ast.
 		a.applyList(n, "List")
 
 	// Expressions
-	case *ast.BadExpr, *ast.BasicLit:
+	case *ast.BadExpr, *ast.BasicLit, *ast.Ident:
 		// nothing to do
-
-	case *ast.Ident:
-		a.apply(n, "Ident", nil, n.TypeParams)
-
-	case *ast.TypeParamList:
-		a.applyList(n, "List")
 
 	case *ast.Ellipsis:
 		a.apply(n, "Elt", nil, n.Elt)
@@ -264,6 +258,13 @@ func (a *application) apply(parent ast.Node, name string, iter *iterator, n ast.
 		a.apply(n, "Low", nil, n.Low)
 		a.apply(n, "High", nil, n.High)
 		a.apply(n, "Max", nil, n.Max)
+
+	case *ast.TypeParamDecl:
+		a.applyList(n, "Names")
+
+	case *ast.TypeParamExpr:
+		a.apply(n, "X", nil, n.X)
+		a.applyList(n, "Params")
 
 	case *ast.TypeAssertExpr:
 		a.apply(n, "X", nil, n.X)

@@ -655,7 +655,7 @@ scanAgain:
 			tok = token.STRING
 			lit = s.scanRawString()
 		case ':':
-			tok = s.switch3(token.COLON, token.DEFINE, ':', token.DOUBLE_COLON)
+			tok = s.switch2(token.COLON, token.DEFINE)
 		case '.':
 			if '0' <= s.ch && s.ch <= '9' {
 				insertSemi = true

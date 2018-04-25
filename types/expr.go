@@ -1041,10 +1041,6 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 			//           the exact position where the closure appears
 			//           in the source; e.g., variables declared below
 			//           must not be visible).
-
-			// TODO(albrow): Test this
-			// TODO(albrow): Eventually implement support for generic anonymous
-			// functions
 			check.funcBody(check.decl, "", sig, e.Body)
 			x.mode = value
 			x.typ = sig
@@ -1253,10 +1249,52 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 		check.selector(x, e)
 
 	case *ast.IndexExpr:
-		check.expr(x, e.X)
+
+		// TODO(albrow): previously, this was check.expr and not check.exprOrType.
+		// Do we need to do stricter checks in the case that this is not a
+		// TypeParamExpr?
+		check.exprOrType(x, e.X)
 		if x.mode == invalid {
 			check.use(e.Index)
 			goto Error
+		}
+
+		// There is ambiguity in the AST that the parser cannot resolve and we must
+		// resolve here. Namely, an *ast.IndexExpr might actually be a
+		// *ast.TypeParamExpr with only one type parameter. We resolve the ambiguity
+		// by observing the type of e.X.
+		switch genType := x.typ.(type) {
+		case *Named:
+			if len(genType.typeParams) == 0 {
+				// We are not dealing with a generic type. Continue below.
+				break
+			} else if len(genType.typeParams) > 1 {
+				check.errorf(check.pos, "wrong number of type parameters for %s (expected %d but got 1)", e.X, len(genType.typeParams))
+			}
+			typeParamExpr := &ast.TypeParamExpr{
+				X:      e.X,
+				Lbrack: e.Lbrack,
+				Params: []ast.Expr{e.Index},
+				Rbrack: e.Rbrack,
+			}
+			x.typ = check.concreteType(typeParamExpr, genType)
+			return expression
+
+		case *Signature:
+			if len(genType.typeParams) == 0 {
+				// We are not dealing with a generic type. Continue below.
+				break
+			} else if len(genType.typeParams) > 1 {
+				check.errorf(check.pos, "wrong number of type parameters for %s (expected %d but got 1)", e.X, len(genType.typeParams))
+			}
+			typeParamExpr := &ast.TypeParamExpr{
+				X:      e.X,
+				Lbrack: e.Lbrack,
+				Params: []ast.Expr{e.Index},
+				Rbrack: e.Rbrack,
+			}
+			x.typ = check.concreteType(typeParamExpr, genType)
+			return expression
 		}
 
 		valid := false
@@ -1422,6 +1460,11 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 				}
 			}
 		}
+
+	case *ast.TypeParamExpr:
+		check.exprOrType(x, e.X)
+		x.typ = check.concreteType(e, x.typ)
+		return expression
 
 	case *ast.TypeAssertExpr:
 		check.expr(x, e.X)

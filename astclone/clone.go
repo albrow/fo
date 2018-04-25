@@ -52,14 +52,6 @@ func Clone(node ast.Node) ast.Node {
 		x := *n
 		return &x
 
-	case *ast.TypeParamList:
-		return &ast.TypeParamList{
-			Dcolon: n.Dcolon,
-			Lparen: n.Lparen,
-			List:   cloneExprList(n.List),
-			Rparen: n.Rparen,
-		}
-
 	case *ast.Ellipsis:
 		return &ast.Ellipsis{
 			Ellipsis: n.Ellipsis,
@@ -113,6 +105,21 @@ func Clone(node ast.Node) ast.Node {
 			High:   cloneExpr(n.High),
 			Max:    cloneExpr(n.Max),
 			Slice3: n.Slice3,
+			Rbrack: n.Rbrack,
+		}
+
+	case *ast.TypeParamDecl:
+		return &ast.TypeParamDecl{
+			Lbrack: n.Lbrack,
+			Names:  cloneIdentList(n.Names),
+			Rbrack: n.Rbrack,
+		}
+
+	case *ast.TypeParamExpr:
+		return &ast.TypeParamExpr{
+			X:      cloneExpr(n.X),
+			Lbrack: n.Lbrack,
+			Params: cloneExprList(n.Params),
 			Rbrack: n.Rbrack,
 		}
 
@@ -511,16 +518,10 @@ func cloneIdent(n *ast.Ident) *ast.Ident {
 	if n == nil {
 		return nil
 	}
-	var typeParamList *ast.TypeParamList
-	if n.TypeParams != nil {
-		typeParamList = new(ast.TypeParamList)
-		typeParamList.List = cloneExprList(n.TypeParams.List)
-	}
 	return &ast.Ident{
-		NamePos:    n.NamePos,
-		Name:       n.Name,
-		Obj:        cloneObject(n.Obj),
-		TypeParams: typeParamList,
+		NamePos: n.NamePos,
+		Name:    n.Name,
+		Obj:     cloneObject(n.Obj),
 	}
 }
 

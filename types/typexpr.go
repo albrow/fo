@@ -39,15 +39,6 @@ func (check *Checker) ident(x *operand, e *ast.Ident, def *Named, path []*TypeNa
 	typ := obj.Type()
 	assert(typ != nil)
 
-	if e.TypeParams != nil {
-		// For generic types, we generate the corresponding concrete type on the
-		// fly.
-		typ = check.concreteType(e, obj)
-		if typ == nil {
-			return
-		}
-	}
-
 	// The object may be dot-imported: If so, remove its package from
 	// the map of unused dot imports for the respective file scope.
 	// (This code is only needed for dot-imports. Without them,
@@ -155,18 +146,14 @@ func (check *Checker) typ(e ast.Expr) Type {
 }
 
 // funcType type-checks a function or method type.
-func (check *Checker) funcType(sig *Signature, recvPar *ast.FieldList, ftyp *ast.FuncType, tpList *ast.TypeParamList) {
+func (check *Checker) funcType(sig *Signature, recvPar *ast.FieldList, ftyp *ast.FuncType, tpList *ast.TypeParamDecl) {
 
 	// Add type parameters to scope (if any)
 	var typeParams []*TypeParam
 	if tpList != nil {
 		origScope := check.scope
 		tpScope := NewScope(check.scope, check.scope.Pos(), check.scope.End(), "function type parameters")
-		for _, expr := range tpList.List {
-			ident, ok := expr.(*ast.Ident)
-			if !ok {
-				check.errorf(expr.Pos(), "cannot use %s as type parameter name", expr)
-			}
+		for _, ident := range tpList.Names {
 			tp := NewTypeParam(ident.Name)
 			typeParams = append(typeParams, tp)
 			obj := NewTypeName(ident.Pos(), check.pkg, ident.Name, tp)
@@ -322,6 +309,12 @@ func (check *Checker) typExprInternal(e ast.Expr, def *Named, path []*TypeName) 
 			typ.elem = check.typ(e.Elt)
 			return typ
 		}
+
+	case *ast.TypeParamExpr:
+		genType := check.typExpr(e.X, nil, path)
+		typ := check.concreteType(e, genType)
+		def.setUnderlying(typ)
+		return typ
 
 	case *ast.StructType:
 		typ := new(Struct)
