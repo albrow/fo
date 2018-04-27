@@ -2598,12 +2598,16 @@ func (p *parser) parseTypeSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.
 
 		if p.tok == token.IDENT {
 
-			first := p.parseIdent()
+			first := p.parseRhs()
 			if p.tok == token.COMMA {
 				// The comma disambiguates. We are dealing with a list of type parameter
 				// names.
+				name, ok := first.(*ast.Ident)
+				if !ok {
+					p.errorExpected(first.Pos(), token.IDENT.String())
+				}
 				p.next()
-				names := append([]*ast.Ident{first}, p.parseIdentList()...)
+				names := append([]*ast.Ident{name}, p.parseIdentList()...)
 				rbrack := p.expect(token.RBRACK)
 				spec.TypeParams = &ast.TypeParamDecl{
 					Lbrack: lbrack,
