@@ -20,6 +20,8 @@ import (
 	"github.com/albrow/fo/token"
 )
 
+// TODO(albrow): Implement printing TypeParamDecl
+
 // Formatting issues:
 // - better comment formatting for /*-style comments at the end of a line (e.g. a declaration)
 //   when the comment spans multiple lines; if such a comment is just two lines, formatting is
@@ -888,7 +890,11 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int) {
 		p.print(blank)
 		p.expr(x.Value)
 
-	// TODO(albrow): Implement printing TypeParamExpr and TypeParamDecl
+	case *ast.TypeParamExpr:
+		p.print(x.X)
+		p.print(token.LBRACK)
+		p.exprList(x.Pos(), x.Params, 1, 0, token.NoPos)
+		p.print(token.RBRACK)
 
 	default:
 		panic("unreachable")
