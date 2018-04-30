@@ -104,7 +104,7 @@ func (check *Checker) concreteType(expr *ast.TypeParamExpr, genType Type) Type {
 	switch genType := genType.(type) {
 	case *Named:
 		typeMap := check.createTypeMap(expr.Params, genType.typeParams)
-		newNamed := replaceTypesInNamed(genType, typeMap)
+		newNamed := replaceTypesInNamed(genType, expr.Params, typeMap)
 		newNamed.typeParams = nil
 		typeParams := make([]*TypeParam, len(genType.typeParams))
 		copy(typeParams, genType.typeParams)
@@ -112,13 +112,13 @@ func (check *Checker) concreteType(expr *ast.TypeParamExpr, genType Type) Type {
 		newObj := *genType.obj
 		newType.obj = &newObj
 		newObj.typ = newType
-		newType.methods = replaceTypesInMethods(genType.methods, typeMap)
+		newType.methods = replaceTypesInMethods(genType.methods, expr.Params, typeMap)
 		addGenericUsage(genType.obj, newType, expr.Params, typeMap)
 
 		return newType
 	case *Signature:
 		typeMap := check.createTypeMap(expr.Params, genType.typeParams)
-		newSig := replaceTypesInSignature(genType, typeMap)
+		newSig := replaceTypesInSignature(genType, expr.Params, typeMap)
 		newSig.typeParams = nil
 		typeParams := make([]*TypeParam, len(genType.typeParams))
 		copy(typeParams, genType.typeParams)
@@ -182,7 +182,7 @@ func createMethodTypeMap(recvType Type, typeMap map[string]Type) map[string]Type
 // is part of the type. For example, root can be a []T and replaceTypes will
 // correctly replace T with the corresponding concrete type (assuming it is
 // included in typeMap).
-func replaceTypes(root Type, typeMap map[string]Type) Type {
+func replaceTypes(root Type, typeParams []ast.Expr, typeMap map[string]Type) Type {
 	switch t := root.(type) {
 	case *TypeParam:
 		if newType, found := typeMap[t.String()]; found {
@@ -199,53 +199,53 @@ func replaceTypes(root Type, typeMap map[string]Type) Type {
 		return root
 	case *Pointer:
 		newPointer := *t
-		newPointer.base = replaceTypes(t.base, typeMap)
+		newPointer.base = replaceTypes(t.base, typeParams, typeMap)
 		return &newPointer
 	case *Slice:
 		newSlice := *t
-		newSlice.elem = replaceTypes(t.elem, typeMap)
+		newSlice.elem = replaceTypes(t.elem, typeParams, typeMap)
 		return &newSlice
 	case *Map:
 		newMap := *t
-		newMap.key = replaceTypes(t.key, typeMap)
-		newMap.elem = replaceTypes(t.elem, typeMap)
+		newMap.key = replaceTypes(t.key, typeParams, typeMap)
+		newMap.elem = replaceTypes(t.elem, typeParams, typeMap)
 		return &newMap
 	case *Array:
 		newArray := *t
-		newArray.elem = replaceTypes(t.elem, typeMap)
+		newArray.elem = replaceTypes(t.elem, typeParams, typeMap)
 		return &newArray
 	case *Chan:
 		newChan := *t
-		newChan.elem = replaceTypes(t.elem, typeMap)
+		newChan.elem = replaceTypes(t.elem, typeParams, typeMap)
 		return &newChan
 	case *Struct:
-		return replaceTypesInStruct(t, typeMap)
+		return replaceTypesInStruct(t, typeParams, typeMap)
 	case *Signature:
-		return replaceTypesInSignature(t, typeMap)
+		return replaceTypesInSignature(t, typeParams, typeMap)
 	case *Named:
-		return replaceTypesInNamed(t, typeMap)
+		return replaceTypesInNamed(t, typeParams, typeMap)
 	case *ConcreteNamed:
-		return replaceTypesInConcreteNamed(t, typeMap)
+		return replaceTypesInConcreteNamed(t, typeParams, typeMap)
 	}
 	return root
 }
 
-func replaceTypesInStruct(root *Struct, typeMap map[string]Type) *Struct {
+func replaceTypesInStruct(root *Struct, typeParams []ast.Expr, typeMap map[string]Type) *Struct {
 	var fields []*Var
 	for _, field := range root.fields {
 		newField := *field
-		newField.typ = replaceTypes(field.Type(), typeMap)
+		newField.typ = replaceTypes(field.Type(), typeParams, typeMap)
 		fields = append(fields, &newField)
 	}
 	return NewStruct(fields, root.tags)
 }
 
-func replaceTypesInSignature(root *Signature, typeMap map[string]Type) *Signature {
+func replaceTypesInSignature(root *Signature, typeParams []ast.Expr, typeMap map[string]Type) *Signature {
 	var newRecv *Var
 	if root.recv != nil {
 		newRecv = new(Var)
 		(*newRecv) = *root.recv
-		newRecvType := replaceTypes(root.recv.typ, typeMap)
+		newRecvType := replaceTypes(root.recv.typ, typeParams, typeMap)
 		newRecv.typ = newRecvType
 	}
 
@@ -254,7 +254,7 @@ func replaceTypesInSignature(root *Signature, typeMap map[string]Type) *Signatur
 		newParams = &Tuple{}
 		for _, param := range root.params.vars {
 			newParam := *param
-			newParam.typ = replaceTypes(param.typ, typeMap)
+			newParam.typ = replaceTypes(param.typ, typeParams, typeMap)
 			newParams.vars = append(newParams.vars, &newParam)
 		}
 	}
@@ -264,7 +264,7 @@ func replaceTypesInSignature(root *Signature, typeMap map[string]Type) *Signatur
 		newResults = &Tuple{}
 		for _, result := range root.results.vars {
 			newResult := *result
-			newResult.typ = replaceTypes(result.typ, typeMap)
+			newResult.typ = replaceTypes(result.typ, typeParams, typeMap)
 			newResults.vars = append(newResults.vars, &newResult)
 		}
 	}
@@ -279,12 +279,12 @@ func replaceTypesInSignature(root *Signature, typeMap map[string]Type) *Signatur
 	return newSig
 }
 
-func replaceTypesInMethods(methods []*Func, typeMap map[string]Type) []*Func {
+func replaceTypesInMethods(methods []*Func, typeParams []ast.Expr, typeMap map[string]Type) []*Func {
 	newMethods := make([]*Func, len(methods))
 	for i, meth := range methods {
 		if sig, ok := meth.typ.(*Signature); ok {
 			newTypeMap := createMethodTypeMap(sig.recv.typ, typeMap)
-			newSig := replaceTypesInSignature(sig, newTypeMap)
+			newSig := replaceTypesInSignature(sig, typeParams, newTypeMap)
 			newMethods[i] = &Func{
 				object: object{
 					parent:    meth.parent,
@@ -303,8 +303,8 @@ func replaceTypesInMethods(methods []*Func, typeMap map[string]Type) []*Func {
 	return newMethods
 }
 
-func replaceTypesInNamed(root *Named, typeMap map[string]Type) *Named {
-	newUnderlying := replaceTypes(root.underlying, typeMap)
+func replaceTypesInNamed(root *Named, typeParams []ast.Expr, typeMap map[string]Type) *Named {
+	newUnderlying := replaceTypes(root.underlying, typeParams, typeMap)
 	newNamed := *root
 	newNamed.underlying = newUnderlying
 	newObj := *root.obj
@@ -315,7 +315,7 @@ func replaceTypesInNamed(root *Named, typeMap map[string]Type) *Named {
 
 // TODO(albrow): optimize by doing nothing in the case where the new typeMap
 // is equivalent to the old.
-func replaceTypesInConcreteNamed(root *ConcreteNamed, typeMap map[string]Type) *ConcreteNamed {
+func replaceTypesInConcreteNamed(root *ConcreteNamed, typeParams []ast.Expr, typeMap map[string]Type) *ConcreteNamed {
 	newTypeMap := map[string]Type{}
 	for key, given := range root.typeMap {
 		if param, givenIsTypeParam := given.(*TypeParam); givenIsTypeParam {
@@ -328,15 +328,13 @@ func replaceTypesInConcreteNamed(root *ConcreteNamed, typeMap map[string]Type) *
 		}
 		newTypeMap[key] = given
 	}
-	newNamed := replaceTypesInNamed(root.Named, newTypeMap)
+	newNamed := replaceTypesInNamed(root.Named, typeParams, newTypeMap)
 	newType := NewConcreteNamed(newNamed, root.typeParams, newTypeMap)
 	newNamed.typeParams = nil
 	newObj := *root.obj
 	newObj.typ = newType
 	newType.obj = &newObj
-	newType.methods = replaceTypesInMethods(root.methods, newTypeMap)
-	// Since this is a generated/inherited usage, there is not a corresponding set
-	// of type params in the AST.
-	addGenericUsage(root.obj, newType, nil, newTypeMap)
+	newType.methods = replaceTypesInMethods(root.methods, typeParams, newTypeMap)
+	addGenericUsage(root.obj, newType, typeParams, newTypeMap)
 	return newType
 }
