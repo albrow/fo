@@ -499,6 +499,9 @@ func Clone(node ast.Node) ast.Node {
 
 // Helper functions for common nodes
 func cloneIdentList(list []*ast.Ident) []*ast.Ident {
+	if list == nil {
+		return nil
+	}
 	newList := make([]*ast.Ident, len(list))
 	for i, x := range list {
 		newList[i] = cloneIdent(x)
@@ -507,6 +510,9 @@ func cloneIdentList(list []*ast.Ident) []*ast.Ident {
 }
 
 func cloneExprList(list []ast.Expr) []ast.Expr {
+	if list == nil {
+		return nil
+	}
 	newList := make([]ast.Expr, len(list))
 	for i, x := range list {
 		newList[i] = cloneExpr(x)
@@ -555,6 +561,9 @@ func cloneDecl(n ast.Decl) ast.Decl {
 }
 
 func cloneDeclList(list []ast.Decl) []ast.Decl {
+	if list == nil {
+		return nil
+	}
 	newList := make([]ast.Decl, len(list))
 	for i, x := range list {
 		newList[i] = cloneDecl(x)
@@ -570,6 +579,9 @@ func cloneStmt(n ast.Stmt) ast.Stmt {
 }
 
 func cloneStmtList(list []ast.Stmt) []ast.Stmt {
+	if list == nil {
+		return nil
+	}
 	newList := make([]ast.Stmt, len(list))
 	for i, x := range list {
 		newList[i] = cloneStmt(x)
