@@ -474,6 +474,8 @@ func (a A[T]) f2[U, V]() (T, U, V) {
 	return T(a), x, y
 }
 
+func (*A) f3() {}
+
 func main() {
 	var _ = A[string]("")
 	var _ = A[bool](true)
@@ -519,6 +521,10 @@ func (a A__T) f2__float64__int8() (T, float64, int8) {
 	var y int8
 	return T(a), x, y
 }
+
+func (*A__bool) f3()   {}
+func (*A__string) f3() {}
+func (*A__uint) f3()   {}
 
 func main() {
 	var _ = A__string("")

@@ -6,12 +6,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/albrow/fo/printer"
-
 	"github.com/albrow/fo/ast"
 	"github.com/albrow/fo/astclone"
 	"github.com/albrow/fo/astutil"
 	"github.com/albrow/fo/format"
+	"github.com/albrow/fo/printer"
 	"github.com/albrow/fo/token"
 	"github.com/albrow/fo/types"
 )
@@ -94,11 +93,16 @@ func (trans *transformer) generateMethods(n *ast.FuncDecl) []*ast.FuncDecl {
 	if len(n.Recv.List) != 1 {
 		return nil
 	}
-	typeParamExpr, ok := n.Recv.List[0].Type.(*ast.TypeParamExpr)
-	if !ok {
-		return nil
+	recv := n.Recv.List[0].Type
+	hasTypeParams := false
+	if selectorExpr, ok := recv.(*ast.StarExpr); ok {
+		recv = selectorExpr.X
 	}
-	genTypeName, ok := typeParamExpr.X.(*ast.Ident)
+	if typeParamExpr, ok := recv.(*ast.TypeParamExpr); ok {
+		hasTypeParams = true
+		recv = typeParamExpr.X
+	}
+	genTypeName, ok := recv.(*ast.Ident)
 	if !ok {
 		// TODO(albrow): handle *ast.SelectorExpr here so we can support generic
 		// types from other packages.
@@ -106,14 +110,40 @@ func (trans *transformer) generateMethods(n *ast.FuncDecl) []*ast.FuncDecl {
 	}
 	genDecl, found := trans.pkg.Generics()[genTypeName.Name]
 	if !found {
-		panic(fmt.Errorf("could not find generic type declaration for %s", genTypeName.Name))
+		if hasTypeParams {
+			panic(fmt.Errorf("could not find generic type declaration for %s", genTypeName.Name))
+		}
+		return nil
 	}
 	for _, usg := range genDecl.Usages() {
 		newFunc := astclone.Clone(n).(*ast.FuncDecl)
+		expandReceiverType(newFunc, genDecl, usg)
 		replaceIdentsInScope(newFunc, usg.TypeMap())
 		results = append(results, newFunc)
 	}
 	return results
+}
+
+// expandReceiverType adds the appropriate type parameters to a receiver type
+// if they were not included in the original source code.
+func expandReceiverType(funcDecl *ast.FuncDecl, genDecl *types.GenericDecl, usg *types.GenericUsage) {
+	astutil.Apply(funcDecl.Recv, func(c *astutil.Cursor) bool {
+		switch n := c.Node().(type) {
+		case *ast.TypeParamExpr:
+			// Don't convert an existing TypeParamExpr
+			return false
+		case *ast.Ident:
+			if n.Name == genDecl.Name() {
+				c.Replace(&ast.TypeParamExpr{
+					X:      ast.NewIdent(n.Name),
+					Lbrack: token.NoPos,
+					Params: usg.TypeParams(),
+					Rbrack: token.NoPos,
+				})
+			}
+		}
+		return true
+	}, nil)
 }
 
 func (trans *transformer) generateConcreteTypes() func(c *astutil.Cursor) bool {

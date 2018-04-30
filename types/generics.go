@@ -29,8 +29,13 @@ func (decl *GenericDecl) Usages() map[string]*GenericUsage {
 }
 
 type GenericUsage struct {
-	typeMap map[string]Type
-	typ     Type
+	typ        Type
+	typeParams []ast.Expr
+	typeMap    map[string]Type
+}
+
+func (usg *GenericUsage) TypeParams() []ast.Expr {
+	return usg.typeParams
 }
 
 func (usg *GenericUsage) TypeMap() map[string]Type {
@@ -50,7 +55,7 @@ func addGenericDecl(obj Object, typeParams []*TypeParam) {
 	}
 }
 
-func addGenericUsage(genObj Object, typ Type, typeMap map[string]Type) {
+func addGenericUsage(genObj Object, typ Type, typeParams []ast.Expr, typeMap map[string]Type) {
 	for _, typ := range typeMap {
 		if _, ok := typ.(*TypeParam); ok {
 			// If the type map includes a type parameter, it is not yet complete and
@@ -73,8 +78,9 @@ func addGenericUsage(genObj Object, typ Type, typeMap map[string]Type) {
 		genDecl.usages = map[string]*GenericUsage{}
 	}
 	genDecl.usages[usageKey(typeMap, genDecl.typeParams)] = &GenericUsage{
-		typ:     typ,
-		typeMap: typeMap,
+		typ:        typ,
+		typeParams: typeParams,
+		typeMap:    typeMap,
 	}
 }
 
@@ -107,7 +113,7 @@ func (check *Checker) concreteType(expr *ast.TypeParamExpr, genType Type) Type {
 		newType.obj = &newObj
 		newObj.typ = newType
 		newType.methods = replaceTypesInMethods(genType.methods, typeMap)
-		addGenericUsage(genType.obj, newType, typeMap)
+		addGenericUsage(genType.obj, newType, expr.Params, typeMap)
 
 		return newType
 	case *Signature:
@@ -121,7 +127,7 @@ func (check *Checker) concreteType(expr *ast.TypeParamExpr, genType Type) Type {
 			newObj := *genType.obj
 			newObj.typ = newSig
 			newSig.obj = &newObj
-			addGenericUsage(&newObj, newType, typeMap)
+			addGenericUsage(&newObj, newType, expr.Params, typeMap)
 		}
 		return newType
 	}
@@ -329,6 +335,8 @@ func replaceTypesInConcreteNamed(root *ConcreteNamed, typeMap map[string]Type) *
 	newObj.typ = newType
 	newType.obj = &newObj
 	newType.methods = replaceTypesInMethods(root.methods, newTypeMap)
-	addGenericUsage(root.obj, newType, newTypeMap)
+	// Since this is a generated/inherited usage, there is not a corresponding set
+	// of type params in the AST.
+	addGenericUsage(root.obj, newType, nil, newTypeMap)
 	return newType
 }
