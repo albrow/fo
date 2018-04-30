@@ -1,0 +1,154 @@
+// Copyright 2018 Alex Browne. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+package genericmethods
+
+import "fmt"
+
+type A[T] struct{
+  val T
+}
+
+// Declarations without receiver type parameters
+func (A) a() { }
+
+func (x A) b() {
+  fmt.Println(x)
+}
+
+// Declarations with receiver type parameters
+func (A[T]) c() { }
+
+func (A[T]) d(t T) { }
+
+func (A[T]) e() T { 
+   var x T
+   return x
+}
+
+// Using fields inside function body
+func (x A[T]) f() T {
+  return x.val
+}
+
+
+// Pointer receivers
+func (x *A[T]) g(t T) {
+  x.val = t
+}
+
+func (x *A[T]) h() T {
+  var t T
+  return t
+}
+
+// Using a different name for the type parameter
+func (A[U]) i(t U) { }
+
+func (A[U]) j() U {
+   var x U
+   return x
+}
+
+// Methods with additional type parameters
+func (x A[T]) k[U, V](y U, z V) {
+  fmt.Println(x.val, y, z)
+}
+
+func (x A[T]) l[U, V]() (T, U, V) {
+  var y U
+  var z V
+  return x.val, y, z
+}
+
+// Interfaces which involve the methods above
+type dInterface interface {
+  d(string)
+}
+
+type eInterface interface {
+  e() string
+}
+
+type gInterface interface {
+  g(string)
+}
+
+type hInterface interface {
+  h() string
+}
+
+func main() {
+  // Use all methods with a non-pointer type as the receiver.
+  x := A[string]{
+    val: "",
+  }
+  x.a()
+  x.b()
+  x.c()
+  x.d("")
+  var _ string = x.e()
+  var _ string = x.f()
+  x.g("")
+  var _ string = x.h()
+  x.i("")
+  var _ string = x.j()
+  x.k[int, bool](0, false)
+  var a string
+  var b int
+  var c bool
+  a, b, c = x.l[int, bool]()
+  fmt.Println(a, b, c)
+
+  // Use all methods with a pointer type as the receiver
+  y := &A[string]{
+    val: "",
+  }
+  y.a()
+  y.b()
+  y.c()
+  y.d("")
+  var _ string = y.e()
+  var _ string = y.f()
+  y.g("")
+  var _ string = y.h()
+  y.i("")
+  var _ string = y.j()
+  x.k[int, bool](0, false)
+  a, b, c = x.l[int, bool]()
+
+  // Methods as functions values
+  var _ func() = x.a
+  var _ func() = x.b
+  var _ func() = x.c
+  var _ func(string) = x.d
+  var _ func() string = x.e
+  var _ func() string = x.f
+  var _ func(string) = x.g
+  var _ func() string = x.h
+  var _ func(string) = x.i
+  var _ func() string = x.j
+  var _ func(int, bool) = x.k[int, bool]
+  var _ func() (string, int, bool) = x.l[int, bool] 
+
+  // Methods as function values with receiver as first arg
+  var _ func(A[string]) = (A[string]).a
+  var _ func(A[string]) = (A[string]).b
+  var _ func(A[string]) = (A[string]).c
+  var _ func(A[string], string) = (A[string]).d
+  var _ func(A[string]) string = (A[string]).e
+  var _ func(A[string]) string = (A[string]).f
+  var _ func(*A[string], string) = (*A[string]).g
+  var _ func(*A[string]) string = (*A[string]).h
+  var _ func(A[string], string) = (A[string]).i
+  var _ func(A[string]) string = (A[string]).j
+  // TODO(albrow): support expressions like the one below:
+  // var _ func(A[string], int, bool) = (A[string]).k[int, bool]
+
+  // Make sure type A implements the right interfaces
+  var _ eInterface = x
+  var _ dInterface = x
+  var _ gInterface = y
+  var _ hInterface = y
+}

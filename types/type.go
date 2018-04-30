@@ -218,19 +218,21 @@ type Signature struct {
 	// and store it in the Func Object) because when type-checking a function
 	// literal we call the general type checker which returns a general Type.
 	// We then unpack the *Signature and use the scope for the literal body.
-	scope      *Scope       // function scope, present for package-local signatures
-	recv       *Var         // nil if not a method
-	params     *Tuple       // (incoming) parameters from left to right; or nil
-	results    *Tuple       // (outgoing) results from left to right; or nil
-	variadic   bool         // true if the last parameter's type is of the form ...T (or string, for append built-in only)
-	typeParams []*TypeParam // generic type parameters (if any)
+	scope          *Scope       // function scope, present for package-local signatures
+	recv           *Var         // nil if not a method
+	params         *Tuple       // (incoming) parameters from left to right; or nil
+	results        *Tuple       // (outgoing) results from left to right; or nil
+	variadic       bool         // true if the last parameter's type is of the form ...T (or string, for append built-in only)
+	typeParams     []*TypeParam // generic type parameters (if any)
+	recvTypeParams []*TypeParam // type parameters of the receiver type (if any)
+	obj            *Func        // corresponding declaration (nil for anonymous functions)
 }
 
 // NewSignature returns a new function type for the given receiver, parameters,
 // and results, either of which may be nil. If variadic is set, the function
 // is variadic, it must have at least one parameter, and the last parameter
 // must be of unnamed slice type.
-func NewSignature(recv *Var, params, results *Tuple, variadic bool, typeParams []*TypeParam) *Signature {
+func NewSignature(recv *Var, params, results *Tuple, variadic bool, typeParams, recvTypeParams []*TypeParam) *Signature {
 	if variadic {
 		n := params.Len()
 		if n == 0 {
@@ -254,7 +256,15 @@ func NewSignature(recv *Var, params, results *Tuple, variadic bool, typeParams [
 		}
 	}
 
-	return &Signature{nil, recv, params, results, variadic, typeParams}
+	return &Signature{
+		scope:          nil,
+		recv:           recv,
+		params:         params,
+		results:        results,
+		variadic:       variadic,
+		typeParams:     typeParams,
+		recvTypeParams: recvTypeParams,
+	}
 }
 
 // Recv returns the receiver of signature s (if a method), or nil if a

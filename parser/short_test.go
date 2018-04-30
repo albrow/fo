@@ -73,6 +73,8 @@ var valids = []string{
 	`package p; func _(x []int, y T[U]) { for range x {} }`,
 	`package p; func _(T[int], T[string, bool]) { }`,
 	`package p; func _([5]string, T[int, bool]) { }`,
+	`package p; func (T[U]) _() U { }`,
+	`package p; func (x T[U]) _() U { }`,
 
 	// Top-level variable assignments
 	`package p; var x T[U]`,

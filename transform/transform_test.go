@@ -175,38 +175,6 @@ func main() {}
 	testParseFile(t, src, expected)
 }
 
-func TestTransformStructTypeMethodReceiver(t *testing.T) {
-	src := `package main
-
-type Maybe[T] struct {
-	val T
-	valid bool
-}
-
-func (m Maybe[string]) IsValid() bool {
-	return m.valid
-}
-
-func main() { }
-`
-
-	expected := `package main
-
-type Maybe__string struct {
-	val   string
-	valid bool
-}
-
-func (m Maybe__string) IsValid() bool {
-	return m.valid
-}
-
-func main() {}
-`
-
-	testParseFile(t, src, expected)
-}
-
 func TestTransformStructTypeSwitch(t *testing.T) {
 	src := `package main
 
@@ -313,7 +281,7 @@ func Print__string(t string) {
 	fmt.Println(t)
 }
 
-func MakeSlice__string() ([]string) {
+func MakeSlice__string() []string {
 	return make([]string, 0)
 }
 
@@ -463,14 +431,14 @@ type (
 	}
 )
 
-func NewTuple__bool__int64(first bool, second int64) (Tuple__bool__int64) {
+func NewTuple__bool__int64(first bool, second int64) Tuple__bool__int64 {
 	return Tuple__bool__int64{
 		first:  first,
 		second: second,
 	}
 }
 
-func NewTupleString__float64(first string, second float64) (Tuple__string__float64) {
+func NewTupleString__float64(first string, second float64) Tuple__string__float64 {
 	return Tuple__string__float64{
 		first:  first,
 		second: second,
@@ -480,6 +448,84 @@ func NewTupleString__float64(first string, second float64) (Tuple__string__float
 func main() {
 	var _ = NewTuple__bool__int64(true, 42)
 	var _ = NewTupleString__float64("foo", 12.34)
+}
+`
+
+	testParseFile(t, src, expected)
+}
+
+func TestTransformMethods(t *testing.T) {
+	src := `package main
+
+type A[T] T
+
+func (A[T]) f0() T {
+	var x T
+	return x
+}
+
+func (a A[T]) f1() T {
+	return T(a)
+}
+
+func (a A[T]) f2[U, V]() (T, U, V) {
+	var x U
+	var y V
+	return T(a), x, y
+}
+
+func main() {
+	var _ = A[string]("")
+	var _ = A[bool](true)
+
+	var x A[uint]
+	x.f2[float64, int8]()
+}
+`
+
+	expected := `package main
+
+type (
+	A__bool   bool
+	A__string string
+	A__uint   uint
+)
+
+func (A__bool) f0() bool {
+	var x bool
+	return x
+}
+func (A__string) f0() string {
+	var x string
+	return x
+}
+func (A__uint) f0() uint {
+	var x uint
+	return x
+}
+
+func (a A__bool) f1() bool {
+	return bool(a)
+}
+func (a A__string) f1() string {
+	return string(a)
+}
+func (a A__uint) f1() uint {
+	return uint(a)
+}
+
+func (a A__T) f2__float64__int8() (T, float64, int8) {
+	var x float64
+	var y int8
+	return T(a), x, y
+}
+
+func main() {
+	var _ = A__string("")
+	var _ = A__bool(true)
+
+	var x A__uint
+	x.f2__float64__int8()
 }
 `
 

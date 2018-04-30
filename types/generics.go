@@ -7,9 +7,7 @@ import (
 	"github.com/albrow/fo/ast"
 )
 
-// TODO(albrow): Create interfaces to capture genericDecl and genericUsage in
-// such a way that both signatures and named types can be used directly as
-// fields in these generic-specific data structures?
+// TODO(albrow): document exported types here.
 
 type GenericDecl struct {
 	name       string
@@ -96,8 +94,6 @@ func usageKey(typeMap map[string]Type, typeParams []*TypeParam) string {
 //
 // TODO(albrow): Cache concrete types in some sort of special scope so
 // we can avoid re-generating the concrete types on each usage.
-// TODO(albrow): Use a named type/function decl here for better error
-// messages.
 func (check *Checker) concreteType(expr *ast.TypeParamExpr, genType Type) Type {
 	switch genType := genType.(type) {
 	case *Named:
@@ -110,31 +106,23 @@ func (check *Checker) concreteType(expr *ast.TypeParamExpr, genType Type) Type {
 		newObj := *genType.obj
 		newType.obj = &newObj
 		newObj.typ = newType
+		newType.methods = replaceTypesInMethods(genType.methods, typeMap)
 		addGenericUsage(genType.obj, newType, typeMap)
 
 		return newType
 	case *Signature:
-		// We need to lookup the object here. TODO(albrow): can we somehow make this
-		// more efficient? Presumably the object was already looked up when we
-		// determined the type of expr.X.
-		var genObj Object
-		switch x := expr.X.(type) {
-		case *ast.Ident:
-			_, obj := check.scope.LookupParent(x.Name, expr.Pos())
-			if obj == nil {
-				check.errorf(x.Pos(), "undeclared name: %s", x.Name)
-			}
-			genObj = obj
-		default:
-			check.errorf(expr.Pos(), "internal type %T in TypeParamExpr not yet supported", expr.X)
-		}
 		typeMap := check.createTypeMap(expr.Params, genType.typeParams)
 		newSig := replaceTypesInSignature(genType, typeMap)
 		newSig.typeParams = nil
 		typeParams := make([]*TypeParam, len(genType.typeParams))
 		copy(typeParams, genType.typeParams)
 		newType := NewConcreteSignature(newSig, typeParams, typeMap)
-		addGenericUsage(genObj, newType, typeMap)
+		if genType.obj != nil {
+			newObj := *genType.obj
+			newObj.typ = newSig
+			newSig.obj = &newObj
+			addGenericUsage(&newObj, newType, typeMap)
+		}
 		return newType
 	}
 
@@ -159,17 +147,39 @@ func (check *Checker) createTypeMap(params []ast.Expr, genericParams []*TypePara
 	return typeMap
 }
 
+func createMethodTypeMap(recvType Type, typeMap map[string]Type) map[string]Type {
+	if recvType, ok := recvType.(*ConcreteNamed); ok {
+		if len(recvType.typeParams) == 0 {
+			return typeMap
+		}
+		newTypeMap := map[string]Type{}
+		// First copy all the values of the original type map.
+		for name, typ := range typeMap {
+			newTypeMap[name] = typ
+		}
+		// Then remap all the receiver type parameters to their appropriate type.
+		for name, typ := range recvType.typeMap {
+			if tp, ok := typ.(*TypeParam); ok {
+				newTypeMap[tp.String()] = typeMap[name]
+			}
+		}
+		return newTypeMap
+	}
+
+	return typeMap
+}
+
 // replaceTypes recursively replaces any type parameters starting at root with
-// the corresponding concrete type by looking up in typeMapping. typeMapping is
+// the corresponding concrete type by looking up in typeMap. typeMap is
 // a map of type parameter identifier to concrete type. replaceTypes works with
 // compound types such as maps, slices, and arrays whenever the type parameter
 // is part of the type. For example, root can be a []T and replaceTypes will
 // correctly replace T with the corresponding concrete type (assuming it is
-// included in typeMapping).
-func replaceTypes(root Type, typeMapping map[string]Type) Type {
+// included in typeMap).
+func replaceTypes(root Type, typeMap map[string]Type) Type {
 	switch t := root.(type) {
 	case *TypeParam:
-		if newType, found := typeMapping[t.String()]; found {
+		if newType, found := typeMap[t.String()]; found {
 			// This part is important; if the concrete type is also a type parameter,
 			// don't do the replacement. We assume that we're dealing with an
 			// inherited type parameter and that the concrete form of the parent will
@@ -180,56 +190,57 @@ func replaceTypes(root Type, typeMapping map[string]Type) Type {
 			}
 			return newType
 		}
-		// TODO(albrow): handle this error?
-		panic(fmt.Errorf("undefined type parameter: %s", t))
+		return root
 	case *Pointer:
 		newPointer := *t
-		newPointer.base = replaceTypes(t.base, typeMapping)
+		newPointer.base = replaceTypes(t.base, typeMap)
 		return &newPointer
 	case *Slice:
 		newSlice := *t
-		newSlice.elem = replaceTypes(t.elem, typeMapping)
+		newSlice.elem = replaceTypes(t.elem, typeMap)
 		return &newSlice
 	case *Map:
 		newMap := *t
-		newMap.key = replaceTypes(t.key, typeMapping)
-		newMap.elem = replaceTypes(t.elem, typeMapping)
+		newMap.key = replaceTypes(t.key, typeMap)
+		newMap.elem = replaceTypes(t.elem, typeMap)
 		return &newMap
 	case *Array:
 		newArray := *t
-		newArray.elem = replaceTypes(t.elem, typeMapping)
+		newArray.elem = replaceTypes(t.elem, typeMap)
 		return &newArray
 	case *Chan:
 		newChan := *t
-		newChan.elem = replaceTypes(t.elem, typeMapping)
+		newChan.elem = replaceTypes(t.elem, typeMap)
 		return &newChan
 	case *Struct:
-		return replaceTypesInStruct(t, typeMapping)
+		return replaceTypesInStruct(t, typeMap)
 	case *Signature:
-		return replaceTypesInSignature(t, typeMapping)
+		return replaceTypesInSignature(t, typeMap)
 	case *Named:
-		return replaceTypesInNamed(t, typeMapping)
+		return replaceTypesInNamed(t, typeMap)
 	case *ConcreteNamed:
-		return replaceTypesInConcreteNamed(t, typeMapping)
+		return replaceTypesInConcreteNamed(t, typeMap)
 	}
 	return root
 }
 
-func replaceTypesInStruct(root *Struct, typeMapping map[string]Type) *Struct {
+func replaceTypesInStruct(root *Struct, typeMap map[string]Type) *Struct {
 	var fields []*Var
 	for _, field := range root.fields {
 		newField := *field
-		newField.typ = replaceTypes(field.Type(), typeMapping)
+		newField.typ = replaceTypes(field.Type(), typeMap)
 		fields = append(fields, &newField)
 	}
 	return NewStruct(fields, root.tags)
 }
 
-func replaceTypesInSignature(root *Signature, typeMapping map[string]Type) *Signature {
+func replaceTypesInSignature(root *Signature, typeMap map[string]Type) *Signature {
 	var newRecv *Var
 	if root.recv != nil {
-		newRecv := *root.recv
-		newRecv.typ = replaceTypes(root.recv.typ, typeMapping)
+		newRecv = new(Var)
+		(*newRecv) = *root.recv
+		newRecvType := replaceTypes(root.recv.typ, typeMap)
+		newRecv.typ = newRecvType
 	}
 
 	var newParams *Tuple
@@ -237,7 +248,7 @@ func replaceTypesInSignature(root *Signature, typeMapping map[string]Type) *Sign
 		newParams = &Tuple{}
 		for _, param := range root.params.vars {
 			newParam := *param
-			newParam.typ = replaceTypes(param.typ, typeMapping)
+			newParam.typ = replaceTypes(param.typ, typeMap)
 			newParams.vars = append(newParams.vars, &newParam)
 		}
 	}
@@ -247,16 +258,47 @@ func replaceTypesInSignature(root *Signature, typeMapping map[string]Type) *Sign
 		newResults = &Tuple{}
 		for _, result := range root.results.vars {
 			newResult := *result
-			newResult.typ = replaceTypes(result.typ, typeMapping)
+			newResult.typ = replaceTypes(result.typ, typeMap)
 			newResults.vars = append(newResults.vars, &newResult)
 		}
 	}
 
-	return NewSignature(newRecv, newParams, newResults, root.variadic, root.typeParams)
+	newSig := NewSignature(newRecv, newParams, newResults, root.variadic, root.typeParams, root.recvTypeParams)
+
+	if root.obj != nil {
+		newObj := *root.obj
+		newObj.typ = newSig
+		newSig.obj = &newObj
+	}
+	return newSig
 }
 
-func replaceTypesInNamed(root *Named, typeMapping map[string]Type) *Named {
-	newUnderlying := replaceTypes(root.underlying, typeMapping)
+func replaceTypesInMethods(methods []*Func, typeMap map[string]Type) []*Func {
+	newMethods := make([]*Func, len(methods))
+	for i, meth := range methods {
+		if sig, ok := meth.typ.(*Signature); ok {
+			newTypeMap := createMethodTypeMap(sig.recv.typ, typeMap)
+			newSig := replaceTypesInSignature(sig, newTypeMap)
+			newMethods[i] = &Func{
+				object: object{
+					parent:    meth.parent,
+					pos:       meth.pos,
+					pkg:       meth.pkg,
+					name:      meth.name,
+					typ:       newSig,
+					order_:    meth.order_,
+					scopePos_: meth.scopePos_,
+				},
+			}
+		} else {
+			panic(fmt.Errorf("unexpected meth.typ: %T", meth.typ))
+		}
+	}
+	return newMethods
+}
+
+func replaceTypesInNamed(root *Named, typeMap map[string]Type) *Named {
+	newUnderlying := replaceTypes(root.underlying, typeMap)
 	newNamed := *root
 	newNamed.underlying = newUnderlying
 	newObj := *root.obj
@@ -265,13 +307,13 @@ func replaceTypesInNamed(root *Named, typeMapping map[string]Type) *Named {
 	return &newNamed
 }
 
-// TODO(albrow): optimize by doing nothing in the case where the new typeMapping
+// TODO(albrow): optimize by doing nothing in the case where the new typeMap
 // is equivalent to the old.
-func replaceTypesInConcreteNamed(root *ConcreteNamed, typeMapping map[string]Type) *ConcreteNamed {
+func replaceTypesInConcreteNamed(root *ConcreteNamed, typeMap map[string]Type) *ConcreteNamed {
 	newTypeMap := map[string]Type{}
 	for key, given := range root.typeMap {
 		if param, givenIsTypeParam := given.(*TypeParam); givenIsTypeParam {
-			if inherited, found := typeMapping[param.String()]; found {
+			if inherited, found := typeMap[param.String()]; found {
 				if _, inheritedIsTypeParam := inherited.(*TypeParam); !inheritedIsTypeParam {
 					newTypeMap[key] = inherited
 					continue
@@ -286,6 +328,7 @@ func replaceTypesInConcreteNamed(root *ConcreteNamed, typeMapping map[string]Typ
 	newObj := *root.obj
 	newObj.typ = newType
 	newType.obj = &newObj
+	newType.methods = replaceTypesInMethods(root.methods, newTypeMap)
 	addGenericUsage(root.obj, newType, newTypeMap)
 	return newType
 }

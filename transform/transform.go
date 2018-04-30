@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/albrow/fo/printer"
+
 	"github.com/albrow/fo/ast"
 	"github.com/albrow/fo/astclone"
 	"github.com/albrow/fo/astutil"
@@ -18,8 +20,9 @@ import (
 // given package at once.
 
 type transformer struct {
-	fset *token.FileSet
-	pkg  *types.Package
+	fset    *token.FileSet
+	pkg     *types.Package
+	methods map[string]*ast.FuncDecl
 }
 
 func File(fset *token.FileSet, f *ast.File, pkg *types.Package) (*ast.File, error) {
@@ -48,7 +51,7 @@ func concreteTypeName(decl *types.GenericDecl, usg *types.GenericUsage) string {
 	return decl.Name() + "__" + strings.Join(stringParams, "__")
 }
 
-func concreteTypeExpr(e *ast.TypeParamExpr) *ast.Ident {
+func concreteTypeExpr(e *ast.TypeParamExpr) ast.Node {
 	switch x := e.X.(type) {
 	case *ast.Ident:
 		newIdent := astclone.Clone(x).(*ast.Ident)
@@ -62,9 +65,55 @@ func concreteTypeExpr(e *ast.TypeParamExpr) *ast.Ident {
 		}
 		newIdent.Name = newIdent.Name + "__" + strings.Join(stringParams, "__")
 		return newIdent
+	case *ast.SelectorExpr:
+		newSel := astclone.Clone(x).(*ast.SelectorExpr)
+		stringParams := []string{}
+		for _, param := range e.Params {
+			buf := bytes.Buffer{}
+			format.Node(&buf, token.NewFileSet(), param)
+			typeString := buf.String()
+			safeParam := strings.Replace(typeString, ".", "_", -1)
+			stringParams = append(stringParams, safeParam)
+		}
+		newSel.Sel = ast.NewIdent(newSel.Sel.Name + "__" + strings.Join(stringParams, "__"))
+		return newSel
 	default:
 		panic(fmt.Errorf("type parameters for expr %s of type %T are not yet supported", e.X, e.X))
 	}
+}
+
+func (trans *transformer) generateMethods(n *ast.FuncDecl) []*ast.FuncDecl {
+	var results []*ast.FuncDecl
+	if n.Recv == nil {
+		return nil
+	}
+	if n.TypeParams != nil {
+		// funcs with type parameters will be handled later on.
+		return nil
+	}
+	if len(n.Recv.List) != 1 {
+		return nil
+	}
+	typeParamExpr, ok := n.Recv.List[0].Type.(*ast.TypeParamExpr)
+	if !ok {
+		return nil
+	}
+	genTypeName, ok := typeParamExpr.X.(*ast.Ident)
+	if !ok {
+		// TODO(albrow): handle *ast.SelectorExpr here so we can support generic
+		// types from other packages.
+		return nil
+	}
+	genDecl, found := trans.pkg.Generics()[genTypeName.Name]
+	if !found {
+		panic(fmt.Errorf("could not find generic type declaration for %s", genTypeName.Name))
+	}
+	for _, usg := range genDecl.Usages() {
+		newFunc := astclone.Clone(n).(*ast.FuncDecl)
+		replaceIdentsInScope(newFunc, usg.TypeMap())
+		results = append(results, newFunc)
+	}
+	return results
 }
 
 func (trans *transformer) generateConcreteTypes() func(c *astutil.Cursor) bool {
@@ -91,11 +140,11 @@ func (trans *transformer) generateConcreteTypes() func(c *astutil.Cursor) bool {
 				sort.Slice(newTypeSpecs, func(i int, j int) bool {
 					iSpec, ok := newTypeSpecs[i].(*ast.TypeSpec)
 					if !ok {
-						return false
+						return true
 					}
 					jSpec, ok := newTypeSpecs[j].(*ast.TypeSpec)
 					if !ok {
-						return false
+						return true
 					}
 					return iSpec.Name.Name < jSpec.Name.Name
 				})
@@ -106,13 +155,17 @@ func (trans *transformer) generateConcreteTypes() func(c *astutil.Cursor) bool {
 				c.Delete()
 			}
 		case *ast.FuncDecl:
-			if n.TypeParams == nil {
-				return false
+			newFuncs := trans.generateMethods(n)
+			if n.TypeParams != nil {
+				newFuncs = append(newFuncs, trans.generateFuncDecls(n)...)
 			}
-			newFuncs := trans.generateFuncDecls(c, n)
-			sort.Slice(newFuncs, func(i int, j int) bool {
-				return newFuncs[i].Name.Name < newFuncs[j].Name.Name
-			})
+			if len(newFuncs) == 0 {
+				if n.TypeParams != nil {
+					c.Delete()
+				}
+				return true
+			}
+			sortFuncs(newFuncs)
 			for _, newFunc := range newFuncs {
 				c.InsertBefore(newFunc)
 			}
@@ -120,6 +173,22 @@ func (trans *transformer) generateConcreteTypes() func(c *astutil.Cursor) bool {
 		}
 		return true
 	}
+}
+
+func sortFuncs(funcs []*ast.FuncDecl) {
+	sort.Slice(funcs, func(i int, j int) bool {
+		if funcs[i].Name.Name == funcs[j].Name.Name {
+			// If the two function names are the same, they must have different
+			// receivers. There's lots of edge cases to consider, so as a shortcut
+			// we use printer.Fprint to convert each FuncDecl to a string.
+			// TODO(albrow): optimize this
+			iBuff, jBuff := &bytes.Buffer{}, &bytes.Buffer{}
+			_ = printer.Fprint(iBuff, token.NewFileSet(), funcs[i])
+			_ = printer.Fprint(jBuff, token.NewFileSet(), funcs[j])
+			return iBuff.String() < jBuff.String()
+		}
+		return funcs[i].Name.Name < funcs[j].Name.Name
+	})
 }
 
 func (trans *transformer) replaceGenericIdents() func(c *astutil.Cursor) bool {
@@ -181,7 +250,7 @@ func (trans *transformer) generateTypeSpecs(typeSpec *ast.TypeSpec) []ast.Spec {
 	return results
 }
 
-func (trans *transformer) generateFuncDecls(c *astutil.Cursor, funcDecl *ast.FuncDecl) []*ast.FuncDecl {
+func (trans *transformer) generateFuncDecls(funcDecl *ast.FuncDecl) []*ast.FuncDecl {
 	name := funcDecl.Name.Name
 	genericDecl, found := trans.pkg.Generics()[name]
 	if !found {

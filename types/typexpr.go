@@ -147,12 +147,16 @@ func (check *Checker) typ(e ast.Expr) Type {
 
 // funcType type-checks a function or method type.
 func (check *Checker) funcType(sig *Signature, recvPar *ast.FieldList, ftyp *ast.FuncType, tpList *ast.TypeParamDecl) {
-
-	// Add type parameters to scope (if any)
 	var typeParams []*TypeParam
+
+	// Add receiver type parameters to scope (if any)
+	recvTypeParams, tpScope := check.recvTypeParams(recvPar)
+
+	// Add other type parameters to scope (if any)
 	if tpList != nil {
-		origScope := check.scope
-		tpScope := NewScope(check.scope, check.scope.Pos(), check.scope.End(), "function type parameters")
+		if tpScope == nil {
+			tpScope = NewScope(check.scope, check.scope.Pos(), check.scope.End(), "function type parameters")
+		}
 		for _, ident := range tpList.Names {
 			tp := NewTypeParam(ident.Name)
 			typeParams = append(typeParams, tp)
@@ -160,6 +164,10 @@ func (check *Checker) funcType(sig *Signature, recvPar *ast.FieldList, ftyp *ast
 			scopePos := ident.Pos()
 			check.declare(tpScope, ident, obj, scopePos)
 		}
+	}
+
+	if tpScope != nil {
+		origScope := check.scope
 		check.scope = tpScope
 		defer func() {
 			check.scope = origScope
@@ -248,6 +256,7 @@ func (check *Checker) funcType(sig *Signature, recvPar *ast.FieldList, ftyp *ast
 	sig.results = NewTuple(results...)
 	sig.variadic = variadic
 	sig.typeParams = typeParams
+	sig.recvTypeParams = recvTypeParams
 }
 
 // typExprInternal drives type checking of types.
@@ -438,6 +447,44 @@ func (check *Checker) arrayLength(e ast.Expr) int64 {
 	}
 	check.errorf(x.pos(), "array length %s must be integer", &x)
 	return 0
+}
+
+func (check *Checker) recvTypeParams(recvPar *ast.FieldList) ([]*TypeParam, *Scope) {
+	if recvPar == nil {
+		return nil, nil
+	} else if len(recvPar.List) != 1 {
+		return nil, nil
+	}
+
+	recv := recvPar.List[0]
+	var typeParams []*TypeParam
+	var tpScope *Scope
+	typ := recv.Type
+	if x, ok := recv.Type.(*ast.StarExpr); ok {
+		typ = x.X
+	}
+	if x, ok := typ.(*ast.TypeParamExpr); ok {
+		tpScope = NewScope(check.scope, check.scope.Pos(), check.scope.End(), "function type parameters")
+		for _, expr := range x.Params {
+			ident, ok := expr.(*ast.Ident)
+			if !ok {
+				check.error(expr.Pos(), "type parameters in method receiver must be identifiers")
+			}
+			// Check if the type parameter is an already defined type.
+			if _, foundObj := check.scope.LookupParent(ident.Name, ident.Pos()); foundObj != nil {
+				if _, ok := foundObj.Type().(*TypeParam); !ok {
+					check.error(ident.Pos(), "type parameters in method receiver cannot be concrete types")
+				}
+			}
+			tp := NewTypeParam(ident.Name)
+			typeParams = append(typeParams, tp)
+			obj := NewTypeName(ident.Pos(), check.pkg, ident.Name, tp)
+			scopePos := ident.Pos()
+			check.declare(tpScope, ident, obj, scopePos)
+		}
+	}
+
+	return typeParams, tpScope
 }
 
 func (check *Checker) collectParams(scope *Scope, list *ast.FieldList, variadicOk bool) (params []*Var, variadic bool) {

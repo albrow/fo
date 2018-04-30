@@ -93,6 +93,7 @@ var tests = [][]string{
 	{"testdata/blank.src"},
 	{"testdata/genericnamed.src"},
 	{"testdata/genericfuncs.src"},
+	{"testdata/genericmethods.src"},
 	{"testdata/genericstructs.src"},
 	{"testdata/genericsinherited.src"},
 }

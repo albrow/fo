@@ -91,6 +91,3 @@ func _() A[int] {
 
 func _(_ A[int]) {
 }
-
-func (A[int]) _() {
-}

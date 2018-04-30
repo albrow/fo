@@ -424,6 +424,9 @@ func (check *Checker) collectObjects() {
 						if ptr, _ := typ.(*ast.StarExpr); ptr != nil {
 							typ = unparen(ptr.X)
 						}
+						if tpe, _ := typ.(*ast.TypeParamExpr); tpe != nil {
+							typ = unparen(tpe.X)
+						}
 						if base, _ := typ.(*ast.Ident); base != nil && base.Name != "_" {
 							check.assocMethod(base.Name, obj)
 						}
