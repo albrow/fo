@@ -638,7 +638,7 @@ func (p *parser) parseType() ast.Expr {
 
 // If the result is an identifier, it is not resolved. If allowTypeParams is
 // true, a bracket following the type name will be interpreted as the start of
-// a TypeParamExpr.
+// a TypeArgExpr.
 func (p *parser) parseTypeName(allowTypeParams bool) ast.Expr {
 	if p.trace {
 		defer un(trace(p, "TypeName"))
@@ -661,10 +661,10 @@ func (p *parser) parseTypeName(allowTypeParams bool) ast.Expr {
 		lbrack := p.expect(token.LBRACK)
 		params := p.parseTypeList()
 		rbrack := p.expect(token.RBRACK)
-		return &ast.TypeParamExpr{
+		return &ast.TypeArgExpr{
 			X:      x,
 			Lbrack: lbrack,
-			Params: params,
+			Types:  params,
 			Rbrack: rbrack,
 		}
 	}
@@ -728,7 +728,7 @@ func (p *parser) parseFieldDecl(scope *ast.Scope) *ast.Field {
 		x := p.parseVarType(false, false)
 
 		if p.tok == token.LBRACK {
-			// We need to disambiguate between TypeParamExpr and
+			// We need to disambiguate between TypeArgExpr and
 			// (Ident SliceType | Ident ArrayType)
 			lbrack := p.expect(token.LBRACK)
 			if p.tok == token.IDENT {
@@ -739,27 +739,27 @@ func (p *parser) parseFieldDecl(scope *ast.Scope) *ast.Field {
 				len := p.parseRhs()
 				p.exprLev--
 				if p.tok == token.COMMA {
-					// TypeParamExpr
+					// TypeArgExpr
 					p.next()
 					params := append([]ast.Expr{len}, p.parseTypeList()...)
 					rbrack := p.expect(token.RBRACK)
-					x = &ast.TypeParamExpr{
+					x = &ast.TypeArgExpr{
 						X:      x,
 						Lbrack: lbrack,
-						Params: params,
+						Types:  params,
 						Rbrack: rbrack,
 					}
 				} else if p.tok == token.RBRACK {
 					// Still ambiguous. We need to look one more token ahead.
 					rbrack := p.expect(token.RBRACK)
 					if p.tok == token.SEMICOLON || p.tok == token.STRING || p.tok == token.RBRACE {
-						// TypeParamExpr
+						// TypeArgExpr
 						// We reached the end of this field decl which means the type
-						// is a TypeParamExpr and not an ArrayType.
-						x = &ast.TypeParamExpr{
+						// is a TypeArgExpr and not an ArrayType.
+						x = &ast.TypeArgExpr{
 							X:      x,
 							Lbrack: lbrack,
-							Params: []ast.Expr{p.checkExprOrType(len)},
+							Types:  []ast.Expr{p.checkExprOrType(len)},
 							Rbrack: rbrack,
 						}
 					} else {
@@ -916,7 +916,7 @@ func (p *parser) parseParameterList(scope *ast.Scope, ellipsisOk bool) (params [
 		x := p.parseVarType(ellipsisOk, false)
 
 		if p.tok == token.LBRACK {
-			// We need to disambiguate between TypeParamExpr and
+			// We need to disambiguate between TypeArgExpr and
 			// IdentifierList (SliceType | ArrayType)
 			lbrack := p.expect(token.LBRACK)
 			if p.tok == token.IDENT {
@@ -927,33 +927,33 @@ func (p *parser) parseParameterList(scope *ast.Scope, ellipsisOk bool) (params [
 				len := p.parseRhs()
 				p.exprLev--
 				if p.tok == token.COMMA {
-					// TypeParamExpr
+					// TypeArgExpr
 					p.next()
 					params := append([]ast.Expr{len}, p.parseTypeList()...)
 					rbrack := p.expect(token.RBRACK)
-					x = &ast.TypeParamExpr{
+					x = &ast.TypeArgExpr{
 						X:      x,
 						Lbrack: lbrack,
-						Params: params,
+						Types:  params,
 						Rbrack: rbrack,
 					}
 				} else if p.tok == token.RBRACK {
 					// Still ambiguous. We need to look one more token ahead.
 					rbrack := p.expect(token.RBRACK)
 					if p.tok == token.COMMA || p.tok == token.SEMICOLON || p.tok == token.RPAREN {
-						// TypeParamExpr
+						// TypeArgExpr
 						// Since nothing follows the closing bracket, we know we have a
-						// TypeParamExpr and not an ArrayType.
-						x = &ast.TypeParamExpr{
+						// TypeArgExpr and not an ArrayType.
+						x = &ast.TypeArgExpr{
 							X:      x,
 							Lbrack: lbrack,
-							Params: []ast.Expr{p.checkExprOrType(len)},
+							Types:  []ast.Expr{p.checkExprOrType(len)},
 							Rbrack: rbrack,
 						}
 					} else {
 						// Identifier ArrayType (with constant as the len)
 						// Since something follows the closing bracket, we know we have an
-						// ArrayType and not a TypeParamExpr.
+						// ArrayType and not a TypeArgExpr.
 						list = append(list, x)
 						elt := p.parseType()
 						typ := &ast.ArrayType{Lbrack: lbrack, Len: len, Elt: elt}
@@ -1427,14 +1427,14 @@ func (p *parser) parseBracketExpr(x ast.Expr) ast.Expr {
 			params := append([]ast.Expr{index[0]}, p.parseTypeList()...)
 			rbrack := p.expect(token.RBRACK)
 			p.exprLev--
-			return &ast.TypeParamExpr{
+			return &ast.TypeArgExpr{
 				X:      x,
 				Lbrack: lbrack,
-				Params: params,
+				Types:  params,
 				Rbrack: rbrack,
 			}
 		default:
-			p.errorExpected(p.pos, "generic type parameters or index or slice expression")
+			p.errorExpected(p.pos, "generic type arguments or index or slice expression")
 			p.exprLev--
 			return &ast.BadExpr{From: lbrack, To: p.pos}
 		}
@@ -1575,19 +1575,19 @@ func (p *parser) parseElementList() (list []ast.Expr) {
 }
 
 // parseGenericLiteralValue is like parseLiteralValue but is designed to work
-// when typ is a generic type with concrete type parameters supplied. If typ is
+// when typ is a generic type with concrete type arguments supplied. If typ is
 // an ambiguous IndexExpr, it will disambiguate it by returning a new
 // CompositeLit expression wherein the type is converted from an IndexExpr to a
-// TypeParamExpr.
+// TypeArgExpr.
 func (p *parser) parseGenericLiteralValue(typ ast.Expr) ast.Expr {
 	if x, ok := typ.(*ast.IndexExpr); ok {
 		// IndexExpr is sometimes ambiguous. However, if we know that the parser
 		// expected a type as part of a literal value, we can disambiguate because
 		// arrays and slices cannot hold types.
-		typ = &ast.TypeParamExpr{
+		typ = &ast.TypeArgExpr{
 			X:      x.X,
 			Lbrack: x.Lbrack,
-			Params: []ast.Expr{x.Index},
+			Types:  []ast.Expr{x.Index},
 			Rbrack: x.Rbrack,
 		}
 	}
@@ -1623,8 +1623,8 @@ func (p *parser) checkExpr(x ast.Expr) ast.Expr {
 	case *ast.SelectorExpr:
 	case *ast.IndexExpr:
 	case *ast.SliceExpr:
-	case *ast.TypeParamExpr:
-		// TypeParamExpr may be a function value in which case it is considered an
+	case *ast.TypeArgExpr:
+		// TypeArgExpr may be a function value in which case it is considered an
 		// expression. It may also be a Type which is not an expression. We have
 		// to let the type checker handle this.
 	case *ast.TypeAssertExpr:
@@ -1650,7 +1650,7 @@ func isTypeName(x ast.Expr) bool {
 	switch t := x.(type) {
 	case *ast.BadExpr:
 	case *ast.Ident:
-	case *ast.TypeParamExpr:
+	case *ast.TypeArgExpr:
 	case *ast.SelectorExpr:
 		_, isIdent := t.X.(*ast.Ident)
 		return isIdent
@@ -1665,7 +1665,7 @@ func isLiteralType(x ast.Expr) bool {
 	switch t := x.(type) {
 	case *ast.BadExpr:
 	case *ast.Ident:
-	case *ast.TypeParamExpr:
+	case *ast.TypeArgExpr:
 	case *ast.SelectorExpr:
 		_, isIdent := t.X.(*ast.Ident)
 		return isIdent

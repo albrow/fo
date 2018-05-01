@@ -662,7 +662,7 @@ func TestBracketExpression(t *testing.T) {
 		expected ast.Node
 	}{
 		{
-			// Ambiguous case. Could be type parameters or index expression. Expect an
+			// Ambiguous case. Could be type arguments or index expression. Expect an
 			// *ast.IndexExpr.
 			src: "a[T]",
 			expected: &ast.IndexExpr{
@@ -683,23 +683,23 @@ func TestBracketExpression(t *testing.T) {
 		},
 		{
 			// The braces disambiguate the index expression. Expect *ast.CompositeLit
-			// where Type is *ast.TypeParamExpr.
+			// where Type is *ast.TypeArgExpr.
 			src: "a[T]{}",
 			expected: &ast.CompositeLit{
-				Type: &ast.TypeParamExpr{
+				Type: &ast.TypeArgExpr{
 					X: ast.NewIdent("a"),
-					Params: []ast.Expr{
+					Types: []ast.Expr{
 						ast.NewIdent("T"),
 					},
 				},
 			},
 		},
 		{
-			// The comma disambiguates the expression. Expect *ast.TypeParamExpr.
+			// The comma disambiguates the expression. Expect *ast.TypeArgExpr.
 			src: "a[T, U]",
-			expected: &ast.TypeParamExpr{
+			expected: &ast.TypeArgExpr{
 				X: ast.NewIdent("a"),
-				Params: []ast.Expr{
+				Types: []ast.Expr{
 					ast.NewIdent("T"),
 					ast.NewIdent("U"),
 				},
@@ -835,7 +835,7 @@ func TestParseParameterList(t *testing.T) {
 			},
 		},
 		{
-			// Ident TypeParamExpr
+			// Ident TypeArgExpr
 			src: "func (x T[U])",
 			expected: &ast.FuncType{
 				Params: &ast.FieldList{
@@ -844,9 +844,9 @@ func TestParseParameterList(t *testing.T) {
 							Names: []*ast.Ident{
 								ast.NewIdent("x"),
 							},
-							Type: &ast.TypeParamExpr{
+							Type: &ast.TypeArgExpr{
 								X: ast.NewIdent("T"),
-								Params: []ast.Expr{
+								Types: []ast.Expr{
 									ast.NewIdent("U"),
 								},
 							},
@@ -931,25 +931,25 @@ func TestParseParameterList(t *testing.T) {
 			},
 		},
 		{
-			// TypeParamExpr { "," TypeParamExpr } (anonymous parameters with type
-			// TypeParamExpr)
+			// TypeArgExpr { "," TypeArgExpr } (anonymous parameters with type
+			// TypeArgExpr)
 			src: "func (T[U, V], T[U])",
 			expected: &ast.FuncType{
 				Params: &ast.FieldList{
 					List: []*ast.Field{
 						&ast.Field{
-							Type: &ast.TypeParamExpr{
+							Type: &ast.TypeArgExpr{
 								X: ast.NewIdent("T"),
-								Params: []ast.Expr{
+								Types: []ast.Expr{
 									ast.NewIdent("U"),
 									ast.NewIdent("V"),
 								},
 							},
 						},
 						&ast.Field{
-							Type: &ast.TypeParamExpr{
+							Type: &ast.TypeArgExpr{
 								X: ast.NewIdent("T"),
-								Params: []ast.Expr{
+								Types: []ast.Expr{
 									ast.NewIdent("U"),
 								},
 							},
@@ -959,17 +959,17 @@ func TestParseParameterList(t *testing.T) {
 			},
 		},
 		{
-			// "*" TypeParamExpr { "," "*" TypeParamExpr } (anonymous parameters with
-			// type pointer to TypeParamExpr)
+			// "*" TypeArgExpr { "," "*" TypeArgExpr } (anonymous parameters with
+			// type pointer to TypeArgExpr)
 			src: "func (*T[U, V], *T[U])",
 			expected: &ast.FuncType{
 				Params: &ast.FieldList{
 					List: []*ast.Field{
 						&ast.Field{
 							Type: &ast.StarExpr{
-								X: &ast.TypeParamExpr{
+								X: &ast.TypeArgExpr{
 									X: ast.NewIdent("T"),
-									Params: []ast.Expr{
+									Types: []ast.Expr{
 										ast.NewIdent("U"),
 										ast.NewIdent("V"),
 									},
@@ -978,9 +978,9 @@ func TestParseParameterList(t *testing.T) {
 						},
 						&ast.Field{
 							Type: &ast.StarExpr{
-								X: &ast.TypeParamExpr{
+								X: &ast.TypeArgExpr{
 									X: ast.NewIdent("T"),
-									Params: []ast.Expr{
+									Types: []ast.Expr{
 										ast.NewIdent("U"),
 									},
 								},
@@ -1063,7 +1063,7 @@ func TestParseFieldDecl(t *testing.T) {
 			},
 		},
 		{
-			// Ident TypeParamExpr
+			// Ident TypeArgExpr
 			src: "struct{x T[U]}",
 			expected: &ast.StructType{
 				Fields: &ast.FieldList{
@@ -1072,9 +1072,9 @@ func TestParseFieldDecl(t *testing.T) {
 							Names: []*ast.Ident{
 								ast.NewIdent("x"),
 							},
-							Type: &ast.TypeParamExpr{
+							Type: &ast.TypeArgExpr{
 								X: ast.NewIdent("T"),
-								Params: []ast.Expr{
+								Types: []ast.Expr{
 									ast.NewIdent("U"),
 								},
 							},
@@ -1134,25 +1134,25 @@ func TestParseFieldDecl(t *testing.T) {
 			},
 		},
 		{
-			// TypeParamExpr { ";" TypeParamExpr } (embedded fields with type
-			// TypeParamExpr)
+			// TypeArgExpr { ";" TypeArgExpr } (embedded fields with type
+			// TypeArgExpr)
 			src: "struct{T[U, V]; T[U]}",
 			expected: &ast.StructType{
 				Fields: &ast.FieldList{
 					List: []*ast.Field{
 						&ast.Field{
-							Type: &ast.TypeParamExpr{
+							Type: &ast.TypeArgExpr{
 								X: ast.NewIdent("T"),
-								Params: []ast.Expr{
+								Types: []ast.Expr{
 									ast.NewIdent("U"),
 									ast.NewIdent("V"),
 								},
 							},
 						},
 						&ast.Field{
-							Type: &ast.TypeParamExpr{
+							Type: &ast.TypeArgExpr{
 								X: ast.NewIdent("T"),
-								Params: []ast.Expr{
+								Types: []ast.Expr{
 									ast.NewIdent("U"),
 								},
 							},
@@ -1162,17 +1162,17 @@ func TestParseFieldDecl(t *testing.T) {
 			},
 		},
 		{
-			// "*" TypeParamExpr { ";" "*" TypeParamExpr } (embedded fields with type
-			// pointer to TypeParamExpr)
+			// "*" TypeArgExpr { ";" "*" TypeArgExpr } (embedded fields with type
+			// pointer to TypeArgExpr)
 			src: "struct{*T[U, V]; *T[U]}",
 			expected: &ast.StructType{
 				Fields: &ast.FieldList{
 					List: []*ast.Field{
 						&ast.Field{
 							Type: &ast.StarExpr{
-								X: &ast.TypeParamExpr{
+								X: &ast.TypeArgExpr{
 									X: ast.NewIdent("T"),
-									Params: []ast.Expr{
+									Types: []ast.Expr{
 										ast.NewIdent("U"),
 										ast.NewIdent("V"),
 									},
@@ -1181,9 +1181,9 @@ func TestParseFieldDecl(t *testing.T) {
 						},
 						&ast.Field{
 							Type: &ast.StarExpr{
-								X: &ast.TypeParamExpr{
+								X: &ast.TypeArgExpr{
 									X: ast.NewIdent("T"),
-									Params: []ast.Expr{
+									Types: []ast.Expr{
 										ast.NewIdent("U"),
 									},
 								},

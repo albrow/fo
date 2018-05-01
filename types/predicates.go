@@ -314,7 +314,7 @@ func identical(x, y Type, cmpTags bool, p *ifacePair) bool {
 
 	case *ConcreteNamed:
 		// Two concrete named types are identical if their generic named types have
-		// the same id and the concrete type parameters are the same.
+		// the same id and the type arguments are the same.
 		if y, ok := y.(*ConcreteNamed); ok {
 			if x.Named.obj.Id() != y.Named.obj.Id() {
 				return false

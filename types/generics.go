@@ -29,13 +29,13 @@ func (decl *GenericDecl) Usages() map[string]*GenericUsage {
 }
 
 type GenericUsage struct {
-	typ        Type
-	typeParams []ast.Expr
-	typeMap    map[string]Type
+	typ      Type
+	typeArgs []ast.Expr
+	typeMap  map[string]Type
 }
 
-func (usg *GenericUsage) TypeParams() []ast.Expr {
-	return usg.typeParams
+func (usg *GenericUsage) TypeArgs() []ast.Expr {
+	return usg.typeArgs
 }
 
 func (usg *GenericUsage) TypeMap() map[string]Type {
@@ -78,14 +78,14 @@ func addGenericUsage(genObj Object, typ Type, typeParams []ast.Expr, typeMap map
 		genDecl.usages = map[string]*GenericUsage{}
 	}
 	genDecl.usages[usageKey(typeMap, genDecl.typeParams)] = &GenericUsage{
-		typ:        typ,
-		typeParams: typeParams,
-		typeMap:    typeMap,
+		typ:      typ,
+		typeArgs: typeParams,
+		typeMap:  typeMap,
 	}
 }
 
 // usageKey returns a unique key for a particular usage which is based on its
-// type parameters. Another usage with the same type parameters will have the
+// type arguments. Another usage with the same type arguments will have the
 // same key.
 func usageKey(typeMap map[string]Type, typeParams []*TypeParam) string {
 	stringParams := []string{}
@@ -95,16 +95,16 @@ func usageKey(typeMap map[string]Type, typeParams []*TypeParam) string {
 	return strings.Join(stringParams, ",")
 }
 
-// concreteType returns a new type with the concrete type parameters of e
+// concreteType returns a new type with the concrete type arguments of e
 // applied.
 //
 // TODO(albrow): Cache concrete types in some sort of special scope so
 // we can avoid re-generating the concrete types on each usage.
-func (check *Checker) concreteType(expr *ast.TypeParamExpr, genType Type) Type {
+func (check *Checker) concreteType(expr *ast.TypeArgExpr, genType Type) Type {
 	switch genType := genType.(type) {
 	case *Named:
-		typeMap := check.createTypeMap(expr.Params, genType.typeParams)
-		newNamed := replaceTypesInNamed(genType, expr.Params, typeMap)
+		typeMap := check.createTypeMap(expr.Types, genType.typeParams)
+		newNamed := replaceTypesInNamed(genType, expr.Types, typeMap)
 		newNamed.typeParams = nil
 		typeParams := make([]*TypeParam, len(genType.typeParams))
 		copy(typeParams, genType.typeParams)
@@ -112,13 +112,13 @@ func (check *Checker) concreteType(expr *ast.TypeParamExpr, genType Type) Type {
 		newObj := *genType.obj
 		newType.obj = &newObj
 		newObj.typ = newType
-		newType.methods = replaceTypesInMethods(genType.methods, expr.Params, typeMap)
-		addGenericUsage(genType.obj, newType, expr.Params, typeMap)
+		newType.methods = replaceTypesInMethods(genType.methods, expr.Types, typeMap)
+		addGenericUsage(genType.obj, newType, expr.Types, typeMap)
 
 		return newType
 	case *Signature:
-		typeMap := check.createTypeMap(expr.Params, genType.typeParams)
-		newSig := replaceTypesInSignature(genType, expr.Params, typeMap)
+		typeMap := check.createTypeMap(expr.Types, genType.typeParams)
+		newSig := replaceTypesInSignature(genType, expr.Types, typeMap)
 		newSig.typeParams = nil
 		typeParams := make([]*TypeParam, len(genType.typeParams))
 		copy(typeParams, genType.typeParams)
@@ -127,7 +127,7 @@ func (check *Checker) concreteType(expr *ast.TypeParamExpr, genType Type) Type {
 			newObj := *genType.obj
 			newObj.typ = newSig
 			newSig.obj = &newObj
-			addGenericUsage(&newObj, newType, expr.Params, typeMap)
+			addGenericUsage(&newObj, newType, expr.Types, typeMap)
 		}
 		return newType
 	}
@@ -136,18 +136,18 @@ func (check *Checker) concreteType(expr *ast.TypeParamExpr, genType Type) Type {
 	return nil
 }
 
-// TODO(albrow): test case with wrong number of type parameters.
-func (check *Checker) createTypeMap(params []ast.Expr, genericParams []*TypeParam) map[string]Type {
-	if len(params) != len(genericParams) {
-		check.errorf(check.pos, "wrong number of type parameters (expected %d but got %d)", len(genericParams), len(params))
+// TODO(albrow): test case with wrong number of type arguments.
+func (check *Checker) createTypeMap(typeArgs []ast.Expr, typeParams []*TypeParam) map[string]Type {
+	if len(typeArgs) != len(typeParams) {
+		check.errorf(check.pos, "wrong number of type arguments (expected %d but got %d)", len(typeParams), len(typeArgs))
 		return nil
 	}
 	typeMap := map[string]Type{}
-	for i, typ := range params {
+	for i, typ := range typeArgs {
 		var x operand
 		check.rawExpr(&x, typ, nil)
 		if x.typ != nil {
-			typeMap[genericParams[i].String()] = x.typ
+			typeMap[typeParams[i].String()] = x.typ
 		}
 	}
 	return typeMap

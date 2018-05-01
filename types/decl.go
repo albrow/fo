@@ -220,7 +220,7 @@ func (n *Named) setUnderlying(typ Type) {
 	}
 }
 
-func (check *Checker) typeDecl(obj *TypeName, typ ast.Expr, def *Named, path []*TypeName, alias bool, tpList *ast.TypeParamDecl) {
+func (check *Checker) typeDecl(obj *TypeName, typ ast.Expr, def *Named, path []*TypeName, alias bool, tpDecl *ast.TypeParamDecl) {
 	assert(obj.typ == nil)
 
 	// type declarations cannot use iota
@@ -233,7 +233,7 @@ func (check *Checker) typeDecl(obj *TypeName, typ ast.Expr, def *Named, path []*
 			if _, obj := check.scope.LookupParent(length.Name, length.NamePos); obj == nil {
 				// If the ident inside the brackets is not a declared type, assume we
 				// are actually dealing with a TypeParamDecl.
-				tpList = &ast.TypeParamDecl{
+				tpDecl = &ast.TypeParamDecl{
 					Lbrack: arrayType.Lbrack,
 					Names:  []*ast.Ident{length},
 					Rbrack: arrayType.Lbrack + token.Pos(len(length.Name)),
@@ -256,10 +256,10 @@ func (check *Checker) typeDecl(obj *TypeName, typ ast.Expr, def *Named, path []*
 
 		// Add type parameters to scope (if any)
 		var typeParams []*TypeParam
-		if tpList != nil {
+		if tpDecl != nil {
 			origScope := check.scope
 			tpScope := NewScope(check.scope, check.scope.Pos(), check.scope.End(), "named type type parameters")
-			for _, ident := range tpList.Names {
+			for _, ident := range tpDecl.Names {
 				tp := NewTypeParam(ident.Name)
 				typeParams = append(typeParams, tp)
 				paramObj := NewTypeName(ident.Pos(), check.pkg, ident.Name, tp)

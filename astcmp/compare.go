@@ -164,8 +164,8 @@ func Equal(x, y ast.Node, mode Mode) bool {
 			return false
 		}
 
-	case *ast.TypeParamExpr:
-		y := y.(*ast.TypeParamExpr)
+	case *ast.TypeArgExpr:
+		y := y.(*ast.TypeArgExpr)
 		if mode&IgnorePos == 0 {
 			if x.Lbrack != y.Lbrack {
 				return false
@@ -176,7 +176,7 @@ func Equal(x, y ast.Node, mode Mode) bool {
 		if !Equal(x.X, y.X, mode) {
 			return false
 		}
-		if !compareExprs(x.Params, y.Params, mode) {
+		if !compareExprs(x.Types, y.Types, mode) {
 			return false
 		}
 

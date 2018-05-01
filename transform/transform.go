@@ -50,12 +50,12 @@ func concreteTypeName(decl *types.GenericDecl, usg *types.GenericUsage) string {
 	return decl.Name() + "__" + strings.Join(stringParams, "__")
 }
 
-func concreteTypeExpr(e *ast.TypeParamExpr) ast.Node {
+func concreteTypeExpr(e *ast.TypeArgExpr) ast.Node {
 	switch x := e.X.(type) {
 	case *ast.Ident:
 		newIdent := astclone.Clone(x).(*ast.Ident)
 		stringParams := []string{}
-		for _, param := range e.Params {
+		for _, param := range e.Types {
 			buf := bytes.Buffer{}
 			format.Node(&buf, token.NewFileSet(), param)
 			typeString := buf.String()
@@ -67,7 +67,7 @@ func concreteTypeExpr(e *ast.TypeParamExpr) ast.Node {
 	case *ast.SelectorExpr:
 		newSel := astclone.Clone(x).(*ast.SelectorExpr)
 		stringParams := []string{}
-		for _, param := range e.Params {
+		for _, param := range e.Types {
 			buf := bytes.Buffer{}
 			format.Node(&buf, token.NewFileSet(), param)
 			typeString := buf.String()
@@ -77,7 +77,7 @@ func concreteTypeExpr(e *ast.TypeParamExpr) ast.Node {
 		newSel.Sel = ast.NewIdent(newSel.Sel.Name + "__" + strings.Join(stringParams, "__"))
 		return newSel
 	default:
-		panic(fmt.Errorf("type parameters for expr %s of type %T are not yet supported", e.X, e.X))
+		panic(fmt.Errorf("type arguments for expr %s of type %T are not yet supported", e.X, e.X))
 	}
 }
 
@@ -99,9 +99,9 @@ func (trans *transformer) generateMethods(n *ast.FuncDecl) ([]*ast.FuncDecl, boo
 	if selectorExpr, ok := recv.(*ast.StarExpr); ok {
 		recv = selectorExpr.X
 	}
-	if typeParamExpr, ok := recv.(*ast.TypeParamExpr); ok {
+	if typeArgExpr, ok := recv.(*ast.TypeArgExpr); ok {
 		hasGenericReceiver = true
-		recv = typeParamExpr.X
+		recv = typeArgExpr.X
 	}
 	genTypeName, ok := recv.(*ast.Ident)
 	if !ok {
@@ -131,15 +131,15 @@ func (trans *transformer) generateMethods(n *ast.FuncDecl) ([]*ast.FuncDecl, boo
 func expandReceiverType(funcDecl *ast.FuncDecl, genDecl *types.GenericDecl, usg *types.GenericUsage) {
 	astutil.Apply(funcDecl.Recv, func(c *astutil.Cursor) bool {
 		switch n := c.Node().(type) {
-		case *ast.TypeParamExpr:
-			// Don't convert an existing TypeParamExpr
+		case *ast.TypeArgExpr:
+			// Don't convert an existing TypeArgExpr
 			return false
 		case *ast.Ident:
 			if n.Name == genDecl.Name() {
-				c.Replace(&ast.TypeParamExpr{
+				c.Replace(&ast.TypeArgExpr{
 					X:      ast.NewIdent(n.Name),
 					Lbrack: token.NoPos,
-					Params: usg.TypeParams(),
+					Types:  usg.TypeArgs(),
 					Rbrack: token.NoPos,
 				})
 			}
@@ -226,22 +226,22 @@ func sortFuncs(funcs []*ast.FuncDecl) {
 func (trans *transformer) replaceGenericIdents() func(c *astutil.Cursor) bool {
 	return func(c *astutil.Cursor) bool {
 		switch n := c.Node().(type) {
-		case *ast.TypeParamExpr:
+		case *ast.TypeArgExpr:
 			c.Replace(concreteTypeExpr(n))
 		case *ast.IndexExpr:
 			// Check if we are dealing with an ambiguous IndexExpr from the parser. In
 			// some cases we need to disambiguate this by upgrading to a
-			// TypeParamExpr.
+			// TypeArgExpr.
 			switch x := n.X.(type) {
 			case *ast.Ident:
 				if _, found := trans.pkg.Generics()[x.Name]; found {
-					typeParamExpr := &ast.TypeParamExpr{
+					typeArgExpr := &ast.TypeArgExpr{
 						X:      n.X,
 						Lbrack: n.Lbrack,
-						Params: []ast.Expr{n.Index},
+						Types:  []ast.Expr{n.Index},
 						Rbrack: n.Rbrack,
 					}
-					c.Replace(concreteTypeExpr(typeParamExpr))
+					c.Replace(concreteTypeExpr(typeArgExpr))
 				}
 			}
 		}

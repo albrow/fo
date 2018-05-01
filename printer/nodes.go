@@ -890,10 +890,10 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int) {
 		p.print(blank)
 		p.expr(x.Value)
 
-	case *ast.TypeParamExpr:
+	case *ast.TypeArgExpr:
 		p.expr(x.X)
 		p.print(token.LBRACK)
-		p.exprList(x.Pos(), x.Params, 1, 0, token.NoPos)
+		p.exprList(x.Pos(), x.Types, 1, 0, token.NoPos)
 		p.print(token.RBRACK)
 
 	default:

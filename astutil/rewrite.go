@@ -262,9 +262,9 @@ func (a *application) apply(parent ast.Node, name string, iter *iterator, n ast.
 	case *ast.TypeParamDecl:
 		a.applyList(n, "Names")
 
-	case *ast.TypeParamExpr:
+	case *ast.TypeArgExpr:
 		a.apply(n, "X", nil, n.X)
-		a.applyList(n, "Params")
+		a.applyList(n, "Types")
 
 	case *ast.TypeAssertExpr:
 		a.apply(n, "X", nil, n.X)

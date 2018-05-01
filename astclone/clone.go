@@ -115,11 +115,11 @@ func Clone(node ast.Node) ast.Node {
 			Rbrack: n.Rbrack,
 		}
 
-	case *ast.TypeParamExpr:
-		return &ast.TypeParamExpr{
+	case *ast.TypeArgExpr:
+		return &ast.TypeArgExpr{
 			X:      cloneExpr(n.X),
 			Lbrack: n.Lbrack,
-			Params: cloneExprList(n.Params),
+			Types:  cloneExprList(n.Types),
 			Rbrack: n.Rbrack,
 		}
 

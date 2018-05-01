@@ -286,8 +286,8 @@ func (s *Signature) Variadic() bool { return s.variadic }
 
 // TODO(albrow): Add exported function for accessing signature type parameters?
 
-// ConcreteSignature is the corresponding concrete type of a Signature for which
-// concrete type parameters have been provided.
+// ConcreteSignature is the corresponding concrete type of a generic Signature
+// for which type arguments have been provided.
 type ConcreteSignature struct {
 	*Signature
 	typeParams []*TypeParam
@@ -295,7 +295,7 @@ type ConcreteSignature struct {
 }
 
 // NewConcreteSignature returns the concrete signature type corresponding to a
-// generic signature type with the given concrete type parameters.
+// generic signature type with the type arguments given in typeMap.
 func NewConcreteSignature(sig *Signature, typeParams []*TypeParam, typeMap map[string]Type) *ConcreteSignature {
 	return &ConcreteSignature{
 		Signature:  sig,
@@ -516,8 +516,8 @@ func (t *Named) AddMethod(m *Func) {
 	}
 }
 
-// ConcreteNamed is the corresponding concrete type of a Named type for which
-// concrete type parameters have been provided.
+// ConcreteNamed is the corresponding concrete type of a generic Named type for
+// which type arguments have been provided.
 type ConcreteNamed struct {
 	*Named
 	typeParams []*TypeParam
@@ -525,7 +525,7 @@ type ConcreteNamed struct {
 }
 
 // NewConcreteNamed returns the concrete named type corresponding to a
-// generic named type with the given concrete type parameters.
+// generic named type with the type arguments given in typeMap.
 func NewConcreteNamed(named *Named, typeParams []*TypeParam, typeMap map[string]Type) *ConcreteNamed {
 	return &ConcreteNamed{
 		Named:      named,

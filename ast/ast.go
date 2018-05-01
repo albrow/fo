@@ -304,12 +304,12 @@ type (
 		Rbrack token.Pos // position of "]"
 	}
 
-	// TypeParamExpr represents a type or identifier followed by a list of
-	// type parameters.
-	TypeParamExpr struct {
+	// TypeArgExpr represents a type or identifier followed by a list of
+	// type arguments.
+	TypeArgExpr struct {
 		X      Expr      // type name or identifier
 		Lbrack token.Pos // position of "["
-		Params []Expr    // list of type names or identifiers
+		Types  []Expr    // list of type names or identifiers
 		Rbrack token.Pos // position of "]"
 	}
 
@@ -469,7 +469,7 @@ func (x *ParenExpr) Pos() token.Pos      { return x.Lparen }
 func (x *SelectorExpr) Pos() token.Pos   { return x.X.Pos() }
 func (x *IndexExpr) Pos() token.Pos      { return x.X.Pos() }
 func (x *SliceExpr) Pos() token.Pos      { return x.X.Pos() }
-func (x *TypeParamExpr) Pos() token.Pos  { return x.Lbrack }
+func (x *TypeArgExpr) Pos() token.Pos    { return x.Lbrack }
 func (x *TypeAssertExpr) Pos() token.Pos { return x.X.Pos() }
 func (x *CallExpr) Pos() token.Pos       { return x.Fun.Pos() }
 func (x *StarExpr) Pos() token.Pos       { return x.Star }
@@ -503,7 +503,7 @@ func (x *ParenExpr) End() token.Pos      { return x.Rparen + 1 }
 func (x *SelectorExpr) End() token.Pos   { return x.Sel.End() }
 func (x *IndexExpr) End() token.Pos      { return x.Rbrack + 1 }
 func (x *SliceExpr) End() token.Pos      { return x.Rbrack + 1 }
-func (x *TypeParamExpr) End() token.Pos  { return x.Rbrack + 1 }
+func (x *TypeArgExpr) End() token.Pos    { return x.Rbrack + 1 }
 func (x *TypeAssertExpr) End() token.Pos { return x.Rparen + 1 }
 func (x *CallExpr) End() token.Pos       { return x.Rparen + 1 }
 func (x *StarExpr) End() token.Pos       { return x.X.End() }
@@ -535,7 +535,7 @@ func (*ParenExpr) exprNode()      {}
 func (*SelectorExpr) exprNode()   {}
 func (*IndexExpr) exprNode()      {}
 func (*SliceExpr) exprNode()      {}
-func (*TypeParamExpr) exprNode()  {}
+func (*TypeArgExpr) exprNode()    {}
 func (*TypeAssertExpr) exprNode() {}
 func (*CallExpr) exprNode()       {}
 func (*StarExpr) exprNode()       {}

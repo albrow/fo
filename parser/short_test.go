@@ -207,7 +207,7 @@ var invalids = []string{
 	`package p; func f[] /* ERROR "expected 'IDENT', found '\]'" */  () { val: "" }`,
 	`package p; func f[V, ] /* ERROR "expected 'IDENT', found '\]'" */ () { val: "" }`,
 	`package p; var x = T[] /* ERROR "expected operand, found '\]'" */ { val: "" }`,
-	`package p; var x = T[V { val: "" } /* ERROR "expected generic type parameters or index or slice expression, found newline" */`,
+	`package p; var x = T[V { val: "" } /* ERROR "expected generic type arguments or index or slice expression, found newline" */`,
 	`package p; var x = T[V, ] /* ERROR "expected type, found '\]'" */ { val: "" }`,
 	`package p; func main() { x := T[] /* ERROR "expected operand, found '\]'" */ { val: "" } }`,
 	`package p; func main() { x := T[V, ] /* ERROR "expected type, found '\]'" */ { val: "" } }`,

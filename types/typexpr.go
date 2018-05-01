@@ -319,7 +319,7 @@ func (check *Checker) typExprInternal(e ast.Expr, def *Named, path []*TypeName) 
 			return typ
 		}
 
-	case *ast.TypeParamExpr:
+	case *ast.TypeArgExpr:
 		genType := check.typExpr(e.X, nil, path)
 		typ := check.concreteType(e, genType)
 		def.setUnderlying(typ)
@@ -463,9 +463,9 @@ func (check *Checker) recvTypeParams(recvPar *ast.FieldList) ([]*TypeParam, *Sco
 	if x, ok := recv.Type.(*ast.StarExpr); ok {
 		typ = x.X
 	}
-	if x, ok := typ.(*ast.TypeParamExpr); ok {
+	if x, ok := typ.(*ast.TypeArgExpr); ok {
 		tpScope = NewScope(check.scope, check.scope.Pos(), check.scope.End(), "function type parameters")
-		for _, expr := range x.Params {
+		for _, expr := range x.Types {
 			ident, ok := expr.(*ast.Ident)
 			if !ok {
 				check.error(expr.Pos(), "type parameters in method receiver must be identifiers")

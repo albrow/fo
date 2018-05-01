@@ -1252,7 +1252,7 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 
 		// TODO(albrow): previously, this was check.expr and not check.exprOrType.
 		// Do we need to do stricter checks in the case that this is not a
-		// TypeParamExpr?
+		// TypeArgExpr?
 		check.exprOrType(x, e.X)
 		if x.mode == invalid {
 			check.use(e.Index)
@@ -1261,7 +1261,7 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 
 		// There is ambiguity in the AST that the parser cannot resolve and we must
 		// resolve here. Namely, an *ast.IndexExpr might actually be a
-		// *ast.TypeParamExpr with only one type parameter. We resolve the ambiguity
+		// *ast.TypeArgExpr with only one type parameter. We resolve the ambiguity
 		// by observing the type of e.X.
 		switch genType := x.typ.(type) {
 		case *Named:
@@ -1269,15 +1269,15 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 				// We are not dealing with a generic type. Continue below.
 				break
 			} else if len(genType.typeParams) > 1 {
-				check.errorf(check.pos, "wrong number of type parameters for %s (expected %d but got 1)", e.X, len(genType.typeParams))
+				check.errorf(check.pos, "wrong number of type arguments for %s (expected %d but got 1)", e.X, len(genType.typeParams))
 			}
-			typeParamExpr := &ast.TypeParamExpr{
+			typeArgExpr := &ast.TypeArgExpr{
 				X:      e.X,
 				Lbrack: e.Lbrack,
-				Params: []ast.Expr{e.Index},
+				Types:  []ast.Expr{e.Index},
 				Rbrack: e.Rbrack,
 			}
-			x.typ = check.concreteType(typeParamExpr, genType)
+			x.typ = check.concreteType(typeArgExpr, genType)
 			return expression
 
 		case *Signature:
@@ -1285,15 +1285,15 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 				// We are not dealing with a generic type. Continue below.
 				break
 			} else if len(genType.typeParams) > 1 {
-				check.errorf(check.pos, "wrong number of type parameters for %s (expected %d but got 1)", e.X, len(genType.typeParams))
+				check.errorf(check.pos, "wrong number of type arguments for %s (expected %d but got 1)", e.X, len(genType.typeParams))
 			}
-			typeParamExpr := &ast.TypeParamExpr{
+			typeArgExpr := &ast.TypeArgExpr{
 				X:      e.X,
 				Lbrack: e.Lbrack,
-				Params: []ast.Expr{e.Index},
+				Types:  []ast.Expr{e.Index},
 				Rbrack: e.Rbrack,
 			}
-			x.typ = check.concreteType(typeParamExpr, genType)
+			x.typ = check.concreteType(typeArgExpr, genType)
 			return expression
 		}
 
@@ -1461,7 +1461,7 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 			}
 		}
 
-	case *ast.TypeParamExpr:
+	case *ast.TypeArgExpr:
 		check.exprOrType(x, e.X)
 		x.typ = check.concreteType(e, x.typ)
 		return expression
