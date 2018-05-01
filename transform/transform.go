@@ -81,47 +81,49 @@ func concreteTypeExpr(e *ast.TypeParamExpr) ast.Node {
 	}
 }
 
-func (trans *transformer) generateMethods(n *ast.FuncDecl) []*ast.FuncDecl {
+// second return value is true if the function has a generic receiver.
+func (trans *transformer) generateMethods(n *ast.FuncDecl) ([]*ast.FuncDecl, bool) {
 	var results []*ast.FuncDecl
+	hasGenericReceiver := false
 	if n.Recv == nil {
-		return nil
+		return nil, hasGenericReceiver
 	}
 	if n.TypeParams != nil {
 		// funcs with type parameters will be handled later on.
-		return nil
+		return nil, hasGenericReceiver
 	}
 	if len(n.Recv.List) != 1 {
-		return nil
+		return nil, hasGenericReceiver
 	}
 	recv := n.Recv.List[0].Type
-	hasTypeParams := false
 	if selectorExpr, ok := recv.(*ast.StarExpr); ok {
 		recv = selectorExpr.X
 	}
 	if typeParamExpr, ok := recv.(*ast.TypeParamExpr); ok {
-		hasTypeParams = true
+		hasGenericReceiver = true
 		recv = typeParamExpr.X
 	}
 	genTypeName, ok := recv.(*ast.Ident)
 	if !ok {
 		// TODO(albrow): handle *ast.SelectorExpr here so we can support generic
 		// types from other packages.
-		return nil
+		return nil, hasGenericReceiver
 	}
 	genDecl, found := trans.pkg.Generics()[genTypeName.Name]
 	if !found {
-		if hasTypeParams {
+		if hasGenericReceiver {
 			panic(fmt.Errorf("could not find generic type declaration for %s", genTypeName.Name))
 		}
-		return nil
+		return nil, hasGenericReceiver
 	}
+	hasGenericReceiver = true
 	for _, usg := range genDecl.Usages() {
 		newFunc := astclone.Clone(n).(*ast.FuncDecl)
 		expandReceiverType(newFunc, genDecl, usg)
 		replaceIdentsInScope(newFunc, usg.TypeMap())
 		results = append(results, newFunc)
 	}
-	return results
+	return results, hasGenericReceiver
 }
 
 // expandReceiverType adds the appropriate type parameters to a receiver type
@@ -185,12 +187,12 @@ func (trans *transformer) generateConcreteTypes() func(c *astutil.Cursor) bool {
 				c.Delete()
 			}
 		case *ast.FuncDecl:
-			newFuncs := trans.generateMethods(n)
+			newFuncs, isGeneric := trans.generateMethods(n)
 			if n.TypeParams != nil {
 				newFuncs = append(newFuncs, trans.generateFuncDecls(n)...)
 			}
 			if len(newFuncs) == 0 {
-				if n.TypeParams != nil {
+				if isGeneric || n.TypeParams != nil {
 					c.Delete()
 				}
 				return true

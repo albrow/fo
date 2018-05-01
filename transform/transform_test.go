@@ -21,6 +21,10 @@ type T[U] struct {}
 
 func f[T](x T) {}
 
+func (T[U]) f0() {}
+
+func (T) f1() {}
+
 func main() { }
 `
 
