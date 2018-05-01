@@ -73,6 +73,17 @@ func WriteExpr(buf *bytes.Buffer, x ast.Expr) {
 		WriteExpr(buf, x.Index)
 		buf.WriteByte(']')
 
+	case *ast.TypeArgExpr:
+		WriteExpr(buf, x.X)
+		buf.WriteByte('[')
+		for i, typ := range x.Types {
+			if i > 0 {
+				buf.WriteString(", ")
+			}
+			WriteExpr(buf, typ)
+		}
+		buf.WriteByte(']')
+
 	case *ast.SliceExpr:
 		WriteExpr(buf, x.X)
 		buf.WriteByte('[')
