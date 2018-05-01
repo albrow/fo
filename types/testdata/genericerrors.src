@@ -1,0 +1,27 @@
+// Copyright 2018 Alex Browne. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+package genericerrors
+
+type A[T] struct {
+  v T
+}
+
+func _(A /* ERROR "wrong number of type arguments" */) {}
+
+func _() A /* ERROR "wrong number of type arguments" */ {
+  var a A /* ERROR "wrong number of type arguments" */
+  return a
+}
+
+func main() {
+  var _ A /* ERROR "wrong number of type arguments" */
+  var _ = A /* ERROR "wrong number of type arguments" */ {}
+  var x interface{} = A[string]{}
+  _, _ = x.(A /* ERROR "wrong number of type arguments" */ )
+  switch x.(type) {
+    case A /* ERROR "wrong number of type arguments" */ :
+  }
+  var _ = A /* ERROR "wrong number of type arguments" */ ("" /* ERROR "cannot convert" */)
+}

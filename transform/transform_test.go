@@ -545,7 +545,7 @@ func main() {
 func testParseFile(t *testing.T, src string, expected string) {
 	t.Helper()
 	fset := token.NewFileSet()
-	orig, err := parser.ParseFile(fset, "struct_type_literals", src, 0)
+	orig, err := parser.ParseFile(fset, "transform_test", src, 0)
 	if err != nil {
 		t.Fatalf("ParseFile returned error: %s", err.Error())
 	}

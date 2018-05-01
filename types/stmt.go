@@ -236,6 +236,7 @@ L:
 		if x.mode == invalid || v.mode == invalid {
 			continue L
 		}
+		check.noTypeArgs(e.Pos(), v.typ)
 		check.convertUntyped(&v, x.typ)
 		if v.mode == invalid {
 			continue L
@@ -272,6 +273,7 @@ L:
 		if T == Typ[Invalid] {
 			continue L
 		}
+		check.noTypeArgs(e.Pos(), T)
 		// look for duplicate types
 		// (quadratic algorithm, but type switches tend to be reasonably small)
 		for t, pos := range seen {
@@ -346,7 +348,9 @@ func (check *Checker) stmt(ctxt stmtContext, s ast.Stmt) {
 	case *ast.SendStmt:
 		var ch, x operand
 		check.expr(&ch, s.Chan)
+		check.noTypeArgs(s.Chan.Pos(), ch.typ)
 		check.expr(&x, s.Value)
+		check.noTypeArgs(s.Value.Pos(), x.typ)
 		if ch.mode == invalid || x.mode == invalid {
 			return
 		}
@@ -381,6 +385,7 @@ func (check *Checker) stmt(ctxt stmtContext, s ast.Stmt) {
 		if x.mode == invalid {
 			return
 		}
+		check.noTypeArgs(s.X.Pos(), x.typ)
 		if !isNumeric(x.typ) {
 			check.invalidOp(s.X.Pos(), "%s%s (non-numeric type %s)", s.X, s.Tok, x.typ)
 			return
@@ -499,6 +504,7 @@ func (check *Checker) stmt(ctxt stmtContext, s ast.Stmt) {
 		if x.mode != invalid && !isBoolean(x.typ) {
 			check.error(s.Cond.Pos(), "non-boolean condition in if statement")
 		}
+		check.noTypeArgs(s.Cond.Pos(), x.typ)
 		check.stmt(inner, s.Body)
 		// The parser produces a correct AST but if it was modified
 		// elsewhere the else branch may be invalid. Check again.
@@ -520,6 +526,7 @@ func (check *Checker) stmt(ctxt stmtContext, s ast.Stmt) {
 		var x operand
 		if s.Tag != nil {
 			check.expr(&x, s.Tag)
+			check.noTypeArgs(s.Tag.Pos(), x.typ)
 			// By checking assignment of x to an invisible temporary
 			// (as a compiler would), we get all the relevant checks.
 			check.assignment(&x, nil, "switch expression")
@@ -611,6 +618,7 @@ func (check *Checker) stmt(ctxt stmtContext, s ast.Stmt) {
 		if x.mode == invalid {
 			return
 		}
+		check.noTypeArgs(expr.X.Pos(), x.typ)
 		xtyp, _ := x.typ.Underlying().(*Interface)
 		if xtyp == nil {
 			check.errorf(x.pos(), "%s is not an interface", &x)
@@ -727,6 +735,7 @@ func (check *Checker) stmt(ctxt stmtContext, s ast.Stmt) {
 			if x.mode != invalid && !isBoolean(x.typ) {
 				check.error(s.Cond.Pos(), "non-boolean condition in for statement")
 			}
+			check.noTypeArgs(s.Cond.Pos(), x.typ)
 		}
 		check.simpleStmt(s.Post)
 		// spec: "The init statement may be a short variable
@@ -748,6 +757,7 @@ func (check *Checker) stmt(ctxt stmtContext, s ast.Stmt) {
 		// check expression to iterate over
 		var x operand
 		check.expr(&x, s.X)
+		check.noTypeArgs(s.X.Pos(), x.typ)
 
 		// determine key/value types
 		var key, val Type

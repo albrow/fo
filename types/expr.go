@@ -766,7 +766,9 @@ func (check *Checker) binary(x *operand, e *ast.BinaryExpr, lhs, rhs ast.Expr, o
 	var y operand
 
 	check.expr(x, lhs)
+	check.noTypeArgs(lhs.Pos(), x.typ)
 	check.expr(&y, rhs)
+	check.noTypeArgs(rhs.Pos(), y.typ)
 
 	if x.mode == invalid {
 		return
@@ -865,6 +867,7 @@ func (check *Checker) index(index ast.Expr, max int64) (i int64, valid bool) {
 	if x.mode == invalid {
 		return
 	}
+	check.noTypeArgs(index.Pos(), x.typ)
 
 	// an untyped constant must be representable as Int
 	check.convertUntyped(&x, Typ[Int])
@@ -939,6 +942,7 @@ func (check *Checker) indexedElts(elts []ast.Expr, typ Type, length int64) int64
 		// check element against composite literal element type
 		var x operand
 		check.exprWithHint(&x, eval, typ)
+		check.noTypeArgs(eval.Pos(), x.typ)
 		check.assignment(&x, typ, "array or slice literal")
 	}
 	return max
@@ -1062,12 +1066,15 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 					// We have an "open" [...]T array type.
 					// Create a new ArrayType with unknown length (-1)
 					// and finish setting it up after analyzing the literal.
-					typ = &Array{len: -1, elem: check.typ(atyp.Elt)}
+					elemType := check.typ(atyp.Elt)
+					check.noTypeArgs(atyp.Elt.Pos(), elemType)
+					typ = &Array{len: -1, elem: elemType}
 					base = typ
 					break
 				}
 			}
 			typ = check.typ(e.Type)
+			check.noTypeArgs(e.Type.Pos(), typ)
 			base = typ
 
 		case hint != nil:
@@ -1115,6 +1122,7 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 					}
 					visited[i] = true
 					check.expr(x, kv.Value)
+					check.noTypeArgs(kv.Value.Pos(), x.typ)
 					etyp := fld.typ
 					check.assignment(x, etyp, "struct literal")
 				}
@@ -1126,6 +1134,7 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 						continue
 					}
 					check.expr(x, e)
+					check.noTypeArgs(e.Pos(), x.typ)
 					if i >= len(fields) {
 						check.error(x.pos(), "too many values in struct literal")
 						break // cannot continue
@@ -1189,6 +1198,7 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 					continue
 				}
 				check.exprWithHint(x, kv.Key, utyp.key)
+				check.noTypeArgs(kv.Key.Pos(), x.typ)
 				check.assignment(x, utyp.key, "map literal")
 				if x.mode == invalid {
 					continue
@@ -1215,6 +1225,7 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 					}
 				}
 				check.exprWithHint(x, kv.Value, utyp.elem)
+				check.noTypeArgs(kv.Value.Pos(), x.typ)
 				check.assignment(x, utyp.elem, "map literal")
 			}
 
@@ -1297,6 +1308,10 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 			return expression
 		}
 
+		// At this point we know it's not a TypeArgExpr, so we should check that
+		// type arguments were not required.
+		check.noTypeArgs(e.X.Pos(), x.typ)
+
 		valid := false
 		length := int64(-1) // valid if >= 0
 		switch typ := x.typ.Underlying().(type) {
@@ -1337,6 +1352,7 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 		case *Map:
 			var key operand
 			check.expr(&key, e.Index)
+			check.noTypeArgs(e.Index.Pos(), key.typ)
 			check.assignment(&key, typ.key, "map index")
 			if x.mode == invalid {
 				goto Error
@@ -1366,6 +1382,7 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 			check.use(e.Low, e.High, e.Max)
 			goto Error
 		}
+		check.noTypeArgs(e.X.Pos(), x.typ)
 
 		valid := false
 		length := int64(-1) // valid if >= 0
@@ -1462,6 +1479,7 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 		}
 
 	case *ast.TypeArgExpr:
+		// TODO(albrow): change this to check.exprInternal?
 		check.exprOrType(x, e.X)
 		x.typ = check.concreteType(e, x.typ)
 		return expression
@@ -1471,6 +1489,7 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 		if x.mode == invalid {
 			goto Error
 		}
+		check.noTypeArgs(e.X.Pos(), x.typ)
 		xtyp, _ := x.typ.Underlying().(*Interface)
 		if xtyp == nil {
 			check.invalidOp(x.pos(), "%s is not an interface", x)
@@ -1485,6 +1504,7 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 		if T == Typ[Invalid] {
 			goto Error
 		}
+		check.noTypeArgs(e.Type.Pos(), T)
 		check.typeAssertion(x.pos(), x, xtyp, T)
 		x.mode = commaok
 		x.typ = T
@@ -1494,6 +1514,7 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 
 	case *ast.StarExpr:
 		check.exprOrType(x, e.X)
+		check.noTypeArgs(e.X.Pos(), x.typ)
 		switch x.mode {
 		case invalid:
 			goto Error
@@ -1514,6 +1535,7 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 		if x.mode == invalid {
 			goto Error
 		}
+		check.noTypeArgs(e.X.Pos(), x.typ)
 		check.unary(x, e, e.Op)
 		if x.mode == invalid {
 			goto Error
@@ -1538,6 +1560,7 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 		*ast.InterfaceType, *ast.MapType, *ast.ChanType:
 		x.mode = typexpr
 		x.typ = check.typ(e)
+		check.noTypeArgs(e.Pos(), x.typ)
 		// Note: rawExpr (caller of exprInternal) will call check.recordTypeAndValue
 		// even though check.typ has already called it. This is fine as both
 		// times the same expression and type are recorded. It is also not a

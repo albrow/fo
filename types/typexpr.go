@@ -178,26 +178,11 @@ func (check *Checker) funcType(sig *Signature, recvPar *ast.FieldList, ftyp *ast
 	scope.isFunc = true
 	check.recordScope(ftyp, scope)
 
-	recvList, _ := check.collectParams(scope, recvPar, false)
+	recv := check.methodReceiver(scope, recvPar)
 	params, variadic := check.collectParams(scope, ftyp.Params, true)
 	results, _ := check.collectParams(scope, ftyp.Results, false)
 
 	if recvPar != nil {
-		// recv parameter list present (may be empty)
-		// spec: "The receiver is specified via an extra parameter section preceding the
-		// method name. That parameter section must declare a single parameter, the receiver."
-		var recv *Var
-		switch len(recvList) {
-		case 0:
-			check.error(recvPar.Pos(), "method is missing receiver")
-			recv = NewParam(0, nil, "", Typ[Invalid]) // ignore recv below
-		default:
-			// more than one receiver
-			check.error(recvList[len(recvList)-1].Pos(), "method must have exactly one receiver")
-			fallthrough // continue with first receiver
-		case 1:
-			recv = recvList[0]
-		}
 		// spec: "The receiver type must be of the form T or *T where T is a type name."
 		// (ignore invalid types - error was reported before)
 		if t, _ := deref(recv.typ); t != Typ[Invalid] {
@@ -310,12 +295,14 @@ func (check *Checker) typExprInternal(e ast.Expr, def *Named, path []*TypeName) 
 			def.setUnderlying(typ)
 			typ.len = check.arrayLength(e.Len)
 			typ.elem = check.typExpr(e.Elt, nil, path)
+			check.noTypeArgs(e.Elt.Pos(), typ.elem)
 			return typ
 
 		} else {
 			typ := new(Slice)
 			def.setUnderlying(typ)
 			typ.elem = check.typ(e.Elt)
+			check.noTypeArgs(e.Elt.Pos(), typ.elem)
 			return typ
 		}
 
@@ -335,6 +322,7 @@ func (check *Checker) typExprInternal(e ast.Expr, def *Named, path []*TypeName) 
 		typ := new(Pointer)
 		def.setUnderlying(typ)
 		typ.base = check.typ(e.X)
+		check.noTypeArgs(e.X.Pos(), typ.base)
 		return typ
 
 	case *ast.FuncType:
@@ -354,7 +342,9 @@ func (check *Checker) typExprInternal(e ast.Expr, def *Named, path []*TypeName) 
 		def.setUnderlying(typ)
 
 		typ.key = check.typ(e.Key)
+		check.noTypeArgs(e.Key.Pos(), typ.key)
 		typ.elem = check.typ(e.Value)
+		check.noTypeArgs(e.Value.Pos(), typ.elem)
 
 		// spec: "The comparison operators == and != must be fully defined
 		// for operands of the key type; thus the key type must not be a
@@ -389,6 +379,7 @@ func (check *Checker) typExprInternal(e ast.Expr, def *Named, path []*TypeName) 
 
 		typ.dir = dir
 		typ.elem = check.typ(e.Value)
+		check.noTypeArgs(e.Value.Pos(), typ.elem)
 		return typ
 
 	default:
@@ -487,6 +478,67 @@ func (check *Checker) recvTypeParams(recvPar *ast.FieldList) ([]*TypeParam, *Sco
 	return typeParams, tpScope
 }
 
+func (check *Checker) methodReceiver(scope *Scope, list *ast.FieldList) *Var {
+	if list == nil {
+		return nil
+	}
+
+	var recv *ast.Field
+	switch len(list.List) {
+	case 0:
+		check.error(list.Pos(), "method is missing receiver")
+		return NewParam(0, nil, "", Typ[Invalid]) // ignore recv below
+	default:
+		// more than one receiver
+		check.error(list.List[len(list.List)-1].Pos(), "method must have exactly one receiver")
+		fallthrough // continue with first receiver
+	case 1:
+		recv = list.List[0]
+	}
+
+	ftype := recv.Type
+	isStar := false
+	switch t := ftype.(type) {
+	case *ast.Ellipsis:
+		ftype = t.Elt
+		check.invalidAST(recv.Pos(), "... not permitted")
+		// ignore ... and continue
+	case *ast.StarExpr:
+		// Special case for StarExpr in receivers. It is okay for the type args to
+		// be omitted.
+		isStar = true
+		ftype = t.X
+	}
+	typ := check.typ(ftype)
+	if isStar {
+		// convert back to a pointer receiver type.
+		ptrType := new(Pointer)
+		ptrType.base = typ
+		typ = ptrType
+	}
+
+	var recvVar *Var
+	switch len(recv.Names) {
+	case 0:
+		recvVar = NewParam(recv.Type.Pos(), check.pkg, "", typ)
+		check.recordImplicit(recv, recvVar)
+	default:
+		// more than one name
+		check.invalidAST(recv.Names[len(recv.Names)-1].Pos(), "method must have exactly one receiver")
+		fallthrough // continue with first receiver
+	case 1:
+		name := recv.Names[0]
+		if name.Name == "" {
+			check.invalidAST(name.Pos(), "anonymous parameter")
+			// ok to continue
+		}
+		recvVar = NewParam(name.Pos(), check.pkg, name.Name, typ)
+		check.declare(scope, name, recvVar, scope.pos)
+	}
+
+	return recvVar
+}
+
 func (check *Checker) collectParams(scope *Scope, list *ast.FieldList, variadicOk bool) (params []*Var, variadic bool) {
 	if list == nil {
 		return
@@ -505,6 +557,7 @@ func (check *Checker) collectParams(scope *Scope, list *ast.FieldList, variadicO
 			}
 		}
 		typ := check.typ(ftype)
+		check.noTypeArgs(ftype.Pos(), typ)
 		// The parser ensures that f.Tag is nil and we don't
 		// care if a constructed AST contains a non-nil tag.
 		if len(field.Names) > 0 {
@@ -625,6 +678,7 @@ func (check *Checker) interfaceType(iface *Interface, ityp *ast.InterfaceType, d
 	for _, e := range embedded {
 		pos := e.Pos()
 		typ := check.typExpr(e, nil, path)
+		check.noTypeArgs(e.Pos(), typ)
 		// Determine underlying embedded (possibly incomplete) type
 		// by following its forward chain.
 		named, _ := typ.(*Named)
@@ -657,6 +711,7 @@ func (check *Checker) interfaceType(iface *Interface, ityp *ast.InterfaceType, d
 	for i, m := range iface.methods {
 		expr := signatures[i]
 		typ := check.typ(expr)
+		check.noTypeArgs(expr.Pos(), typ)
 		sig, _ := typ.(*Signature)
 		if sig == nil {
 			if typ != Typ[Invalid] {
@@ -748,6 +803,7 @@ func (check *Checker) structType(styp *Struct, e *ast.StructType, path []*TypeNa
 
 	for _, f := range list.List {
 		typ = check.typExpr(f.Type, nil, path)
+		check.noTypeArgs(f.Type.Pos(), typ)
 		tag = check.tag(f.Tag)
 		if len(f.Names) > 0 {
 			// named fields

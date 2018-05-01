@@ -14,6 +14,7 @@ import (
 
 func (check *Checker) call(x *operand, e *ast.CallExpr) exprKind {
 	check.exprOrType(x, e.Fun)
+	check.noTypeArgs(e.Pos(), x.typ)
 
 	switch x.mode {
 	case invalid:
@@ -33,6 +34,7 @@ func (check *Checker) call(x *operand, e *ast.CallExpr) exprKind {
 			check.expr(x, e.Args[0])
 			if x.mode != invalid {
 				check.conversion(x, T)
+				check.noTypeArgs(e.Args[0].Pos(), x.typ)
 			}
 		default:
 			check.errorf(e.Args[n-1].Pos(), "too many arguments in conversion to %s", T)
@@ -368,6 +370,7 @@ func (check *Checker) selector(x *operand, e *ast.SelectorExpr) {
 	if x.mode == invalid {
 		goto Error
 	}
+	check.noTypeArgs(e.X.Pos(), x.typ)
 
 	obj, index, indirect = LookupFieldOrMethod(x.typ, x.mode == variable, check.pkg, sel)
 	if obj == nil {
