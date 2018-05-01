@@ -279,6 +279,10 @@ func (check *Checker) typeDecl(obj *TypeName, typ ast.Expr, def *Named, path []*
 		// determine underlying type of named
 		check.typExpr(typ, named, append(path, obj))
 
+		if _, ok := named.underlying.(*Interface); ok && len(typeParams) > 0 {
+			check.error(typ.Pos(), "generic interface types are not supported")
+		}
+
 		// The underlying type of named may be itself a named type that is
 		// incomplete:
 		//
