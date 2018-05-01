@@ -388,9 +388,14 @@ func (check *Checker) funcDecl(obj *Func, decl *declInfo) {
 	obj.typ = sig // guard against cycles
 	sig.obj = obj
 	check.funcType(sig, fdecl.Recv, fdecl.Type, typeParams)
-	if sig.recv == nil && obj.name == "init" && (sig.params.Len() > 0 || sig.results.Len() > 0) {
-		check.errorf(fdecl.Pos(), "func init must have no arguments and no return values")
-		// ok to continue
+	if (obj.name == "init" && sig.recv == nil) || obj.name == "main" {
+		if sig.params.Len() > 0 || sig.results.Len() > 0 {
+			check.errorf(fdecl.Pos(), "func %s must have no arguments and no return values", obj.name)
+			// ok to continue
+		} else if len(sig.typeParams) > 0 || len(sig.recvTypeParams) > 0 {
+			check.errorf(fdecl.Pos(), "func %s must have no type parameters", obj.name)
+			// ok to continue
+		}
 	}
 
 	// function body must be type-checked after global declarations
