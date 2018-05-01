@@ -128,7 +128,6 @@ func (check *Checker) constDecl(obj *Const, typ, init ast.Expr) {
 	var x operand
 	if init != nil {
 		check.expr(&x, init)
-		check.noTypeArgs(init.Pos(), x.typ)
 	}
 	check.initConst(obj, &x)
 }

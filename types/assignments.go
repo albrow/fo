@@ -175,8 +175,6 @@ func (check *Checker) assignVar(lhs ast.Expr, x *operand) Type {
 		return nil
 	}
 
-	check.noTypeArgs(lhs.Pos(), z.typ)
-
 	// spec: "Each left-hand side operand must be addressable, a map index
 	// expression, or the blank identifier. Operands may be parenthesized."
 	switch z.mode {
@@ -188,7 +186,6 @@ func (check *Checker) assignVar(lhs ast.Expr, x *operand) Type {
 		if sel, ok := z.expr.(*ast.SelectorExpr); ok {
 			var op operand
 			check.expr(&op, sel.X)
-			check.noTypeArgs(sel.X.Pos(), op.typ)
 			if op.mode == mapindex {
 				check.errorf(z.pos(), "cannot assign to struct field %s in map", ExprString(z.expr))
 				return nil

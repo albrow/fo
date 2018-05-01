@@ -15,6 +15,7 @@ func (A) a() { }
 
 func (x A) b() {
   fmt.Println(x)
+  fmt.Println(x.val)
 }
 
 // Declarations with receiver type parameters

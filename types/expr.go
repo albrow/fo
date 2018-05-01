@@ -766,9 +766,7 @@ func (check *Checker) binary(x *operand, e *ast.BinaryExpr, lhs, rhs ast.Expr, o
 	var y operand
 
 	check.expr(x, lhs)
-	check.noTypeArgs(lhs.Pos(), x.typ)
 	check.expr(&y, rhs)
-	check.noTypeArgs(rhs.Pos(), y.typ)
 
 	if x.mode == invalid {
 		return
@@ -867,7 +865,6 @@ func (check *Checker) index(index ast.Expr, max int64) (i int64, valid bool) {
 	if x.mode == invalid {
 		return
 	}
-	check.noTypeArgs(index.Pos(), x.typ)
 
 	// an untyped constant must be representable as Int
 	check.convertUntyped(&x, Typ[Int])
@@ -942,7 +939,6 @@ func (check *Checker) indexedElts(elts []ast.Expr, typ Type, length int64) int64
 		// check element against composite literal element type
 		var x operand
 		check.exprWithHint(&x, eval, typ)
-		check.noTypeArgs(eval.Pos(), x.typ)
 		check.assignment(&x, typ, "array or slice literal")
 	}
 	return max
@@ -1122,7 +1118,6 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 					}
 					visited[i] = true
 					check.expr(x, kv.Value)
-					check.noTypeArgs(kv.Value.Pos(), x.typ)
 					etyp := fld.typ
 					check.assignment(x, etyp, "struct literal")
 				}
@@ -1134,7 +1129,6 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 						continue
 					}
 					check.expr(x, e)
-					check.noTypeArgs(e.Pos(), x.typ)
 					if i >= len(fields) {
 						check.error(x.pos(), "too many values in struct literal")
 						break // cannot continue
@@ -1198,7 +1192,6 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 					continue
 				}
 				check.exprWithHint(x, kv.Key, utyp.key)
-				check.noTypeArgs(kv.Key.Pos(), x.typ)
 				check.assignment(x, utyp.key, "map literal")
 				if x.mode == invalid {
 					continue
@@ -1225,7 +1218,6 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 					}
 				}
 				check.exprWithHint(x, kv.Value, utyp.elem)
-				check.noTypeArgs(kv.Value.Pos(), x.typ)
 				check.assignment(x, utyp.elem, "map literal")
 			}
 
@@ -1514,11 +1506,11 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 
 	case *ast.StarExpr:
 		check.exprOrType(x, e.X)
-		check.noTypeArgs(e.X.Pos(), x.typ)
 		switch x.mode {
 		case invalid:
 			goto Error
 		case typexpr:
+			check.noTypeArgs(e.X.Pos(), x.typ)
 			x.typ = &Pointer{base: x.typ}
 		default:
 			if typ, ok := x.typ.Underlying().(*Pointer); ok {
@@ -1535,7 +1527,6 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 		if x.mode == invalid {
 			goto Error
 		}
-		check.noTypeArgs(e.X.Pos(), x.typ)
 		check.unary(x, e, e.Op)
 		if x.mode == invalid {
 			goto Error

@@ -540,7 +540,6 @@ func (check *Checker) builtin(x *operand, call *ast.CallExpr, id builtinId) (_ b
 		if x.mode == invalid {
 			return
 		}
-		check.noTypeArgs(selx.X.Pos(), x.typ)
 
 		base := derefStructPtr(x.typ)
 		sel := selx.Sel.Name
