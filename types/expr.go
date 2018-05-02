@@ -1268,20 +1268,22 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 		// by observing the type of e.X.
 		switch genType := x.typ.(type) {
 		case *Named:
-			if len(genType.typeParams) == 0 {
-				// We are not dealing with a generic type. Continue below.
-				break
-			} else if len(genType.typeParams) > 1 {
-				check.errorf(check.pos, "wrong number of type arguments for %s (expected %d but got 1)", e.X, len(genType.typeParams))
+			if x.mode == typexpr {
+				if len(genType.typeParams) == 0 {
+					// We are not dealing with a generic type. Continue below.
+					break
+				} else if len(genType.typeParams) > 1 {
+					check.errorf(check.pos, "wrong number of type arguments for %s (expected %d but got 1)", e.X, len(genType.typeParams))
+				}
+				typeArgExpr := &ast.TypeArgExpr{
+					X:      e.X,
+					Lbrack: e.Lbrack,
+					Types:  []ast.Expr{e.Index},
+					Rbrack: e.Rbrack,
+				}
+				x.typ = check.concreteType(typeArgExpr, genType)
+				return expression
 			}
-			typeArgExpr := &ast.TypeArgExpr{
-				X:      e.X,
-				Lbrack: e.Lbrack,
-				Types:  []ast.Expr{e.Index},
-				Rbrack: e.Rbrack,
-			}
-			x.typ = check.concreteType(typeArgExpr, genType)
-			return expression
 
 		case *Signature:
 			if len(genType.typeParams) == 0 {
@@ -1300,9 +1302,9 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 			return expression
 		}
 
-		// At this point we know it's not a TypeArgExpr, so we should check that
-		// type arguments were not required.
-		check.noTypeArgs(e.X.Pos(), x.typ)
+		if x.mode == typexpr {
+			check.noTypeArgs(e.X.Pos(), x.typ)
+		}
 
 		valid := false
 		length := int64(-1) // valid if >= 0
@@ -1344,7 +1346,6 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 		case *Map:
 			var key operand
 			check.expr(&key, e.Index)
-			check.noTypeArgs(e.Index.Pos(), key.typ)
 			check.assignment(&key, typ.key, "map index")
 			if x.mode == invalid {
 				goto Error
@@ -1374,7 +1375,6 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 			check.use(e.Low, e.High, e.Max)
 			goto Error
 		}
-		check.noTypeArgs(e.X.Pos(), x.typ)
 
 		valid := false
 		length := int64(-1) // valid if >= 0
@@ -1471,7 +1471,6 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 		}
 
 	case *ast.TypeArgExpr:
-		// TODO(albrow): change this to check.exprInternal?
 		check.exprOrType(x, e.X)
 		x.typ = check.concreteType(e, x.typ)
 		return expression
@@ -1481,7 +1480,6 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 		if x.mode == invalid {
 			goto Error
 		}
-		check.noTypeArgs(e.X.Pos(), x.typ)
 		xtyp, _ := x.typ.Underlying().(*Interface)
 		if xtyp == nil {
 			check.invalidOp(x.pos(), "%s is not an interface", x)

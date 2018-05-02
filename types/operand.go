@@ -203,6 +203,9 @@ func (x *operand) isNil() bool {
 // assignableTo reports whether x is assignable to a variable of type T.
 // If the result is false and a non-nil reason is provided, it may be set
 // to a more detailed explanation of the failure (result != "").
+
+// TODO(albrow): do not allow the empty interface type to be assigned to type
+// parameter types.
 func (x *operand) assignableTo(conf *Config, T Type, reason *string) bool {
 	if x.mode == invalid || T == Typ[Invalid] {
 		return true // avoid spurious errors

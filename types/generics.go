@@ -105,6 +105,9 @@ func (check *Checker) concreteType(expr *ast.TypeArgExpr, genType Type) Type {
 	switch genType := genType.(type) {
 	case *Named:
 		typeMap := check.createTypeMap(expr.Types, genType.typeParams)
+		if typeMap == nil {
+			return genType
+		}
 		newNamed := replaceTypesInNamed(genType, expr.Types, typeMap)
 		newNamed.typeParams = nil
 		typeParams := make([]*TypeParam, len(genType.typeParams))
@@ -119,6 +122,9 @@ func (check *Checker) concreteType(expr *ast.TypeArgExpr, genType Type) Type {
 		return newType
 	case *Signature:
 		typeMap := check.createTypeMap(expr.Types, genType.typeParams)
+		if typeMap == nil {
+			return genType
+		}
 		newSig := replaceTypesInSignature(genType, expr.Types, typeMap)
 		newSig.typeParams = nil
 		typeParams := make([]*TypeParam, len(genType.typeParams))

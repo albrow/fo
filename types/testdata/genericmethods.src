@@ -80,6 +80,55 @@ type hInterface interface {
   h() string
 }
 
+// Using special receiver types directly without type args.
+// E.g., we should be able to range over and index a generic slice without
+// knowing its type.
+type B[T] []T
+
+func (x B) f() {
+  fmt.Println(x[0])
+  fmt.Println(len(x))
+  for range x { }
+}
+
+type C[T] [5]T
+
+func (x C) f() {
+  fmt.Println(x[0])
+  fmt.Println(len(x))
+  for range x { }
+}
+
+type D[T] map[int]T
+
+func (x D) f() {
+  fmt.Println(x[0])
+  fmt.Println(len(x))
+  for range x { }
+}
+
+type E[T] chan T
+
+func (x E) f() {
+  for range x {}
+  select{
+    case <-x:
+  }
+  var _ = <-x
+}
+
+type F[T] func() T
+
+func (x F) f() {
+  x()
+}
+
+type G[T] T
+
+func (x *G) f() {
+  fmt.Println(*x)
+}
+
 func main() {
   // Use all methods with a non-pointer type as the receiver.
   x := A[string]{
