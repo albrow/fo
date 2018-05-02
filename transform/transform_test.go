@@ -461,6 +461,11 @@ func main() {
 func TestTransformMethods(t *testing.T) {
 	src := `package main
 
+import (
+	"fmt"
+	"strconv"
+)
+
 type A[T] T
 
 func (A[T]) f0() T {
@@ -480,16 +485,38 @@ func (a A[T]) f2[U, V]() (T, U, V) {
 
 func (*A) f3() {}
 
+type B[T] struct {
+	v T
+}
+
+func (b B[T]) f0[V](f func(T) V) B[V] {
+	return B[V]{
+		v: f(b.v),
+	}
+}
+
 func main() {
 	var _ = A[string]("")
 	var _ = A[bool](true)
 
 	var x A[uint]
-	x.f2[float64, int8]()
+	var a uint
+	var b float64
+	var c int8
+	a, b, c = x.f2[float64, int8]()
+	fmt.Println(a, b, c)
+
+	y := B[int]{ v: 42 }
+	var _ B[string] = y.f0[string](strconv.Itoa)
 }
 `
 
 	expected := `package main
+
+import (
+	"fmt"
+	"strconv"
+)
 
 type (
 	A__bool   bool
@@ -520,22 +547,44 @@ func (a A__uint) f1() uint {
 	return uint(a)
 }
 
-func (a A__T) f2__float64__int8() (T, float64, int8) {
+func (a A__uint) f2__float64__int8() (uint, float64, int8) {
 	var x float64
 	var y int8
-	return T(a), x, y
+	return uint(a), x, y
 }
 
 func (*A__bool) f3()   {}
 func (*A__string) f3() {}
 func (*A__uint) f3()   {}
 
+type (
+	B__int struct {
+		v int
+	}
+	B__string struct {
+		v string
+	}
+)
+
+func (b B__int) f0__string(f func(int) string) B__string {
+	return B__string{
+		v: f(b.v),
+	}
+}
+
 func main() {
 	var _ = A__string("")
 	var _ = A__bool(true)
 
 	var x A__uint
-	x.f2__float64__int8()
+	var a uint
+	var b float64
+	var c int8
+	a, b, c = x.f2__float64__int8()
+	fmt.Println(a, b, c)
+
+	y := B__int{v: 42}
+	var _ B__string = y.f0__string(strconv.Itoa)
 }
 `
 
@@ -551,11 +600,19 @@ func testParseFile(t *testing.T, src string, expected string) {
 	}
 	conf := types.Config{}
 	conf.Importer = importer.Default()
-	pkg, err := conf.Check("transformtest", fset, []*ast.File{orig}, nil)
+	info := &types.Info{
+		Selections: map[*ast.SelectorExpr]*types.Selection{},
+	}
+	pkg, err := conf.Check("transformtest", fset, []*ast.File{orig}, info)
 	if err != nil {
 		t.Fatalf("conf.Check returned error: %s", err.Error())
 	}
-	transformed, err := File(fset, orig, pkg)
+	trans := &Transformer{
+		Fset: fset,
+		Pkg:  pkg,
+		Info: info,
+	}
+	transformed, err := trans.File(orig)
 	if err != nil {
 		t.Fatalf("Transform returned error: %s", err.Error())
 	}

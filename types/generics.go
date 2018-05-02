@@ -43,20 +43,20 @@ func (usg *GenericUsage) TypeMap() map[string]Type {
 	return usg.typeMap
 }
 
-func addGenericDecl(obj Object, typeParams []*TypeParam) {
+func addGenericDecl(key string, obj Object, typeParams []*TypeParam) {
 	pkg := obj.Pkg()
 	name := obj.Name()
 	if pkg.generics == nil {
 		pkg.generics = map[string]*GenericDecl{}
 	}
-	pkg.generics[name] = &GenericDecl{
+	pkg.generics[key] = &GenericDecl{
 		name:       name,
 		typ:        obj.Type(),
 		typeParams: typeParams,
 	}
 }
 
-func addGenericUsage(genObj Object, typ Type, typeParams []ast.Expr, typeMap map[string]Type) {
+func addGenericUsage(key string, genObj Object, typ Type, typeParams []ast.Expr, typeMap map[string]Type) {
 	for _, typ := range typeMap {
 		if _, ok := typ.(*TypeParam); ok {
 			// If the type map includes a type parameter, it is not yet complete and
@@ -66,14 +66,13 @@ func addGenericUsage(genObj Object, typ Type, typeParams []ast.Expr, typeMap map
 		}
 	}
 	pkg := genObj.Pkg()
-	name := genObj.Name()
 	if pkg.generics == nil {
 		pkg.generics = map[string]*GenericDecl{}
 	}
-	genDecl, found := pkg.generics[name]
+	genDecl, found := pkg.generics[key]
 	if !found {
 		// TODO(albrow): can we avoid panicking here?
-		panic(fmt.Errorf("declaration not found for generic object %s", genObj.Id()))
+		panic(fmt.Errorf("declaration not found for generic object %s (%s)", key, genObj.Id()))
 	}
 	if genDecl.usages == nil {
 		genDecl.usages = map[string]*GenericUsage{}
@@ -117,8 +116,7 @@ func (check *Checker) concreteType(expr *ast.TypeArgExpr, genType Type) Type {
 		newType.obj = &newObj
 		newObj.typ = newType
 		newType.methods = replaceTypesInMethods(genType.methods, expr.Types, typeMap)
-		addGenericUsage(genType.obj, newType, expr.Types, typeMap)
-
+		addGenericUsage(genType.obj.name, genType.obj, newType, expr.Types, typeMap)
 		return newType
 	case *Signature:
 		typeMap := check.createTypeMap(expr.Types, genType.typeParams)
@@ -134,13 +132,44 @@ func (check *Checker) concreteType(expr *ast.TypeArgExpr, genType Type) Type {
 			newObj := *genType.obj
 			newObj.typ = newSig
 			newSig.obj = &newObj
-			addGenericUsage(&newObj, newType, expr.Types, typeMap)
+			addGenericUsage(newObj.name, &newObj, newType, expr.Types, typeMap)
+		}
+		return newType
+	case *MethodPartial:
+		typeMap := check.createTypeMap(expr.Types, genType.typeParams)
+		if typeMap == nil {
+			return genType
+		}
+		typeMap = mergeTypeMap(genType.recvTypeMap, typeMap)
+		newSig := replaceTypesInSignature(genType.Signature, expr.Types, typeMap)
+		newSig.typeParams = nil
+		typeParams := make([]*TypeParam, len(genType.typeParams))
+		copy(typeParams, genType.typeParams)
+		newType := NewConcreteSignature(newSig, typeParams, typeMap)
+		if genType.obj != nil {
+			newObj := *genType.obj
+			newObj.typ = newSig
+			newSig.obj = &newObj
+			key := genType.recvName + "." + newObj.name
+			addGenericUsage(key, &newObj, newType, expr.Types, typeMap)
 		}
 		return newType
 	}
 
 	check.errorf(check.pos, "unexpected generic for %s: %T", expr.X, genType)
 	return nil
+}
+
+// b overwrites a
+func mergeTypeMap(a, b map[string]Type) map[string]Type {
+	result := map[string]Type{}
+	for name, typ := range a {
+		result[name] = typ
+	}
+	for name, typ := range b {
+		result[name] = typ
+	}
+	return result
 }
 
 // TODO(albrow): test case with wrong number of type arguments.
@@ -342,7 +371,7 @@ func replaceTypesInConcreteNamed(root *ConcreteNamed, typeParams []ast.Expr, typ
 	newObj.typ = newType
 	newType.obj = &newObj
 	newType.methods = replaceTypesInMethods(root.methods, typeParams, newTypeMap)
-	addGenericUsage(root.obj, newType, typeParams, newTypeMap)
+	addGenericUsage(root.obj.name, root.obj, newType, typeParams, newTypeMap)
 	return newType
 }
 

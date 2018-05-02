@@ -1300,6 +1300,22 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 			}
 			x.typ = check.concreteType(typeArgExpr, genType)
 			return expression
+
+		case *MethodPartial:
+			if len(genType.typeParams) == 0 {
+				// We are not dealing with a generic type. Continue below.
+				break
+			} else if len(genType.typeParams) > 1 {
+				check.errorf(check.pos, "wrong number of type arguments for %s (expected %d but got 1)", e.X, len(genType.typeParams))
+			}
+			typeArgExpr := &ast.TypeArgExpr{
+				X:      e.X,
+				Lbrack: e.Lbrack,
+				Types:  []ast.Expr{e.Index},
+				Rbrack: e.Rbrack,
+			}
+			x.typ = check.concreteType(typeArgExpr, genType)
+			return expression
 		}
 
 		if x.mode == typexpr {

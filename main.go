@@ -58,14 +58,22 @@ func run(c *cli.Context) error {
 
 	// Check types.
 	conf := types.Config{Importer: importer.Default()}
-	pkg, err := conf.Check(f.Name(), fset, []*ast.File{nodes}, nil)
+	info := &types.Info{
+		Selections: map[*ast.SelectorExpr]*types.Selection{},
+	}
+	pkg, err := conf.Check(f.Name(), fset, []*ast.File{nodes}, info)
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
 
 	// Transform to pure Go and write the output.
-	transformed, err := transform.File(fset, nodes, pkg)
+	trans := &transform.Transformer{
+		Fset: fset,
+		Pkg:  pkg,
+		Info: info,
+	}
+	transformed, err := trans.File(nodes)
 	if err != nil {
 		return err
 	}

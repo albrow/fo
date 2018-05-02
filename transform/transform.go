@@ -18,17 +18,13 @@ import (
 // TODO(albrow): Implement transform.Package for operating on all files in a
 // given package at once.
 
-type transformer struct {
-	fset    *token.FileSet
-	pkg     *types.Package
-	methods map[string]*ast.FuncDecl
+type Transformer struct {
+	Fset *token.FileSet
+	Pkg  *types.Package
+	Info *types.Info
 }
 
-func File(fset *token.FileSet, f *ast.File, pkg *types.Package) (*ast.File, error) {
-	trans := &transformer{
-		fset: fset,
-		pkg:  pkg,
-	}
+func (trans *Transformer) File(f *ast.File) (*ast.File, error) {
 	withConcreteTypes := astutil.Apply(f, trans.generateConcreteTypes(), nil)
 	result := astutil.Apply(withConcreteTypes, trans.replaceGenericIdents(), nil)
 	resultFile, ok := result.(*ast.File)
@@ -77,53 +73,8 @@ func concreteTypeExpr(e *ast.TypeArgExpr) ast.Node {
 		newSel.Sel = ast.NewIdent(newSel.Sel.Name + "__" + strings.Join(stringParams, "__"))
 		return newSel
 	default:
-		panic(fmt.Errorf("type arguments for expr %s of type %T are not yet supported", e.X, e.X))
+		panic(fmt.Errorf("type arguments for expr %v of type %T are not yet supported", e.X, e.X))
 	}
-}
-
-// second return value is true if the function has a generic receiver.
-func (trans *transformer) generateMethods(n *ast.FuncDecl) ([]*ast.FuncDecl, bool) {
-	var results []*ast.FuncDecl
-	hasGenericReceiver := false
-	if n.Recv == nil {
-		return nil, hasGenericReceiver
-	}
-	if n.TypeParams != nil {
-		// funcs with type parameters will be handled later on.
-		return nil, hasGenericReceiver
-	}
-	if len(n.Recv.List) != 1 {
-		return nil, hasGenericReceiver
-	}
-	recv := n.Recv.List[0].Type
-	if selectorExpr, ok := recv.(*ast.StarExpr); ok {
-		recv = selectorExpr.X
-	}
-	if typeArgExpr, ok := recv.(*ast.TypeArgExpr); ok {
-		hasGenericReceiver = true
-		recv = typeArgExpr.X
-	}
-	genTypeName, ok := recv.(*ast.Ident)
-	if !ok {
-		// TODO(albrow): handle *ast.SelectorExpr here so we can support generic
-		// types from other packages.
-		return nil, hasGenericReceiver
-	}
-	genDecl, found := trans.pkg.Generics()[genTypeName.Name]
-	if !found {
-		if hasGenericReceiver {
-			panic(fmt.Errorf("could not find generic type declaration for %s", genTypeName.Name))
-		}
-		return nil, hasGenericReceiver
-	}
-	hasGenericReceiver = true
-	for _, usg := range genDecl.Usages() {
-		newFunc := astclone.Clone(n).(*ast.FuncDecl)
-		expandReceiverType(newFunc, genDecl, usg)
-		replaceIdentsInScope(newFunc, usg.TypeMap())
-		results = append(results, newFunc)
-	}
-	return results, hasGenericReceiver
 }
 
 // expandReceiverType adds the appropriate type parameters to a receiver type
@@ -132,7 +83,7 @@ func expandReceiverType(funcDecl *ast.FuncDecl, genDecl *types.GenericDecl, usg 
 	astutil.Apply(funcDecl.Recv, func(c *astutil.Cursor) bool {
 		switch n := c.Node().(type) {
 		case *ast.TypeArgExpr:
-			// Don't convert an existing TypeArgExpr
+			// Don't change anything about existing type arguments
 			return false
 		case *ast.Ident:
 			if n.Name == genDecl.Name() {
@@ -148,7 +99,7 @@ func expandReceiverType(funcDecl *ast.FuncDecl, genDecl *types.GenericDecl, usg 
 	}, nil)
 }
 
-func (trans *transformer) generateConcreteTypes() func(c *astutil.Cursor) bool {
+func (trans *Transformer) generateConcreteTypes() func(c *astutil.Cursor) bool {
 	return func(c *astutil.Cursor) bool {
 		switch n := c.Node().(type) {
 		case *ast.GenDecl:
@@ -161,7 +112,7 @@ func (trans *transformer) generateConcreteTypes() func(c *astutil.Cursor) bool {
 					used = true
 					continue
 				}
-				if _, found := trans.pkg.Generics()[typeSpec.Name.Name]; !found {
+				if _, found := trans.Pkg.Generics()[typeSpec.Name.Name]; !found {
 					newTypeSpecs = append(newTypeSpecs, typeSpec)
 					used = true
 					continue
@@ -187,12 +138,9 @@ func (trans *transformer) generateConcreteTypes() func(c *astutil.Cursor) bool {
 				c.Delete()
 			}
 		case *ast.FuncDecl:
-			newFuncs, isGeneric := trans.generateMethods(n)
-			if n.TypeParams != nil {
-				newFuncs = append(newFuncs, trans.generateFuncDecls(n)...)
-			}
+			newFuncs, recvIsGeneric := trans.generateFuncDecls(n)
 			if len(newFuncs) == 0 {
-				if isGeneric || n.TypeParams != nil {
+				if recvIsGeneric || n.TypeParams != nil {
 					c.Delete()
 				}
 				return true
@@ -223,7 +171,7 @@ func sortFuncs(funcs []*ast.FuncDecl) {
 	})
 }
 
-func (trans *transformer) replaceGenericIdents() func(c *astutil.Cursor) bool {
+func (trans *Transformer) replaceGenericIdents() func(c *astutil.Cursor) bool {
 	return func(c *astutil.Cursor) bool {
 		switch n := c.Node().(type) {
 		case *ast.TypeArgExpr:
@@ -234,7 +182,7 @@ func (trans *transformer) replaceGenericIdents() func(c *astutil.Cursor) bool {
 			// TypeArgExpr.
 			switch x := n.X.(type) {
 			case *ast.Ident:
-				if _, found := trans.pkg.Generics()[x.Name]; found {
+				if _, found := trans.Pkg.Generics()[x.Name]; found {
 					typeArgExpr := &ast.TypeArgExpr{
 						X:      n.X,
 						Lbrack: n.Lbrack,
@@ -243,17 +191,43 @@ func (trans *transformer) replaceGenericIdents() func(c *astutil.Cursor) bool {
 					}
 					c.Replace(concreteTypeExpr(typeArgExpr))
 				}
+			case *ast.SelectorExpr:
+				selection, found := trans.Info.Selections[x]
+				if !found {
+					return true
+				}
+				var key string
+				switch selection.Kind() {
+				case types.FieldVal:
+					key = selection.Obj().Name()
+				case types.MethodVal:
+					if named, ok := selection.Recv().(*types.ConcreteNamed); ok {
+						key = named.Obj().Name() + "." + selection.Obj().Name()
+					}
+				}
+				if key != "" {
+					if _, found := trans.Pkg.Generics()[key]; found {
+						typeArgExpr := &ast.TypeArgExpr{
+							X:      n.X,
+							Lbrack: n.Lbrack,
+							Types:  []ast.Expr{n.Index},
+							Rbrack: n.Rbrack,
+						}
+						c.Replace(concreteTypeExpr(typeArgExpr))
+						return false
+					}
+				}
 			}
 		}
 		return true
 	}
 }
 
-func (trans *transformer) generateTypeSpecs(typeSpec *ast.TypeSpec) []ast.Spec {
-	name := typeSpec.Name.Name
-	genericDecl, found := trans.pkg.Generics()[name]
+func (trans *Transformer) generateTypeSpecs(typeSpec *ast.TypeSpec) []ast.Spec {
+	key := typeSpec.Name.Name
+	genericDecl, found := trans.Pkg.Generics()[key]
 	if !found {
-		panic(fmt.Errorf("could not find generic type declaration for %s", name))
+		panic(fmt.Errorf("could not find generic type declaration for %s", key))
 	}
 	var results []ast.Spec
 	// Check if we are dealing with an ambiguous ArrayType from the parser. In
@@ -282,21 +256,61 @@ func (trans *transformer) generateTypeSpecs(typeSpec *ast.TypeSpec) []ast.Spec {
 	return results
 }
 
-func (trans *transformer) generateFuncDecls(funcDecl *ast.FuncDecl) []*ast.FuncDecl {
-	name := funcDecl.Name.Name
-	genericDecl, found := trans.pkg.Generics()[name]
-	if !found {
-		panic(fmt.Errorf("could not find generic type declaration for %s", name))
+func (trans *Transformer) generateFuncDecls(funcDecl *ast.FuncDecl) (newFuncs []*ast.FuncDecl, recvIsGeneric bool) {
+	var recv ast.Expr
+	recvHasTypeArgs := false
+	if funcDecl.Recv != nil && len(funcDecl.Recv.List) == 1 {
+		recv = funcDecl.Recv.List[0].Type
 	}
-	var results []*ast.FuncDecl
-	for _, usg := range genericDecl.Usages() {
-		newFuncDecl := astclone.Clone(funcDecl).(*ast.FuncDecl)
-		newFuncDecl.Name = ast.NewIdent(concreteTypeName(genericDecl, usg))
-		newFuncDecl.TypeParams = nil
-		replaceIdentsInScope(newFuncDecl, usg.TypeMap())
-		results = append(results, newFuncDecl)
+	if selectorExpr, ok := recv.(*ast.StarExpr); ok {
+		recv = selectorExpr.X
 	}
-	return results
+	if typeArgExpr, ok := recv.(*ast.TypeArgExpr); ok {
+		recvHasTypeArgs = true
+		recv = typeArgExpr.X
+	}
+	var genRecvDecl *types.GenericDecl
+	var recvTypeName *ast.Ident
+	if recv != nil {
+		var ok bool
+		recvTypeName, ok = recv.(*ast.Ident)
+		if !ok {
+			panic(fmt.Errorf("invalid receiver type expression: %T %s", recv, recv))
+		}
+		var found bool
+		genRecvDecl, found = trans.Pkg.Generics()[recvTypeName.Name]
+		if !found && recvHasTypeArgs {
+			panic(fmt.Errorf("could not find generic type declaration for %s", recvTypeName.Name))
+		} else {
+			recvIsGeneric = true
+		}
+	}
+	fkey := funcDecl.Name.Name
+	if recvTypeName != nil {
+		fkey = recvTypeName.Name + "." + fkey
+	}
+	genFuncDecl, found := trans.Pkg.Generics()[fkey]
+	if !found && funcDecl.TypeParams != nil {
+		panic(fmt.Errorf("could not find generic type declaration for %s", fkey))
+	}
+	if genFuncDecl != nil {
+		for _, usg := range genFuncDecl.Usages() {
+			newFunc := astclone.Clone(funcDecl).(*ast.FuncDecl)
+			expandReceiverType(newFunc, genRecvDecl, usg)
+			newFunc.Name = ast.NewIdent(concreteTypeName(genFuncDecl, usg))
+			newFunc.TypeParams = nil
+			replaceIdentsInScope(newFunc, usg.TypeMap())
+			newFuncs = append(newFuncs, newFunc)
+		}
+	} else if genRecvDecl != nil {
+		for _, usg := range genRecvDecl.Usages() {
+			newFunc := astclone.Clone(funcDecl).(*ast.FuncDecl)
+			expandReceiverType(newFunc, genRecvDecl, usg)
+			replaceIdentsInScope(newFunc, usg.TypeMap())
+			newFuncs = append(newFuncs, newFunc)
+		}
+	}
+	return newFuncs, recvIsGeneric
 }
 
 func replaceIdentsInScope(n ast.Node, typeMap map[string]types.Type) ast.Node {

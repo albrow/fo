@@ -275,7 +275,7 @@ func (check *Checker) typeDecl(obj *TypeName, typ ast.Expr, def *Named, path []*
 		}
 		named.typeParams = typeParams
 		if named.typeParams != nil {
-			addGenericDecl(obj, named.typeParams)
+			addGenericDecl(obj.name, obj, named.typeParams)
 		}
 
 		// determine underlying type of named
@@ -404,7 +404,16 @@ func (check *Checker) funcDecl(obj *Func, decl *declInfo) {
 	}
 
 	if sig.typeParams != nil {
-		addGenericDecl(obj, sig.typeParams)
+		key := obj.Name()
+		if sig.recv != nil {
+			switch recvType := sig.recv.typ.(type) {
+			case *Named:
+				key = recvType.obj.name + "." + key
+			case *ConcreteNamed:
+				key = recvType.obj.name + "." + key
+			}
+		}
+		addGenericDecl(key, obj, sig.typeParams)
 	}
 }
 

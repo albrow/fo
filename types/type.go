@@ -304,6 +304,28 @@ func NewConcreteSignature(sig *Signature, typeParams []*TypeParam, typeMap map[s
 	}
 }
 
+// MethodPartial is the corresponding concrete type of a generic Signature
+// which has a receiver for which type arguments have been provided. We need a
+// way to captrue those type arguments to generate the appropriate
+// ConcreteSignature later on.
+type MethodPartial struct {
+	*Signature
+	recvName       string
+	recvTypeParams []*TypeParam
+	recvTypeMap    map[string]Type // map of type parameter name to concrete type
+}
+
+// NewMethodPartial returns the concrete signature type corresponding to a
+// generic signature type with the type arguments given in recvTypeMap.
+func NewMethodPartial(sig *Signature, recvName string, recvTypeParams []*TypeParam, recvTypeMap map[string]Type) *MethodPartial {
+	return &MethodPartial{
+		Signature:      sig,
+		recvName:       recvName,
+		recvTypeParams: recvTypeParams,
+		recvTypeMap:    recvTypeMap,
+	}
+}
+
 // An Interface represents an interface type.
 type Interface struct {
 	methods   []*Func  // ordered list of explicitly declared methods

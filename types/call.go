@@ -461,11 +461,16 @@ func (check *Checker) selector(x *operand, e *ast.SelectorExpr) {
 
 			x.mode = value
 
-			// remove receiver
 			sig := *obj.typ.(*Signature)
-			sig.recv = nil
-			x.typ = &sig
 
+			if named, ok := x.typ.(*ConcreteNamed); ok && sig.typeParams != nil {
+				x.typ = NewMethodPartial(&sig, named.obj.name, named.typeParams, named.typeMap)
+			} else {
+				x.typ = &sig
+			}
+
+			// remove receiver
+			sig.recv = nil
 			check.addDeclDep(obj)
 
 		default:
