@@ -20,8 +20,6 @@ import (
 	"github.com/albrow/fo/token"
 )
 
-// TODO(albrow): Implement printing TypeParamDecl
-
 // Formatting issues:
 // - better comment formatting for /*-style comments at the end of a line (e.g. a declaration)
 //   when the comment spans multiple lines; if such a comment is just two lines, formatting is
@@ -269,6 +267,14 @@ func (p *printer) exprList(prev0 token.Pos, list []ast.Expr, depth int, mode exp
 	if ws == ignore && mode&noIndent == 0 {
 		// unindent if we indented
 		p.print(unindent)
+	}
+}
+
+func (p *printer) typeParams(x *ast.TypeParamDecl) {
+	if x != nil {
+		p.print(token.LBRACK)
+		p.identList(x.Names, false)
+		p.print(token.RBRACK)
 	}
 }
 
@@ -1450,6 +1456,7 @@ func (p *printer) spec(spec ast.Spec, n int, doIndent bool) {
 	case *ast.TypeSpec:
 		p.setComment(s.Doc)
 		p.expr(s.Name)
+		p.typeParams(s.TypeParams)
 		if n == 1 {
 			p.print(blank)
 		} else {
@@ -1641,6 +1648,7 @@ func (p *printer) funcDecl(d *ast.FuncDecl) {
 		p.print(blank)
 	}
 	p.expr(d.Name)
+	p.typeParams(d.TypeParams)
 	p.signature(d.Type.Params, d.Type.Results)
 	p.funcBody(p.distanceFrom(d.Pos()), vtab, d.Body)
 }

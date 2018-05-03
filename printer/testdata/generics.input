@@ -1,0 +1,33 @@
+package generics
+
+import (
+	"fmt"
+	"strconv"
+)
+
+type Box[T] struct {
+	v T
+}
+
+func (b Box[T]) Val() T {
+	return b.v
+}
+
+func (b Box[T]) Map[U](f func(T) U) Box[U] {
+	return Box[U]{
+		v: f(b.v),
+	}
+}
+
+type Map[T, U] map[T]U
+
+func main() {
+	x := Box[string]{v: "Hello, Fo!"}
+	fmt.Println(x.Val())
+
+	y := Box[int]{v: 42}
+	z := y.Map[string](strconv.Itoa)
+	fmt.Println(z)
+
+	var _ = Map[string, int]{}
+}

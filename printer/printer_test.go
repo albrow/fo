@@ -196,6 +196,7 @@ var data = []entry{
 	{"declarations.input", "declarations.golden", 0},
 	{"statements.input", "statements.golden", 0},
 	{"slow.input", "slow.golden", idempotent},
+	{"generics.input", "generics.golden", 0},
 }
 
 func TestFiles(t *testing.T) {
