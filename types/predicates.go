@@ -221,6 +221,13 @@ func identical(x, y Type, cmpTags bool, p *ifacePair) bool {
 				identical(x.results, y.results, cmpTags, p)
 		}
 
+	case *MethodPartial:
+		if y, ok := y.(*MethodPartial); ok {
+			if !identical(x.Signature, y.Signature, cmpTags, p) {
+				return false
+			}
+		}
+
 	case *ConcreteSignature:
 		if y, ok := y.(*ConcreteSignature); ok {
 			if !identical(x.Signature, y.Signature, cmpTags, p) {
