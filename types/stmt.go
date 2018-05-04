@@ -272,7 +272,7 @@ L:
 		if T == Typ[Invalid] {
 			continue L
 		}
-		check.noTypeArgs(e.Pos(), T)
+		check.typeArgsRequired(e.Pos(), T)
 		// look for duplicate types
 		// (quadratic algorithm, but type switches tend to be reasonably small)
 		for t, pos := range seen {

@@ -111,7 +111,7 @@ func (check *Checker) constDecl(obj *Const, typ, init ast.Expr) {
 	// determine type, if any
 	if typ != nil {
 		t := check.typ(typ)
-		check.noTypeArgs(typ.Pos(), t)
+		check.typeArgsRequired(typ.Pos(), t)
 		if !isConstType(t) {
 			// don't report an error if the type is an invalid C (defined) type
 			// (issue #22090)
@@ -147,7 +147,7 @@ func (check *Checker) varDecl(obj *Var, lhs []*Var, typ, init ast.Expr) {
 	// determine type, if any
 	if typ != nil {
 		obj.typ = check.typ(typ)
-		check.noTypeArgs(typ.Pos(), obj.typ)
+		check.typeArgsRequired(typ.Pos(), obj.typ)
 		// We cannot spread the type to all lhs variables if there
 		// are more than one since that would mark them as checked
 		// (see Checker.objDecl) and the assignment of init exprs,
@@ -284,7 +284,7 @@ func (check *Checker) typeDecl(obj *TypeName, typ ast.Expr, def *Named, path []*
 		if _, ok := named.underlying.(*Interface); ok && len(typeParams) > 0 {
 			check.error(typ.Pos(), "generic interface types are not supported")
 		}
-		check.noTypeArgs(typ.Pos(), named.underlying)
+		check.typeArgsRequired(typ.Pos(), named.underlying)
 
 		// The underlying type of named may be itself a named type that is
 		// incomplete:

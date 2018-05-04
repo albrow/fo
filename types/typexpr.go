@@ -295,14 +295,14 @@ func (check *Checker) typExprInternal(e ast.Expr, def *Named, path []*TypeName) 
 			def.setUnderlying(typ)
 			typ.len = check.arrayLength(e.Len)
 			typ.elem = check.typExpr(e.Elt, nil, path)
-			check.noTypeArgs(e.Elt.Pos(), typ.elem)
+			check.typeArgsRequired(e.Elt.Pos(), typ.elem)
 			return typ
 
 		} else {
 			typ := new(Slice)
 			def.setUnderlying(typ)
 			typ.elem = check.typ(e.Elt)
-			check.noTypeArgs(e.Elt.Pos(), typ.elem)
+			check.typeArgsRequired(e.Elt.Pos(), typ.elem)
 			return typ
 		}
 
@@ -322,7 +322,7 @@ func (check *Checker) typExprInternal(e ast.Expr, def *Named, path []*TypeName) 
 		typ := new(Pointer)
 		def.setUnderlying(typ)
 		typ.base = check.typ(e.X)
-		check.noTypeArgs(e.X.Pos(), typ.base)
+		check.typeArgsRequired(e.X.Pos(), typ.base)
 		return typ
 
 	case *ast.FuncType:
@@ -342,9 +342,9 @@ func (check *Checker) typExprInternal(e ast.Expr, def *Named, path []*TypeName) 
 		def.setUnderlying(typ)
 
 		typ.key = check.typ(e.Key)
-		check.noTypeArgs(e.Key.Pos(), typ.key)
+		check.typeArgsRequired(e.Key.Pos(), typ.key)
 		typ.elem = check.typ(e.Value)
-		check.noTypeArgs(e.Value.Pos(), typ.elem)
+		check.typeArgsRequired(e.Value.Pos(), typ.elem)
 
 		// spec: "The comparison operators == and != must be fully defined
 		// for operands of the key type; thus the key type must not be a
@@ -379,7 +379,7 @@ func (check *Checker) typExprInternal(e ast.Expr, def *Named, path []*TypeName) 
 
 		typ.dir = dir
 		typ.elem = check.typ(e.Value)
-		check.noTypeArgs(e.Value.Pos(), typ.elem)
+		check.typeArgsRequired(e.Value.Pos(), typ.elem)
 		return typ
 
 	default:
@@ -557,7 +557,7 @@ func (check *Checker) collectParams(scope *Scope, list *ast.FieldList, variadicO
 			}
 		}
 		typ := check.typ(ftype)
-		check.noTypeArgs(ftype.Pos(), typ)
+		check.typeArgsRequired(ftype.Pos(), typ)
 		// The parser ensures that f.Tag is nil and we don't
 		// care if a constructed AST contains a non-nil tag.
 		if len(field.Names) > 0 {
@@ -678,7 +678,7 @@ func (check *Checker) interfaceType(iface *Interface, ityp *ast.InterfaceType, d
 	for _, e := range embedded {
 		pos := e.Pos()
 		typ := check.typExpr(e, nil, path)
-		check.noTypeArgs(e.Pos(), typ)
+		check.typeArgsRequired(e.Pos(), typ)
 		// Determine underlying embedded (possibly incomplete) type
 		// by following its forward chain.
 		named, _ := typ.(*Named)
@@ -711,7 +711,7 @@ func (check *Checker) interfaceType(iface *Interface, ityp *ast.InterfaceType, d
 	for i, m := range iface.methods {
 		expr := signatures[i]
 		typ := check.typ(expr)
-		check.noTypeArgs(expr.Pos(), typ)
+		check.typeArgsRequired(expr.Pos(), typ)
 		sig, _ := typ.(*Signature)
 		if sig == nil {
 			if typ != Typ[Invalid] {
@@ -803,7 +803,7 @@ func (check *Checker) structType(styp *Struct, e *ast.StructType, path []*TypeNa
 
 	for _, f := range list.List {
 		typ = check.typExpr(f.Type, nil, path)
-		check.noTypeArgs(f.Type.Pos(), typ)
+		check.typeArgsRequired(f.Type.Pos(), typ)
 		tag = check.tag(f.Tag)
 		if len(f.Names) > 0 {
 			// named fields

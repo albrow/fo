@@ -1063,14 +1063,14 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 					// Create a new ArrayType with unknown length (-1)
 					// and finish setting it up after analyzing the literal.
 					elemType := check.typ(atyp.Elt)
-					check.noTypeArgs(atyp.Elt.Pos(), elemType)
+					check.typeArgsRequired(atyp.Elt.Pos(), elemType)
 					typ = &Array{len: -1, elem: elemType}
 					base = typ
 					break
 				}
 			}
 			typ = check.typ(e.Type)
-			check.noTypeArgs(e.Type.Pos(), typ)
+			check.typeArgsRequired(e.Type.Pos(), typ)
 			base = typ
 
 		case hint != nil:
@@ -1319,7 +1319,7 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 		}
 
 		if x.mode == typexpr {
-			check.noTypeArgs(e.X.Pos(), x.typ)
+			check.typeArgsRequired(e.X.Pos(), x.typ)
 		}
 
 		valid := false
@@ -1510,7 +1510,7 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 		if T == Typ[Invalid] {
 			goto Error
 		}
-		check.noTypeArgs(e.Type.Pos(), T)
+		check.typeArgsRequired(e.Type.Pos(), T)
 		check.typeAssertion(x.pos(), x, xtyp, T)
 		x.mode = commaok
 		x.typ = T
@@ -1524,7 +1524,7 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 		case invalid:
 			goto Error
 		case typexpr:
-			check.noTypeArgs(e.X.Pos(), x.typ)
+			check.typeArgsRequired(e.X.Pos(), x.typ)
 			x.typ = &Pointer{base: x.typ}
 		default:
 			if typ, ok := x.typ.Underlying().(*Pointer); ok {
@@ -1565,7 +1565,7 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 		*ast.InterfaceType, *ast.MapType, *ast.ChanType:
 		x.mode = typexpr
 		x.typ = check.typ(e)
-		check.noTypeArgs(e.Pos(), x.typ)
+		check.typeArgsRequired(e.Pos(), x.typ)
 		// Note: rawExpr (caller of exprInternal) will call check.recordTypeAndValue
 		// even though check.typ has already called it. This is fine as both
 		// times the same expression and type are recorded. It is also not a

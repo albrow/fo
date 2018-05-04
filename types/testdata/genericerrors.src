@@ -8,20 +8,20 @@ type A[T] struct {
   v T
 }
 
-func _(A /* ERROR "wrong number of type arguments" */) {}
+func _(A /* ERROR "missing type arguments for type genericerrors.A" */) {}
 
-func _() A /* ERROR "wrong number of type arguments" */ {
-  var a A /* ERROR "wrong number of type arguments" */
+func _() A /* ERROR "missing type arguments for type genericerrors.A" */ {
+  var a A /* ERROR "missing type arguments for type genericerrors.A" */
   return a
 }
 
 func main() {
-  var _ A /* ERROR "wrong number of type arguments" */
-  var _ = A /* ERROR "wrong number of type arguments" */ {}
+  var _ A /* ERROR "missing type arguments for type genericerrors.A" */
+  var _ = A /* ERROR "missing type arguments for type genericerrors.A" */ {}
   var x interface{} = A[string]{}
-  _, _ = x.(A /* ERROR "wrong number of type arguments" */ )
+  _, _ = x.(A /* ERROR "missing type arguments for type genericerrors.A" */ )
   switch x.(type) {
-    case A /* ERROR "wrong number of type arguments" */ :
+    case A /* ERROR "missing type arguments for type genericerrors.A" */ :
   }
-  var _ = A /* ERROR "wrong number of type arguments" */ ("" /* ERROR "cannot convert" */)
+  var _ = A /* ERROR "missing type arguments for type genericerrors.A" */ ("" /* ERROR "cannot convert" */)
 }

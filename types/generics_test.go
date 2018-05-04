@@ -50,7 +50,7 @@ func main() {
 		t.Fatal("could not find generic declaration for A")
 	}
 	if len(aDecl.typeParams) != 1 {
-		t.Errorf("wrong number of type parameters for A (expected 1 but got %d)", len(aDecl.typeParams))
+		t.Errorf("wrong number of type arguments for A (expected 1 but got %d)", len(aDecl.typeParams))
 	}
 	if len(aDecl.usages) != 2 {
 		t.Fatalf("wrong number of usages for A (expected 2 but got %d)", len(aDecl.usages))
@@ -99,7 +99,7 @@ func main() {
 		t.Fatal("could not find generic declaration for APart")
 	}
 	if len(aPartDecl.typeParams) != 1 {
-		t.Errorf("wrong number of type parameters for APart (expected 1 but got %d)", len(aPartDecl.typeParams))
+		t.Errorf("wrong number of type arguments for APart (expected 1 but got %d)", len(aPartDecl.typeParams))
 	}
 	if len(aPartDecl.usages) != 2 {
 		t.Fatalf("wrong number of usages for APart (expected 2 but got %d)", len(aPartDecl.usages))
@@ -120,7 +120,7 @@ func main() {
 		t.Fatal("could not find generic declaration for A")
 	}
 	if len(aDecl.typeParams) != 2 {
-		t.Errorf("wrong number of type parameters for A (expected 2 but got %d)", len(aDecl.typeParams))
+		t.Errorf("wrong number of type arguments for A (expected 2 but got %d)", len(aDecl.typeParams))
 	}
 	if len(aDecl.usages) != 2 {
 		t.Fatalf("wrong number of usages for A (expected 2 but got %d)", len(aDecl.usages))

@@ -199,7 +199,7 @@ func createMethodTypeMap(recvType Type, typeMap map[string]Type) map[string]Type
 		for name, typ := range typeMap {
 			newTypeMap[name] = typ
 		}
-		// Then remap all the receiver type parameters to their appropriate type.
+		// Then remap all the receiver type arguments to their appropriate type.
 		for name, typ := range recvType.typeMap {
 			if tp, ok := typ.(*TypeParam); ok {
 				newTypeMap[tp.String()] = typeMap[name]
@@ -375,20 +375,20 @@ func replaceTypesInConcreteNamed(root *ConcreteNamed, typeParams []ast.Expr, typ
 	return newType
 }
 
-// noTypeArgs reports an error if the typ is a generic type. It should be called
-// in any context where a generic type is not valid (and a TypeArgExpr should be
-// used instead).
+// typeArgsRequired reports an error if the typ is a generic type. It should be
+// called in any context where a generic type is not valid (and a TypeArgExpr
+// should be used instead).
 //
 // TODO(albrow): replace this with type argument inference.
-func (check *Checker) noTypeArgs(pos token.Pos, typ Type) {
+func (check *Checker) typeArgsRequired(pos token.Pos, typ Type) {
 	switch typ := typ.(type) {
 	case *Named:
 		if len(typ.typeParams) > 0 {
-			check.errorf(pos, "wrong number of type arguments (expected %d but got 0)", len(typ.typeParams))
+			check.errorf(pos, "missing type arguments for type %s", typ.String())
 		}
 	case *Signature:
 		if len(typ.typeParams) > 0 {
-			check.errorf(pos, "wrong number of type arguments (expected %d but got 0)", len(typ.typeParams))
+			check.errorf(pos, "missing type arguments for type %s", typ.String())
 		}
 	}
 }

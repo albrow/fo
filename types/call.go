@@ -24,7 +24,7 @@ func (check *Checker) call(x *operand, e *ast.CallExpr) exprKind {
 
 	case typexpr:
 		// conversion
-		check.noTypeArgs(e.Pos(), x.typ)
+		check.typeArgsRequired(e.Pos(), x.typ)
 		T := x.typ
 		x.mode = invalid
 		switch n := len(e.Args); n {
@@ -370,7 +370,7 @@ func (check *Checker) selector(x *operand, e *ast.SelectorExpr) {
 		goto Error
 	}
 	if x.mode == typexpr {
-		check.noTypeArgs(e.X.Pos(), x.typ)
+		check.typeArgsRequired(e.X.Pos(), x.typ)
 	}
 
 	obj, index, indirect = LookupFieldOrMethod(x.typ, x.mode == variable, check.pkg, sel)
