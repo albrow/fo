@@ -15,6 +15,16 @@ func _() A /* ERROR "missing type arguments for type genericerrors.A" */ {
   return a
 }
 
+func F[T]() T {
+  var x T
+  return x
+}
+
+func (A[T]) F[U]() U {
+  var x U
+  return x
+}
+
 func main() {
   var _ A /* ERROR "missing type arguments for type genericerrors.A" */
   var _ = A /* ERROR "missing type arguments for type genericerrors.A" */ {}
@@ -24,4 +34,19 @@ func main() {
     case A /* ERROR "missing type arguments for type genericerrors.A" */ :
   }
   var _ = A /* ERROR "missing type arguments for type genericerrors.A" */ ("" /* ERROR "cannot convert" */)
+
+  var _ = F /* ERROR "missing type arguments" */
+  y := F /* ERROR "missing type arguments" */
+  print(y /* ERROR "missing type arguments" */ )
+  print(F /* ERROR "missing type arguments" */)
+  var _ = struct{
+    v interface{}
+  }{
+    v: F /* ERROR "missing type arguments" */,
+  }
+
+  const _ = F /* ERROR "is not constant" */
+
+  a := A[string]{}
+  var _ = a /* ERROR "missing type arguments" */ .F 
 }

@@ -180,7 +180,7 @@ func main() {
   var _ func(string) = x.i
   var _ func() string = x.j
   var _ func(int, bool) = x.k[int, bool]
-  var _ func() (string, int, bool) = x.l[int, bool] 
+  var _ func() (string, int, bool) = x.l[int, bool]
 
   // Methods as function values with receiver as first arg
   var _ func(A[string]) = (A[string]).a

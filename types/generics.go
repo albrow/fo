@@ -390,5 +390,9 @@ func (check *Checker) typeArgsRequired(pos token.Pos, typ Type) {
 		if len(typ.typeParams) > 0 {
 			check.errorf(pos, "missing type arguments for type %s", typ.String())
 		}
+	case *MethodPartial:
+		if len(typ.typeParams) > 0 {
+			check.errorf(pos, "missing type arguments for type %s", typ.String())
+		}
 	}
 }
