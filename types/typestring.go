@@ -143,6 +143,9 @@ func writeType(buf *bytes.Buffer, typ Type, qf Qualifier, visited []Type) {
 
 	case *Signature:
 		buf.WriteString("func")
+		if t.typeParams != nil {
+			writeTypeParams(buf, t.typeParams)
+		}
 		writeSignature(buf, t, qf, visited)
 
 	case *ConcreteSignature:
@@ -244,7 +247,7 @@ func writeType(buf *bytes.Buffer, typ Type, qf Qualifier, visited []Type) {
 			s = obj.name
 			buf.WriteString(s)
 			if named, ok := obj.typ.(*ConcreteNamed); ok && len(named.typeMap) > 0 {
-				writeConcreteTypeParams(buf, named.typeMap, named.typeParams)
+				writeTypeArgs(buf, named.typeMap, named.typeParams)
 			}
 		}
 
@@ -318,7 +321,7 @@ func writeSignature(buf *bytes.Buffer, sig *Signature, qf Qualifier, visited []T
 	writeTuple(buf, sig.results, false, qf, visited)
 }
 
-func writeConcreteTypeParams(buf *bytes.Buffer, typeMap map[string]Type, typeParams []*TypeParam) {
+func writeTypeArgs(buf *bytes.Buffer, typeMap map[string]Type, typeParams []*TypeParam) {
 	params := []string{}
 	for _, param := range typeParams {
 		if concrete, found := typeMap[param.String()]; found {
@@ -326,6 +329,17 @@ func writeConcreteTypeParams(buf *bytes.Buffer, typeMap map[string]Type, typePar
 		} else {
 			params = append(params, "?")
 		}
+	}
+	buf.WriteString("[")
+	// TODO(albrow): Can we avoid using the strings package here?
+	buf.WriteString(strings.Join(params, ","))
+	buf.WriteByte(']')
+}
+
+func writeTypeParams(buf *bytes.Buffer, typeParams []*TypeParam) {
+	params := []string{}
+	for _, param := range typeParams {
+		params = append(params, param.String())
 	}
 	buf.WriteString("[")
 	// TODO(albrow): Can we avoid using the strings package here?
