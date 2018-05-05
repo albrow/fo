@@ -8,6 +8,8 @@
 package types
 
 import (
+	"fmt"
+
 	"github.com/albrow/fo/ast"
 	"github.com/albrow/fo/token"
 )
@@ -55,8 +57,20 @@ func (check *Checker) call(x *operand, e *ast.CallExpr) exprKind {
 
 	default:
 		// function/method call
-		sig, _ := x.typ.Underlying().(*Signature)
-		if sig == nil {
+		// TODO(albrow): abstract this into a helper function, or create a Signature
+		// interface
+
+		var sig *Signature
+		switch t := x.typ.Underlying().(type) {
+		case *Signature:
+			sig = t
+		case *GenericSignature:
+			sig = t.Signature
+		case *PartialGenericSignature:
+			sig = t.Signature
+		case *ConcreteSignature:
+			sig = t.Signature
+		default:
 			check.invalidOp(x.pos(), "cannot call non-function %s", x)
 			x.mode = invalid
 			x.expr = e
@@ -400,7 +414,18 @@ func (check *Checker) selector(x *operand, e *ast.SelectorExpr) {
 		// the receiver type becomes the type of the first function
 		// argument of the method expression's function type
 		var params []*Var
-		sig := m.typ.(*Signature)
+		// TODO(albrow): de-duplicate this code
+		var sig *Signature
+		switch t := m.typ.(type) {
+		case *Signature:
+			sig = t
+		case *GenericSignature:
+			sig = t.Signature
+		case *PartialGenericSignature:
+			sig = t.Signature
+		case *ConcreteSignature:
+			sig = t.Signature
+		}
 		if sig.params != nil {
 			params = sig.params.vars
 		}
@@ -461,16 +486,29 @@ func (check *Checker) selector(x *operand, e *ast.SelectorExpr) {
 
 			x.mode = value
 
-			sig := *obj.typ.(*Signature)
-
-			if named, ok := x.typ.(*ConcreteNamed); ok && sig.typeParams != nil {
-				x.typ = NewMethodPartial(&sig, named.obj.name, named.typeParams, named.typeMap)
-			} else {
-				x.typ = &sig
+			switch sig := obj.typ.(type) {
+			case *Signature:
+				// Default Go case
+				x.typ = sig
+				// sig.recv = nil
+			case *ConcreteSignature:
+				x.typ = sig
+			case *GenericSignature:
+				recvTyp, _ := deref(sig.recv.typ)
+				if genRecv, ok := recvTyp.(ConcreteType); ok {
+					x.typ = &PartialGenericSignature{
+						Signature: sig.Signature,
+						genType:   sig,
+						typeMap:   genRecv.TypeMap(),
+					}
+				} else {
+					x.typ = sig
+				}
+			case *PartialGenericSignature:
+				x.typ = sig
+			default:
+				panic(fmt.Errorf("unexpected Func type: %T", obj.typ))
 			}
-
-			// remove receiver
-			sig.recv = nil
 			check.addDeclDep(obj)
 
 		default:

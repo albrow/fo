@@ -211,33 +211,50 @@ func identical(x, y Type, cmpTags bool, p *ifacePair) bool {
 		// and either both functions are variadic or neither is. Parameter and result
 		// names are not required to match.
 		if y, ok := y.(*Signature); ok {
-			// TODO(albrow): test this case. Especially when two signatures use
-			// different parameter names.
-			if len(x.typeParams) != len(y.typeParams) {
-				return false
-			}
 			return x.variadic == y.variadic &&
 				identical(x.params, y.params, cmpTags, p) &&
 				identical(x.results, y.results, cmpTags, p)
 		}
 
-	case *MethodPartial:
-		if y, ok := y.(*MethodPartial); ok {
-			if !identical(x.Signature, y.Signature, cmpTags, p) {
-				return false
-			}
+	case *GenericSignature:
+		// Two generic signatures are identical if their corresponding function
+		// declarations are the same.
+		if y, ok := y.(*GenericSignature); ok {
+			return x.obj == y.obj
 		}
 
 	case *ConcreteSignature:
+		// Two concrete signatures are the same if their corresponding function
+		// declarations are the same and they have the same type arguments.
 		if y, ok := y.(*ConcreteSignature); ok {
-			if !identical(x.Signature, y.Signature, cmpTags, p) {
+			if !identical(x.genType, y.genType, cmpTags, p) {
 				return false
 			}
 			if len(y.typeMap) != len(x.typeMap) {
 				return false
 			}
-			// TODO(albrow): test this case. Especially when two signatures use
-			// different parameter names. Probably need a code change here.
+			// TODO(albrow): test this case.
+			for name, xParam := range x.typeMap {
+				if yParam, found := y.typeMap[name]; !found {
+					return false
+				} else if !identical(yParam, xParam, false, nil) {
+					return false
+				}
+			}
+			return true
+		}
+
+	case *PartialGenericSignature:
+		// Two partial generic signatures are the same if their corresponding
+		// function declarations are the same and they have the same type arguments.
+		if y, ok := y.(*PartialGenericSignature); ok {
+			if !identical(x.genType, y.genType, cmpTags, p) {
+				return false
+			}
+			if len(y.typeMap) != len(x.typeMap) {
+				return false
+			}
+			// TODO(albrow): test this case.
 			for name, xParam := range x.typeMap {
 				if yParam, found := y.typeMap[name]; !found {
 					return false
@@ -319,18 +336,47 @@ func identical(x, y Type, cmpTags bool, p *ifacePair) bool {
 			return x.obj == y.obj
 		}
 
+	case *GenericNamed:
+		// Two generic named types are identical if their type names originate in
+		// in the same type declaration.
+		if y, ok := y.(*GenericNamed); ok {
+			return x.obj == y.obj
+		}
+
 	case *ConcreteNamed:
-		// Two concrete named types are identical if their generic named types have
-		// the same id and the type arguments are the same.
+		// Two concrete named types are identical if their gtheir type names
+		// originate in in the same type declaration and they have the same type
+		// arguments.
 		if y, ok := y.(*ConcreteNamed); ok {
-			if x.Named.obj.Id() != y.Named.obj.Id() {
+			if x.obj != y.obj {
 				return false
 			}
 			if len(x.typeMap) != len(y.typeMap) {
 				return false
 			}
-			// TODO(albrow): test this case. Especially when two signatures use
-			// different parameter names. Probably need a code change here.
+			// TODO(albrow): test this case.
+			for name, xParam := range x.typeMap {
+				if yParam, found := y.typeMap[name]; !found {
+					return false
+				} else if !identical(yParam, xParam, false, nil) {
+					return false
+				}
+			}
+			return true
+		}
+
+	case *PartialGenericNamed:
+		// Two partial generic named types are identical if their type names
+		// originate in the same type declaration and they have the same type
+		// arguments.
+		if y, ok := y.(*ConcreteNamed); ok {
+			if x.obj != y.obj {
+				return false
+			}
+			if len(x.typeMap) != len(y.typeMap) {
+				return false
+			}
+			// TODO(albrow): test this case.
 			for name, xParam := range x.typeMap {
 				if yParam, found := y.typeMap[name]; !found {
 					return false

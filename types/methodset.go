@@ -258,6 +258,19 @@ func (s methodSet) add(list []*Func, index []int, indirect bool, multiples bool)
 // ptrRecv reports whether the receiver is of the form *T.
 // The receiver must exist.
 func ptrRecv(f *Func) bool {
-	_, isPtr := deref(f.typ.(*Signature).recv.typ)
+	var sig *Signature
+	switch t := f.typ.(type) {
+	case *Signature:
+		sig = t
+	case *GenericSignature:
+		sig = t.Signature
+	case *PartialGenericSignature:
+		sig = t.Signature
+	case *ConcreteSignature:
+		sig = t.Signature
+	default:
+		panic(fmt.Errorf("unexpected Func type: %T", f.typ))
+	}
+	_, isPtr := deref(sig.recv.typ)
 	return isPtr
 }

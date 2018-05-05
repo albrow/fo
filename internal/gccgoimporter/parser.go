@@ -411,7 +411,7 @@ func (p *parser) parseNamedType(n int) types.Type {
 		// is known - set it up
 		tname := types.NewTypeName(token.NoPos, pkg, name, nil)
 		// TODO(albrow): support type parameters here?
-		types.NewNamed(tname, nil, nil, nil)
+		types.NewNamed(tname, nil, nil)
 		scope.Insert(tname)
 		obj = tname
 	}
@@ -446,7 +446,7 @@ func (p *parser) parseNamedType(n int) types.Type {
 		p.expect(';')
 
 		// TODO(albrow): support type parameters here?
-		sig := types.NewSignature(receiver, params, results, isVariadic, nil, nil)
+		sig := types.NewSignature(receiver, params, results, isVariadic)
 		nt.AddMethod(types.NewFunc(token.NoPos, pkg, name, sig))
 	}
 
@@ -570,7 +570,7 @@ func (p *parser) parseFunctionType(pkg *types.Package) *types.Signature {
 	params, isVariadic := p.parseParamList(pkg)
 	results := p.parseResultList(pkg)
 	// TODO(albrow): support type parameters here?
-	return types.NewSignature(nil, params, results, isVariadic, nil, nil)
+	return types.NewSignature(nil, params, results, isVariadic)
 }
 
 // Func = Name FunctionType .

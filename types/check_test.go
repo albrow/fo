@@ -95,6 +95,7 @@ var tests = [][]string{
 	{"testdata/genericnamed.src"},
 	{"testdata/genericfuncs.src"},
 	{"testdata/genericmethods.src"},
+	{"testdata/genericmethodsinherited.src"},
 	{"testdata/genericstructs.src"},
 	{"testdata/genericsinherited.src"},
 }

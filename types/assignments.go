@@ -21,7 +21,7 @@ func (check *Checker) assignment(x *operand, T Type, context string) {
 	check.singleValue(x)
 
 	switch x.typ.(type) {
-	case *Signature, *MethodPartial:
+	case *GenericSignature, *PartialGenericSignature:
 		// Generic functions/methods cannot be used as values without type
 		// arguments, so we need to check if type arguments are required here.
 		check.typeArgsRequired(x.pos(), x.typ)

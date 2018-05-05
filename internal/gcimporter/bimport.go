@@ -285,7 +285,7 @@ func (p *importer) obj(tag int) {
 		params, isddd := p.paramList()
 		result, _ := p.paramList()
 		// TODO(albrow): support type parameters here?
-		sig := types.NewSignature(nil, params, result, isddd, nil, nil)
+		sig := types.NewSignature(nil, params, result, isddd)
 		p.declare(types.NewFunc(pos, pkg, name, sig))
 
 	default:
@@ -410,7 +410,7 @@ func (p *importer) typ(parent *types.Package) types.Type {
 
 		// associate new named type with obj if it doesn't exist yet
 		// TODO(albrow): support type parameters here?
-		t0 := types.NewNamed(obj.(*types.TypeName), nil, nil, nil)
+		t0 := types.NewNamed(obj.(*types.TypeName), nil, nil)
 
 		// but record the existing type, if any
 		t := obj.Type().(*types.Named)
@@ -439,7 +439,7 @@ func (p *importer) typ(parent *types.Package) types.Type {
 			p.int() // go:nointerface pragma - discarded
 
 			// TODO(albrow): support type parameters here?
-			sig := types.NewSignature(recv.At(0), params, result, isddd, nil, nil)
+			sig := types.NewSignature(recv.At(0), params, result, isddd)
 			t0.AddMethod(types.NewFunc(pos, parent, name, sig))
 		}
 
@@ -500,7 +500,7 @@ func (p *importer) typ(parent *types.Package) types.Type {
 		params, isddd := p.paramList()
 		result, _ := p.paramList()
 		// TODO(albrow): support type parameters here?
-		*t = *types.NewSignature(nil, params, result, isddd, nil, nil)
+		*t = *types.NewSignature(nil, params, result, isddd)
 		return t
 
 	case interfaceTag:
@@ -620,7 +620,7 @@ func (p *importer) method(parent *types.Package) *types.Func {
 	params, isddd := p.paramList()
 	result, _ := p.paramList()
 	// TODO(albrow): support type parameters here?
-	sig := types.NewSignature(nil, params, result, isddd, nil, nil)
+	sig := types.NewSignature(nil, params, result, isddd)
 	return types.NewFunc(pos, pkg, name, sig)
 }
 

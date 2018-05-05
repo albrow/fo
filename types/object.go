@@ -154,6 +154,11 @@ func NewConst(pos token.Pos, pkg *Package, name string, typ Type, val constant.V
 func (obj *Const) Val() constant.Value { return obj.val }
 func (*Const) isDependency()           {} // a constant may be a dependency of an initialization expression
 
+type BaseTypeName interface {
+	Object
+	IsAlias() bool
+}
+
 // A TypeName represents a name for a (named or alias) type.
 type TypeName struct {
 	object
@@ -229,6 +234,13 @@ func (obj *Var) IsField() bool { return obj.isField }
 
 func (*Var) isDependency() {} // a variable may be a dependency of an initialization expression
 
+type BaseFunc interface {
+	Object
+	FullName() string
+	Scope() *Scope
+	setType(Type)
+}
+
 // A Func represents a declared function, concrete method, or abstract
 // (interface) method. Its Type() is always a *Signature.
 // An abstract method may belong to many interfaces due to embedding.
@@ -259,6 +271,10 @@ func (obj *Func) FullName() string {
 func (obj *Func) Scope() *Scope { return obj.typ.(*Signature).scope }
 
 func (*Func) isDependency() {} // a function may be a dependency of an initialization expression
+
+func (obj *Func) setType(typ Type) {
+	obj.typ = typ
+}
 
 // A Label represents a declared label.
 // Labels don't have a type.
@@ -318,7 +334,19 @@ func writeObject(buf *bytes.Buffer, obj Object, qf Qualifier) {
 		buf.WriteString("func ")
 		writeFuncName(buf, obj, qf)
 		if typ != nil {
-			WriteSignature(buf, typ.(*Signature), qf)
+			// TODO(albrow): de-duplicate this code
+			var sig *Signature
+			switch t := typ.(type) {
+			case *Signature:
+				sig = t
+			case *GenericSignature:
+				sig = t.Signature
+			case *PartialGenericSignature:
+				sig = t.Signature
+			case *ConcreteSignature:
+				sig = t.Signature
+			}
+			WriteSignature(buf, sig, qf)
 		}
 		return
 
@@ -404,7 +432,18 @@ func (obj *Nil) String() string      { return ObjectString(obj, nil) }
 
 func writeFuncName(buf *bytes.Buffer, f *Func, qf Qualifier) {
 	if f.typ != nil {
-		sig := f.typ.(*Signature)
+		// TODO(albrow): de-duplicate this code
+		var sig *Signature
+		switch t := f.typ.(type) {
+		case *Signature:
+			sig = t
+		case *GenericSignature:
+			sig = t.Signature
+		case *PartialGenericSignature:
+			sig = t.Signature
+		case *ConcreteSignature:
+			sig = t.Signature
+		}
 		if recv := sig.Recv(); recv != nil {
 			buf.WriteByte('(')
 			if _, ok := recv.Type().(*Interface); ok {

@@ -17,6 +17,26 @@ type Type interface {
 	String() string
 }
 
+type GenericType interface {
+	Type
+	TypeParams() []*TypeParam
+	Object() Object
+}
+
+type ConcreteType interface {
+	Type
+	GenericType() GenericType
+	TypeMap() map[string]Type
+}
+
+type PartialGenericType interface {
+	Type
+	TypeParams() []*TypeParam
+	Object() Object
+	GenericType() GenericType
+	TypeMap() map[string]Type
+}
+
 // BasicKind describes the kind of basic type.
 type BasicKind int
 
@@ -211,6 +231,13 @@ func (t *Tuple) Len() int {
 // At returns the i'th variable of tuple t.
 func (t *Tuple) At(i int) *Var { return t.vars[i] }
 
+type BaseSignature interface {
+	Recv() *Var
+	Params() *Tuple
+	Results() *Tuple
+	Variadic() bool
+}
+
 // A Signature represents a (non-builtin) function or method type.
 // The receiver is ignored when comparing signatures for identity.
 type Signature struct {
@@ -218,21 +245,18 @@ type Signature struct {
 	// and store it in the Func Object) because when type-checking a function
 	// literal we call the general type checker which returns a general Type.
 	// We then unpack the *Signature and use the scope for the literal body.
-	scope          *Scope       // function scope, present for package-local signatures
-	recv           *Var         // nil if not a method
-	params         *Tuple       // (incoming) parameters from left to right; or nil
-	results        *Tuple       // (outgoing) results from left to right; or nil
-	variadic       bool         // true if the last parameter's type is of the form ...T (or string, for append built-in only)
-	typeParams     []*TypeParam // generic type parameters (if any)
-	recvTypeParams []*TypeParam // type parameters of the receiver type (if any)
-	obj            *Func        // corresponding declaration (nil for anonymous functions)
+	scope    *Scope // function scope, present for package-local signatures
+	recv     *Var   // nil if not a method
+	params   *Tuple // (incoming) parameters from left to right; or nil
+	results  *Tuple // (outgoing) results from left to right; or nil
+	variadic bool   // true if the last parameter's type is of the form ...T (or string, for append built-in only)
 }
 
 // NewSignature returns a new function type for the given receiver, parameters,
 // and results, either of which may be nil. If variadic is set, the function
 // is variadic, it must have at least one parameter, and the last parameter
 // must be of unnamed slice type.
-func NewSignature(recv *Var, params, results *Tuple, variadic bool, typeParams, recvTypeParams []*TypeParam) *Signature {
+func NewSignature(recv *Var, params, results *Tuple, variadic bool) *Signature {
 	if variadic {
 		n := params.Len()
 		if n == 0 {
@@ -243,27 +267,12 @@ func NewSignature(recv *Var, params, results *Tuple, variadic bool, typeParams, 
 		}
 	}
 
-	// TODO(albrow): test this
-	var tset map[string]struct{}
-	if len(typeParams) > 0 {
-		tset = map[string]struct{}{}
-		for _, t := range typeParams {
-			if _, found := tset[t.String()]; found {
-				panic("types.NewSignature: cannot have multiple type parameters with the same name")
-			} else {
-				tset[t.String()] = struct{}{}
-			}
-		}
-	}
-
 	return &Signature{
-		scope:          nil,
-		recv:           recv,
-		params:         params,
-		results:        results,
-		variadic:       variadic,
-		typeParams:     typeParams,
-		recvTypeParams: recvTypeParams,
+		scope:    nil,
+		recv:     recv,
+		params:   params,
+		results:  results,
+		variadic: variadic,
 	}
 }
 
@@ -284,46 +293,88 @@ func (s *Signature) Results() *Tuple { return s.results }
 // Variadic reports whether the signature s is variadic.
 func (s *Signature) Variadic() bool { return s.variadic }
 
-// TODO(albrow): Add exported function for accessing signature type parameters?
+type GenericSignature struct {
+	*Signature                  // signature may contain some type parameters in place of types
+	typeParams     []*TypeParam // generic type parameters (if any)
+	recvTypeParams []*TypeParam // type parameters of the receiver type (if any)
+	obj            *Func        // obj points to the corresponding declaration
+}
+
+func NewGenericSignature(recv *Var, params, results *Tuple, variadic bool, typeParams, recvTypeParams []*TypeParam) *GenericSignature {
+
+	sig := NewSignature(recv, params, results, variadic)
+
+	// TODO(albrow): test this
+	var tset map[string]struct{}
+	if len(typeParams) > 0 {
+		tset = map[string]struct{}{}
+		for _, t := range typeParams {
+			if _, found := tset[t.String()]; found {
+				panic("types.NewSignature: cannot have multiple type parameters with the same name")
+			} else {
+				tset[t.String()] = struct{}{}
+			}
+		}
+		for _, t := range recvTypeParams {
+			if _, found := tset[t.String()]; found {
+				panic("types.NewSignature: cannot have multiple type parameters with the same name")
+			} else {
+				tset[t.String()] = struct{}{}
+			}
+		}
+	}
+
+	return &GenericSignature{
+		Signature:      sig,
+		typeParams:     typeParams,
+		recvTypeParams: recvTypeParams,
+	}
+}
+
+func (gs *GenericSignature) TypeParams() []*TypeParam {
+	return gs.typeParams
+}
+
+func (gs *GenericSignature) Object() Object {
+	return gs.obj
+}
 
 // ConcreteSignature is the corresponding concrete type of a generic Signature
 // for which type arguments have been provided.
 type ConcreteSignature struct {
 	*Signature
-	typeParams []*TypeParam
-	typeMap    map[string]Type // map of type parameter name to concrete type
+	genType *GenericSignature
+	typeMap map[string]Type // map of type parameter name to concrete type
 }
 
-// NewConcreteSignature returns the concrete signature type corresponding to a
-// generic signature type with the type arguments given in typeMap.
-func NewConcreteSignature(sig *Signature, typeParams []*TypeParam, typeMap map[string]Type) *ConcreteSignature {
-	return &ConcreteSignature{
-		Signature:  sig,
-		typeParams: typeParams,
-		typeMap:    typeMap,
-	}
+func (cs *ConcreteSignature) GenericType() GenericType {
+	return cs.genType
 }
 
-// MethodPartial is the corresponding concrete type of a generic Signature
-// which has a receiver for which type arguments have been provided. We need a
-// way to captrue those type arguments to generate the appropriate
-// ConcreteSignature later on.
-type MethodPartial struct {
+func (cs *ConcreteSignature) TypeMap() map[string]Type {
+	return cs.typeMap
+}
+
+type PartialGenericSignature struct {
 	*Signature
-	recvName       string
-	recvTypeParams []*TypeParam
-	recvTypeMap    map[string]Type // map of type parameter name to concrete type
+	genType *GenericSignature
+	typeMap map[string]Type // map of type parameter name to concrete type
 }
 
-// NewMethodPartial returns the concrete signature type corresponding to a
-// generic signature type with the type arguments given in recvTypeMap.
-func NewMethodPartial(sig *Signature, recvName string, recvTypeParams []*TypeParam, recvTypeMap map[string]Type) *MethodPartial {
-	return &MethodPartial{
-		Signature:      sig,
-		recvName:       recvName,
-		recvTypeParams: recvTypeParams,
-		recvTypeMap:    recvTypeMap,
-	}
+func (pgs *PartialGenericSignature) TypeParams() []*TypeParam {
+	return pgs.genType.typeParams
+}
+
+func (pgs *PartialGenericSignature) Object() Object {
+	return pgs.genType.obj
+}
+
+func (pgs *PartialGenericSignature) GenericType() GenericType {
+	return pgs.genType
+}
+
+func (pgs *PartialGenericSignature) TypeMap() map[string]Type {
+	return pgs.typeMap
 }
 
 // An Interface represents an interface type.
@@ -475,36 +526,29 @@ func (c *Chan) Dir() ChanDir { return c.dir }
 // Elem returns the element type of channel c.
 func (c *Chan) Elem() Type { return c.elem }
 
+type BaseNamed interface {
+	Type
+	Obj() *TypeName
+	NumMethods() int
+	Method(int) *Func
+}
+
 // A Named represents a named type.
 type Named struct {
-	obj        *TypeName    // corresponding declared object
-	underlying Type         // possibly a *Named during setup; never a *Named once set up completely
-	methods    []*Func      // methods declared for this type (not the method set of this type)
-	typeParams []*TypeParam // generic type parameters (if any)
+	obj        *TypeName // corresponding declared object
+	underlying Type      // possibly a *Named during setup; never a *Named once set up completely
+	methods    []*Func   // methods declared for this type (not the method set of this type)
 }
 
 // NewNamed returns a new named type for the given type name, underlying type, and associated methods.
 // If the given type name obj doesn't have a type yet, its type is set to the returned named type.
 // The underlying type must not be a *Named.
-func NewNamed(obj *TypeName, underlying Type, methods []*Func, typeParams []*TypeParam) *Named {
+func NewNamed(obj *TypeName, underlying Type, methods []*Func) *Named {
 	if _, ok := underlying.(*Named); ok {
 		panic("types.NewNamed: underlying type must not be *Named")
 	}
 
-	// TODO(albrow): test this
-	var tset map[string]struct{}
-	if len(typeParams) > 0 {
-		tset = map[string]struct{}{}
-		for _, t := range typeParams {
-			if _, found := tset[t.String()]; found {
-				panic("types.NewNamed: cannot have multiple type parameters with the same name")
-			} else {
-				tset[t.String()] = struct{}{}
-			}
-		}
-	}
-
-	typ := &Named{obj: obj, underlying: underlying, methods: methods, typeParams: typeParams}
+	typ := &Named{obj: obj, underlying: underlying, methods: methods}
 	if obj.typ == nil {
 		obj.typ = typ
 	}
@@ -538,22 +582,80 @@ func (t *Named) AddMethod(m *Func) {
 	}
 }
 
+type GenericNamed struct {
+	*Named
+	typeParams []*TypeParam
+}
+
+func NewGenericNamed(obj *TypeName, underlying Type, methods []*Func, typeParams []*TypeParam) *GenericNamed {
+	named := NewNamed(obj, underlying, methods)
+
+	// TODO(albrow): test this
+	var tset map[string]struct{}
+	if len(typeParams) > 0 {
+		tset = map[string]struct{}{}
+		for _, t := range typeParams {
+			if _, found := tset[t.String()]; found {
+				panic("types.NewNamed: cannot have multiple type parameters with the same name")
+			} else {
+				tset[t.String()] = struct{}{}
+			}
+		}
+	}
+
+	return &GenericNamed{
+		Named:      named,
+		typeParams: typeParams,
+	}
+}
+
+func (gn *GenericNamed) TypeParams() []*TypeParam {
+	return gn.typeParams
+}
+
+func (gn *GenericNamed) Object() Object {
+	return gn.obj
+}
+
+// GenericType() GenericType
+// TypeArgs() map[string]Type
+
 // ConcreteNamed is the corresponding concrete type of a generic Named type for
 // which type arguments have been provided.
 type ConcreteNamed struct {
 	*Named
-	typeParams []*TypeParam
-	typeMap    map[string]Type // map of type parameter name to concrete type
+	genType *GenericNamed
+	typeMap map[string]Type // map of type parameter name to concrete type
 }
 
-// NewConcreteNamed returns the concrete named type corresponding to a
-// generic named type with the type arguments given in typeMap.
-func NewConcreteNamed(named *Named, typeParams []*TypeParam, typeMap map[string]Type) *ConcreteNamed {
-	return &ConcreteNamed{
-		Named:      named,
-		typeParams: typeParams,
-		typeMap:    typeMap,
-	}
+func (cn *ConcreteNamed) GenericType() GenericType {
+	return cn.genType
+}
+
+func (cn *ConcreteNamed) TypeMap() map[string]Type {
+	return cn.typeMap
+}
+
+type PartialGenericNamed struct {
+	*Named
+	genType *GenericNamed
+	typeMap map[string]Type
+}
+
+func (pgn *PartialGenericNamed) TypeParams() []*TypeParam {
+	return pgn.genType.typeParams
+}
+
+func (pgn *PartialGenericNamed) Object() Object {
+	return pgn.genType.obj
+}
+
+func (pgn *PartialGenericNamed) GenericType() GenericType {
+	return pgn.genType
+}
+
+func (pgn *PartialGenericNamed) TypeMap() map[string]Type {
+	return pgn.typeMap
 }
 
 // Implementations for Type methods.
@@ -570,14 +672,20 @@ func (t *Map) Underlying() Type       { return t }
 func (t *Chan) Underlying() Type      { return t }
 func (t *Named) Underlying() Type     { return t.underlying }
 
-func (t *Basic) String() string     { return TypeString(t, nil) }
-func (t *Array) String() string     { return TypeString(t, nil) }
-func (t *Slice) String() string     { return TypeString(t, nil) }
-func (t *Struct) String() string    { return TypeString(t, nil) }
-func (t *Pointer) String() string   { return TypeString(t, nil) }
-func (t *Tuple) String() string     { return TypeString(t, nil) }
-func (t *Signature) String() string { return TypeString(t, nil) }
-func (t *Interface) String() string { return TypeString(t, nil) }
-func (t *Map) String() string       { return TypeString(t, nil) }
-func (t *Chan) String() string      { return TypeString(t, nil) }
-func (t *Named) String() string     { return TypeString(t, nil) }
+func (t *Basic) String() string                   { return TypeString(t, nil) }
+func (t *Array) String() string                   { return TypeString(t, nil) }
+func (t *Slice) String() string                   { return TypeString(t, nil) }
+func (t *Struct) String() string                  { return TypeString(t, nil) }
+func (t *Pointer) String() string                 { return TypeString(t, nil) }
+func (t *Tuple) String() string                   { return TypeString(t, nil) }
+func (t *Signature) String() string               { return TypeString(t, nil) }
+func (t *GenericSignature) String() string        { return TypeString(t, nil) }
+func (t *PartialGenericSignature) String() string { return TypeString(t, nil) }
+func (t *ConcreteSignature) String() string       { return TypeString(t, nil) }
+func (t *Interface) String() string               { return TypeString(t, nil) }
+func (t *Map) String() string                     { return TypeString(t, nil) }
+func (t *Chan) String() string                    { return TypeString(t, nil) }
+func (t *Named) String() string                   { return TypeString(t, nil) }
+func (t *GenericNamed) String() string            { return TypeString(t, nil) }
+func (t *PartialGenericNamed) String() string     { return TypeString(t, nil) }
+func (t *ConcreteNamed) String() string           { return TypeString(t, nil) }

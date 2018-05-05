@@ -273,9 +273,14 @@ func (check *Checker) typeDecl(obj *TypeName, typ ast.Expr, def *Named, path []*
 				check.scope = origScope
 			}()
 		}
-		named.typeParams = typeParams
-		if named.typeParams != nil {
-			addGenericDecl(obj.name, obj, named.typeParams)
+		if typeParams != nil {
+			genNamed := &GenericNamed{
+				Named:      named,
+				typeParams: typeParams,
+			}
+			def.setUnderlying(genNamed)
+			obj.typ = genNamed
+			// TOOD(albrow): Add generic declarations somewhere.
 		}
 
 		// determine underlying type of named
@@ -323,7 +328,18 @@ func (check *Checker) addMethodDecls(obj *TypeName) {
 
 	// spec: "If the base type is a struct type, the non-blank method
 	// and field names must be distinct."
-	base, _ := obj.typ.(*Named) // nil if receiver base type is type alias
+	var base *Named
+	switch t := obj.typ.(type) {
+	case *Named:
+		base = t
+	case *GenericNamed:
+		base = t.Named
+	case *ConcreteNamed:
+		base = t.Named
+	case *PartialGenericNamed:
+		base = t.Named
+	}
+	// base is nil if receiver base type is type alias
 	if base != nil {
 		if t, _ := base.underlying.(*Struct); t != nil {
 			for _, fld := range t.fields {
@@ -385,14 +401,38 @@ func (check *Checker) funcDecl(obj *Func, decl *declInfo) {
 	fdecl := decl.fdecl
 	sig := new(Signature)
 	obj.typ = sig // guard against cycles
-	sig.obj = obj
-	check.funcType(sig, fdecl.Recv, fdecl.Type, typeParams)
+
+	if typeParams != nil || isRecvGeneric(fdecl.Recv) {
+		genSig := &GenericSignature{
+			Signature: sig,
+			obj:       obj,
+		}
+		obj.typ = genSig
+		check.genericFuncType(genSig, fdecl.Recv, fdecl.Type, typeParams)
+		if (obj.name == "init" && sig.recv == nil) || obj.name == "main" {
+			if len(genSig.typeParams) > 0 || len(genSig.recvTypeParams) > 0 {
+				check.errorf(fdecl.Pos(), "func %s must have no type parameters", obj.name)
+				// ok to continue
+			}
+		}
+		// TODO(albrow): Add generic declarations somewhere.
+		// 	key := obj.Name()
+		// 	if sig.recv != nil {
+		// 		switch recvType := sig.recv.typ.(type) {
+		// 		case *Named:
+		// 			key = recvType.obj.name + "." + key
+		// 		case *ConcreteNamed:
+		// 			key = recvType.obj.name + "." + key
+		// 		}
+		// 	}
+		// 	addGenericDecl(key, obj, sig.typeParams)
+	} else {
+		check.funcType(sig, fdecl.Recv, fdecl.Type)
+	}
+
 	if (obj.name == "init" && sig.recv == nil) || obj.name == "main" {
 		if sig.params.Len() > 0 || sig.results.Len() > 0 {
 			check.errorf(fdecl.Pos(), "func %s must have no arguments and no return values", obj.name)
-			// ok to continue
-		} else if len(sig.typeParams) > 0 || len(sig.recvTypeParams) > 0 {
-			check.errorf(fdecl.Pos(), "func %s must have no type parameters", obj.name)
 			// ok to continue
 		}
 	}
@@ -402,19 +442,25 @@ func (check *Checker) funcDecl(obj *Func, decl *declInfo) {
 	if !check.conf.IgnoreFuncBodies && fdecl.Body != nil {
 		check.later(obj.name, decl, sig, fdecl.Body)
 	}
+}
 
-	if sig.typeParams != nil {
-		key := obj.Name()
-		if sig.recv != nil {
-			switch recvType := sig.recv.typ.(type) {
-			case *Named:
-				key = recvType.obj.name + "." + key
-			case *ConcreteNamed:
-				key = recvType.obj.name + "." + key
-			}
-		}
-		addGenericDecl(key, obj, sig.typeParams)
+func isRecvGeneric(recvPar *ast.FieldList) bool {
+	if recvPar == nil {
+		return false
+	} else if len(recvPar.List) != 1 {
+		return false
 	}
+
+	recv := recvPar.List[0]
+	typ := recv.Type
+	if x, ok := recv.Type.(*ast.StarExpr); ok {
+		typ = x.X
+	}
+	if _, ok := typ.(*ast.TypeArgExpr); ok {
+		return true
+	}
+
+	return false
 }
 
 func (check *Checker) declStmt(decl ast.Decl) {

@@ -8,6 +8,10 @@ type A[T] struct {
   v T
 }
 
+type AWrapMissing[T] struct {
+  a A /* ERROR "missing type arguments for type genericerrors.A" */
+}
+
 func _(A /* ERROR "missing type arguments for type genericerrors.A" */) {}
 
 func _() A /* ERROR "missing type arguments for type genericerrors.A" */ {
@@ -48,5 +52,5 @@ func main() {
   const _ = F /* ERROR "is not constant" */
 
   a := A[string]{}
-  var _ = a /* ERROR "missing type arguments" */ .F 
+  var _ = a /* ERROR "wrong number of type arguments" */ .F 
 }

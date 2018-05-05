@@ -143,10 +143,19 @@ func writeType(buf *bytes.Buffer, typ Type, qf Qualifier, visited []Type) {
 
 	case *Signature:
 		buf.WriteString("func")
-		if t.typeParams != nil {
-			writeTypeParams(buf, t.typeParams)
-		}
 		writeSignature(buf, t, qf, visited)
+
+	case *GenericSignature:
+		buf.WriteString("func")
+		if len(t.TypeParams()) > 0 {
+			writeTypeParams(buf, t.TypeParams())
+		}
+		writeSignature(buf, t.Signature, qf, visited)
+
+	case *PartialGenericSignature:
+		buf.WriteString("(partial)")
+		writeType(buf, t.Signature, qf, visited)
+		writeTypeArgs(buf, t.typeMap, t.GenericType().TypeParams())
 
 	case *ConcreteSignature:
 		buf.WriteString("func")
@@ -246,10 +255,19 @@ func writeType(buf *bytes.Buffer, typ Type, qf Qualifier, visited []Type) {
 			// ambiguity.
 			s = obj.name
 			buf.WriteString(s)
-			if named, ok := obj.typ.(*ConcreteNamed); ok && len(named.typeMap) > 0 {
-				writeTypeArgs(buf, named.typeMap, named.typeParams)
-			}
 		}
+
+	case *GenericNamed:
+		writeType(buf, t.Named, qf, visited)
+
+	case *PartialGenericNamed:
+		buf.WriteString("(partial)")
+		writeType(buf, t.Named, qf, visited)
+		writeTypeArgs(buf, t.typeMap, t.GenericType().TypeParams())
+
+	case *ConcreteNamed:
+		writeType(buf, t.Named, qf, visited)
+		writeTypeArgs(buf, t.typeMap, t.GenericType().TypeParams())
 
 	case *TypeParam:
 		buf.WriteString(t.String())

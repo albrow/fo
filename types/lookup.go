@@ -41,18 +41,9 @@ func LookupFieldOrMethod(T Type, addressable bool, pkg *Package, name string) (o
 	// Thus, if we have a named pointer type, proceed with the underlying
 	// pointer type but discard the result if it is a method since we would
 	// not have found it for T (see also issue 8590).
-	if t, _ := T.(*Named); t != nil {
-		if p, _ := t.underlying.(*Pointer); p != nil {
-			obj, index, indirect = lookupFieldOrMethod(p, false, pkg, name)
-			if _, ok := obj.(*Func); ok {
-				return nil, nil, false
-			}
-			return
-		}
-	} else if t, _ := T.(*ConcreteNamed); t != nil {
-		// TODO(albrow): Reduce code duplication for the *Named and *ConcreteNamed
-		// cases here.
-		if p, _ := t.underlying.(*Pointer); p != nil {
+	switch t := T.(type) {
+	case *Named, *GenericNamed, *ConcreteNamed, *PartialGenericNamed:
+		if p, _ := t.Underlying().(*Pointer); p != nil {
 			obj, index, indirect = lookupFieldOrMethod(p, false, pkg, name)
 			if _, ok := obj.(*Func); ok {
 				return nil, nil, false
@@ -139,6 +130,70 @@ func lookupFieldOrMethod(T Type, addressable bool, pkg *Package, name string) (o
 				// TODO(albrow): Reduce code duplication for the *Named and
 				// *ConcreteNamed cases.
 				named := concrete.Named
+				if seen[named] {
+					// We have seen this type before, at a more shallow depth
+					// (note that multiples of this type at the current depth
+					// were consolidated before). The type at that depth shadows
+					// this same type at the current depth, so we can ignore
+					// this one.
+					continue
+				}
+				if seen == nil {
+					seen = make(map[*Named]bool)
+				}
+				seen[named] = true
+
+				// look for a matching attached method
+				if i, m := lookupMethod(named.methods, pkg, name); m != nil {
+					// potential match
+					assert(m.typ != nil)
+					index = concat(e.index, i)
+					if obj != nil || e.multiples {
+						return nil, index, false // collision
+					}
+					obj = m
+					indirect = e.indirect
+					continue // we can't have a matching field or interface method
+				}
+
+				// continue with underlying type
+				typ = named.underlying
+			} else if genericNamed, _ := typ.(*GenericNamed); genericNamed != nil {
+				// TODO(albrow): Reduce code duplication for the *Named and
+				// *GenericNamed cases.
+				named := genericNamed.Named
+				if seen[named] {
+					// We have seen this type before, at a more shallow depth
+					// (note that multiples of this type at the current depth
+					// were consolidated before). The type at that depth shadows
+					// this same type at the current depth, so we can ignore
+					// this one.
+					continue
+				}
+				if seen == nil {
+					seen = make(map[*Named]bool)
+				}
+				seen[named] = true
+
+				// look for a matching attached method
+				if i, m := lookupMethod(named.methods, pkg, name); m != nil {
+					// potential match
+					assert(m.typ != nil)
+					index = concat(e.index, i)
+					if obj != nil || e.multiples {
+						return nil, index, false // collision
+					}
+					obj = m
+					indirect = e.indirect
+					continue // we can't have a matching field or interface method
+				}
+
+				// continue with underlying type
+				typ = named.underlying
+			} else if partialGenNamed, _ := typ.(*PartialGenericNamed); partialGenNamed != nil {
+				// TODO(albrow): Reduce code duplication for the *Named and
+				// *PartialGenericNamed cases.
+				named := partialGenNamed.Named
 				if seen[named] {
 					// We have seen this type before, at a more shallow depth
 					// (note that multiples of this type at the current depth
@@ -323,8 +378,16 @@ func MissingMethod(V Type, T *Interface, static bool) (method *Func, wrongType b
 			return m, false
 		}
 
-		if !Identical(f.typ, m.typ) {
-			return m, true
+		// Methods of type *ConcreteSignature should be considered implementing the
+		// method if the underlying signature implements the method.
+		if conSig, ok := f.typ.(*ConcreteSignature); ok {
+			if !Identical(conSig.Signature, m.typ) {
+				return m, true
+			}
+		} else {
+			if !Identical(f.typ, m.typ) {
+				return m, true
+			}
 		}
 	}
 

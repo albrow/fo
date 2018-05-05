@@ -138,7 +138,19 @@ func SelectionString(s *Selection, qf Qualifier) string {
 		buf.WriteByte(' ')
 		WriteType(&buf, T, qf)
 	} else {
-		WriteSignature(&buf, T.(*Signature), qf)
+		// TODO(albrow): de-duplicate this code
+		var sig *Signature
+		switch t := T.(type) {
+		case *Signature:
+			sig = t
+		case *GenericSignature:
+			sig = t.Signature
+		case *PartialGenericSignature:
+			sig = t.Signature
+		case *ConcreteSignature:
+			sig = t.Signature
+		}
+		WriteSignature(&buf, sig, qf)
 	}
 	return buf.String()
 }

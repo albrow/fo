@@ -19,7 +19,6 @@ type Package struct {
 	complete bool
 	imports  []*Package
 	fake     bool // scope lookup errors are silently dropped if package is fake (internal use only)
-	generics map[string]*GenericDecl
 }
 
 // NewPackage returns a new Package for the given package path and name.
@@ -61,10 +60,6 @@ func (pkg *Package) Imports() []*Package { return pkg.imports }
 // SetImports sets the list of explicitly imported packages to list.
 // It is the caller's responsibility to make sure list elements are unique.
 func (pkg *Package) SetImports(list []*Package) { pkg.imports = list }
-
-func (pkg *Package) Generics() map[string]*GenericDecl {
-	return pkg.generics
-}
 
 func (pkg *Package) String() string {
 	return fmt.Sprintf("package %s (%q)", pkg.name, pkg.path)

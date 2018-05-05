@@ -146,17 +146,42 @@ func (check *Checker) typ(e ast.Expr) Type {
 }
 
 // funcType type-checks a function or method type.
-func (check *Checker) funcType(sig *Signature, recvPar *ast.FieldList, ftyp *ast.FuncType, tpList *ast.TypeParamDecl) {
+func (check *Checker) funcType(sig *Signature, recvPar *ast.FieldList, ftyp *ast.FuncType) {
+	scope := NewScope(check.scope, token.NoPos, token.NoPos, "function")
+	scope.isFunc = true
+	check.recordScope(ftyp, scope)
+
+	recv := check.methodReceiver(scope, recvPar)
+	params, variadic := check.collectParams(scope, ftyp.Params, true)
+	results, _ := check.collectParams(scope, ftyp.Results, false)
+
+	if recvPar != nil {
+		// spec: "The receiver type must be of the form T or *T where T is a type name."
+		// (ignore invalid types - error was reported before)
+		if t, _ := deref(recv.typ); t != Typ[Invalid] {
+			check.recvType(recv, t)
+		}
+		sig.recv = recv
+	}
+
+	sig.scope = scope
+	sig.params = NewTuple(params...)
+	sig.results = NewTuple(results...)
+	sig.variadic = variadic
+}
+
+// genericFuncType type-checks a generic function or method type.
+func (check *Checker) genericFuncType(sig *GenericSignature, recvPar *ast.FieldList, ftyp *ast.FuncType, tpList *ast.TypeParamDecl) {
 	var typeParams []*TypeParam
 
 	// Add receiver type parameters to scope (if any)
 	recvTypeParams, tpScope := check.recvTypeParams(recvPar)
 
 	// Add other type parameters to scope (if any)
+	if tpScope == nil {
+		tpScope = NewScope(check.scope, check.scope.Pos(), check.scope.End(), "function type parameters")
+	}
 	if tpList != nil {
-		if tpScope == nil {
-			tpScope = NewScope(check.scope, check.scope.Pos(), check.scope.End(), "function type parameters")
-		}
 		for _, ident := range tpList.Names {
 			tp := NewTypeParam(ident.Name)
 			typeParams = append(typeParams, tp)
@@ -166,13 +191,12 @@ func (check *Checker) funcType(sig *Signature, recvPar *ast.FieldList, ftyp *ast
 		}
 	}
 
-	if tpScope != nil {
-		origScope := check.scope
-		check.scope = tpScope
-		defer func() {
-			check.scope = origScope
-		}()
-	}
+	// Set check.scope to the type parameter scope (and unset it when we return)
+	origScope := check.scope
+	check.scope = tpScope
+	defer func() {
+		check.scope = origScope
+	}()
 
 	scope := NewScope(check.scope, token.NoPos, token.NoPos, "function")
 	scope.isFunc = true
@@ -186,52 +210,7 @@ func (check *Checker) funcType(sig *Signature, recvPar *ast.FieldList, ftyp *ast
 		// spec: "The receiver type must be of the form T or *T where T is a type name."
 		// (ignore invalid types - error was reported before)
 		if t, _ := deref(recv.typ); t != Typ[Invalid] {
-			var err string
-			// TODO(albrow): Reduce code duplication for the Named and ConcreteNamed
-			// cases here.
-			if T, ok := t.(*ConcreteNamed); ok {
-				// spec: "The type denoted by T is called the receiver base type; it must not
-				// be a pointer or interface type and it must be declared in the same package
-				// as the method."
-				if T.obj.pkg != check.pkg {
-					err = "type not defined in this package"
-				} else {
-					// TODO(gri) This is not correct if the underlying type is unknown yet.
-					switch u := T.underlying.(type) {
-					case *Basic:
-						// unsafe.Pointer is treated like a regular pointer
-						if u.kind == UnsafePointer {
-							err = "unsafe.Pointer"
-						}
-					case *Pointer, *Interface:
-						err = "pointer or interface type"
-					}
-				}
-			} else if T, _ := t.(*Named); T != nil {
-				// spec: "The type denoted by T is called the receiver base type; it must not
-				// be a pointer or interface type and it must be declared in the same package
-				// as the method."
-				if T.obj.pkg != check.pkg {
-					err = "type not defined in this package"
-				} else {
-					// TODO(gri) This is not correct if the underlying type is unknown yet.
-					switch u := T.underlying.(type) {
-					case *Basic:
-						// unsafe.Pointer is treated like a regular pointer
-						if u.kind == UnsafePointer {
-							err = "unsafe.Pointer"
-						}
-					case *Pointer, *Interface:
-						err = "pointer or interface type"
-					}
-				}
-			} else {
-				err = "basic or unnamed type"
-			}
-			if err != "" {
-				check.errorf(recv.pos, "invalid receiver %s (%s)", recv.typ, err)
-				// ok to continue
-			}
+			check.recvType(recv, t)
 		}
 		sig.recv = recv
 	}
@@ -240,8 +219,39 @@ func (check *Checker) funcType(sig *Signature, recvPar *ast.FieldList, ftyp *ast
 	sig.params = NewTuple(params...)
 	sig.results = NewTuple(results...)
 	sig.variadic = variadic
-	sig.typeParams = typeParams
+	if tpList != nil {
+		sig.typeParams = typeParams
+	}
 	sig.recvTypeParams = recvTypeParams
+}
+
+func (check *Checker) recvType(recv *Var, typ Type) {
+	var err string
+	if T, ok := typ.(BaseNamed); ok {
+		// spec: "The type denoted by T is called the receiver base type; it must not
+		// be a pointer or interface type and it must be declared in the same package
+		// as the method."
+		if T.Obj().pkg != check.pkg {
+			err = "type not defined in this package"
+		} else {
+			// TODO(gri) This is not correct if the underlying type is unknown yet.
+			switch u := T.Underlying().(type) {
+			case *Basic:
+				// unsafe.Pointer is treated like a regular pointer
+				if u.kind == UnsafePointer {
+					err = "unsafe.Pointer"
+				}
+			case *Pointer, *Interface:
+				err = "pointer or interface type"
+			}
+		}
+	} else {
+		err = "basic or unnamed type"
+	}
+	if err != "" {
+		check.errorf(recv.pos, "invalid receiver %s (%s)", recv.typ, err)
+		// ok to continue
+	}
 }
 
 // typExprInternal drives type checking of types.
@@ -297,7 +307,6 @@ func (check *Checker) typExprInternal(e ast.Expr, def *Named, path []*TypeName) 
 			typ.elem = check.typExpr(e.Elt, nil, path)
 			check.typeArgsRequired(e.Elt.Pos(), typ.elem)
 			return typ
-
 		} else {
 			typ := new(Slice)
 			def.setUnderlying(typ)
@@ -307,10 +316,15 @@ func (check *Checker) typExprInternal(e ast.Expr, def *Named, path []*TypeName) 
 		}
 
 	case *ast.TypeArgExpr:
-		genType := check.typExpr(e.X, nil, path)
-		typ := check.concreteType(e, genType)
-		def.setUnderlying(typ)
-		return typ
+		typ := check.typExpr(e.X, nil, path)
+		genType, ok := typ.(GenericType)
+		if !ok {
+			check.errorf(e.Pos(), "type arguments provided for non-generic type %s", typ)
+		} else {
+			concreteType := check.concreteType(e, genType)
+			def.setUnderlying(concreteType)
+			return concreteType
+		}
 
 	case *ast.StructType:
 		typ := new(Struct)
@@ -328,7 +342,7 @@ func (check *Checker) typExprInternal(e ast.Expr, def *Named, path []*TypeName) 
 	case *ast.FuncType:
 		typ := new(Signature)
 		def.setUnderlying(typ)
-		check.funcType(typ, nil, e, nil)
+		check.funcType(typ, nil, e)
 		return typ
 
 	case *ast.InterfaceType:

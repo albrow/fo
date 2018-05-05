@@ -1,0 +1,25 @@
+package genericmethodsinherited
+
+import "strconv"
+
+type Box [T]struct {
+	v T
+}
+
+func (b Box[T]) Map[U](f func(T) U) Box[U] {
+	return Box[U]{
+		v: f(b.v),
+	}
+}
+
+func ident[T](x T) T {
+	return x
+}
+
+func main() {
+	x := Box[int]{v: 42}
+	y := x.Map[int](ident[int])
+	y.Map[int](ident[int])
+	z := x.Map[string](strconv.Itoa)
+	z.Map[string](ident[string])
+}
