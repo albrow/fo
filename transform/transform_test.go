@@ -591,6 +591,40 @@ func main() {
 	testParseFile(t, src, expected)
 }
 
+func TestTransformUnsafeSymbols(t *testing.T) {
+	src := `package main
+
+import "bytes"
+
+type A[T] T
+
+func main() {
+	var _ A[[]string]
+	var _ A[map[string]int]
+	var _ A[map[string][]bytes.Buffer]
+}
+`
+
+	expected := `package main
+
+import "bytes"
+
+type (
+	A____string                  []string
+	A__map_string___bytes_Buffer map[string][]bytes.Buffer
+	A__map_string_int            map[string]int
+)
+
+func main() {
+	var _ A____string
+	var _ A__map_string_int
+	var _ A__map_string___bytes_Buffer
+}
+`
+
+	testParseFile(t, src, expected)
+}
+
 func testParseFile(t *testing.T, src string, expected string) {
 	t.Helper()
 	fset := token.NewFileSet()

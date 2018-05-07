@@ -35,12 +35,38 @@ func (trans *Transformer) File(f *ast.File) (*ast.File, error) {
 	return resultFile, nil
 }
 
+var safeSymbolMap = map[string]string{
+	".": "_",
+	"[": "_",
+	"]": "_",
+}
+
+func replaceUnsafeSymbols(s string) string {
+	for unsafe, safe := range safeSymbolMap {
+		s = strings.Replace(s, unsafe, safe, -1)
+	}
+	return s
+}
+
+func formatTypeArgs(args []ast.Expr) string {
+	result := ""
+	for i, arg := range args {
+		buf := bytes.Buffer{}
+		format.Node(&buf, token.NewFileSet(), arg)
+		if i != 0 {
+			result += "__"
+		}
+		result += replaceUnsafeSymbols(buf.String())
+	}
+	return result
+}
+
 // TODO: this could be optimized
 func concreteTypeName(decl *types.GenericDecl, usg *types.GenericUsage) string {
 	stringParams := []string{}
 	for _, param := range decl.TypeParams() {
 		typeString := usg.TypeMap()[param.String()].String()
-		safeParam := strings.Replace(typeString, ".", "_", -1)
+		safeParam := replaceUnsafeSymbols(typeString)
 		stringParams = append(stringParams, safeParam)
 	}
 	return decl.Name() + "__" + strings.Join(stringParams, "__")
@@ -50,27 +76,11 @@ func concreteTypeExpr(e *ast.TypeArgExpr) ast.Node {
 	switch x := e.X.(type) {
 	case *ast.Ident:
 		newIdent := astclone.Clone(x).(*ast.Ident)
-		stringParams := []string{}
-		for _, param := range e.Types {
-			buf := bytes.Buffer{}
-			format.Node(&buf, token.NewFileSet(), param)
-			typeString := buf.String()
-			safeParam := strings.Replace(typeString, ".", "_", -1)
-			stringParams = append(stringParams, safeParam)
-		}
-		newIdent.Name = newIdent.Name + "__" + strings.Join(stringParams, "__")
+		newIdent.Name = newIdent.Name + "__" + formatTypeArgs(e.Types)
 		return newIdent
 	case *ast.SelectorExpr:
 		newSel := astclone.Clone(x).(*ast.SelectorExpr)
-		stringParams := []string{}
-		for _, param := range e.Types {
-			buf := bytes.Buffer{}
-			format.Node(&buf, token.NewFileSet(), param)
-			typeString := buf.String()
-			safeParam := strings.Replace(typeString, ".", "_", -1)
-			stringParams = append(stringParams, safeParam)
-		}
-		newSel.Sel = ast.NewIdent(newSel.Sel.Name + "__" + strings.Join(stringParams, "__"))
+		newSel.Sel = ast.NewIdent(newSel.Sel.Name + "__" + formatTypeArgs(e.Types))
 		return newSel
 	default:
 		panic(fmt.Errorf("type arguments for expr %v of type %T are not yet supported", e.X, e.X))
