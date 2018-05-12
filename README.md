@@ -12,7 +12,6 @@ use in real applications, though that will hopefully change in the future.
 If you want to give Fo a try without installing anything, you can visit
 [The Fo Playground](https://play.folang.org/).
 
-
 ## Installation
 
 The Fo compiler is written in Go, so you can install it like any other Go
@@ -32,7 +31,6 @@ fo run <filename>
 
 `<filename>` should be a source file ending in .fo which contains a `main`
 function.
-
 
 ## Language Features
 
@@ -57,7 +55,7 @@ TypeParams = "[" identifier { "," identifier } "]" .
 
 In other words, type parameters should follow the type name and are surrounded
 by square brackets. Multiple type parameters are separated by a comma (e.g.,
-`type A[T, U, V] ...`). 
+`type A[T, U, V] ...`).
 
 Here's the syntax for a generic `Box` which can hold a value of any arbitrary
 type:
@@ -73,8 +71,15 @@ any type. The following are all examples of valid type declarations:
 
 ```
 type A[T] []T
+
 type B[T, U] map[T]U
-type C[T, U] func(T) U 
+
+type C[T, U] func(T) U
+
+type D[T] struct{
+	a T
+	b A[T]
+}
 ```
 
 In general, any named type can be made generic. The only exception is that Fo
