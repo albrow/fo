@@ -175,6 +175,29 @@ func (check *Checker) concreteType(expr *ast.TypeArgExpr, genType GenericType) T
 		addGenericUsage(genType.Object(), newType)
 		return newType
 
+	case *PartialGenericNamed:
+		if cachedType := cache.get(genType.genType, typeMap); cachedType != nil {
+			return cachedType
+		}
+		if isPartial {
+			return &PartialGenericNamed{
+				Named:   genType.Named,
+				genType: genType.genType,
+				typeMap: typeMap,
+			}
+		}
+		newTypeMap := mergeTypeMap(genType.typeMap, typeMap)
+		newNamed := replaceTypesInNamed(genType.Named, newTypeMap)
+		newType := &ConcreteNamed{
+			Named:   newNamed,
+			genType: genType.genType,
+			typeMap: newTypeMap,
+		}
+		newType.methods = replaceTypesInMethods(genType.methods, typeMap)
+		cache.add(newType)
+		addGenericUsage(genType.Object(), newType)
+		return newType
+
 	case *GenericSignature:
 		if isPartial {
 			return &PartialGenericSignature{

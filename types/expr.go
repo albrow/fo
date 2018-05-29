@@ -1267,19 +1267,23 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 		// *ast.TypeArgExpr with only one type parameter. We resolve the ambiguity
 		// by observing the type of e.X.
 		if genType, ok := x.typ.(GenericType); ok {
-			// if x.mode == typexpr {
-			if len(genType.TypeParams()) > 1 {
-				check.errorf(check.pos, "wrong number of type arguments for %s (expected %d but got 1)", e.X, len(genType.TypeParams()))
+			if conType, ok := genType.(ConcreteType); ok && len(conType.TypeMap()) == len(conType.GenericType().TypeParams()) {
+				// We have a partial generic type where each type arg is accounted for
+				// by an inherited type parameter. (e.g. method receiver A[T] being
+				// used in the body of the method). Do nothing.
+			} else {
+				if len(genType.TypeParams()) > 1 {
+					check.errorf(check.pos, "wrong number of type arguments for %s (expected %d but got 1)", e.X, len(genType.TypeParams()))
+				}
+				typeArgExpr := &ast.TypeArgExpr{
+					X:      e.X,
+					Lbrack: e.Lbrack,
+					Types:  []ast.Expr{e.Index},
+					Rbrack: e.Rbrack,
+				}
+				x.typ = check.concreteType(typeArgExpr, genType)
+				return expression
 			}
-			typeArgExpr := &ast.TypeArgExpr{
-				X:      e.X,
-				Lbrack: e.Lbrack,
-				Types:  []ast.Expr{e.Index},
-				Rbrack: e.Rbrack,
-			}
-			x.typ = check.concreteType(typeArgExpr, genType)
-			return expression
-			// }
 		}
 
 		if x.mode == typexpr {

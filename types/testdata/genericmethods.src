@@ -86,10 +86,7 @@ type hInterface interface {
 type B[T] []T
 
 func (x B) f() {
-  // TODO(albrow): x[0] is getting interpreted as a TypeArgExpr. It should
-  // really be an IndexExpr. In the case that we can't actually disambiguate
-  // here, we might be able to return an error?
-  // fmt.Println(x[0])
+  fmt.Println(x[0])
   fmt.Println(len(x))
   for range x { }
 }
@@ -97,7 +94,7 @@ func (x B) f() {
 type C[T] [5]T
 
 func (x C) f() {
-  // fmt.Println(x[0])
+  fmt.Println(x[0])
   fmt.Println(len(x))
   for range x { }
 }
@@ -105,7 +102,7 @@ func (x C) f() {
 type D[T] map[int]T
 
 func (x D) f() {
-  // fmt.Println(x[0])
+  fmt.Println(x[0])
   fmt.Println(len(x))
   for range x { }
 }
@@ -130,6 +127,43 @@ type G[T] T
 
 func (x *G) f() {
   fmt.Println(*x)
+}
+
+// Directly indexing receiver types that are indexable.
+func (x B[T]) f0() T {
+  return x[0]
+}
+
+func (x C[T]) f0() T {
+  return x[0]
+}
+
+func (x D[T]) f0() T {
+  return x[0]
+}
+
+func (x B[T]) f1(index int) T {
+  return x[index]
+}
+
+func (x C[T]) f1(index int) T {
+  return x[index]
+}
+
+func (x D[T]) f1(index int) T {
+  return x[index]
+}
+
+func (x B[T]) f2(index int, val T) {
+  x[index] = val
+}
+
+func (x C[T]) f2(index int, val T) {
+  x[index] = val
+}
+
+func (x D[T]) f2(index int, val T) {
+  x[index] = val
 }
 
 func main() {
