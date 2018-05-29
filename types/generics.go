@@ -21,7 +21,7 @@ func (tc typeCache) add(conType ConcreteType) {
 		return
 	}
 	genType := conType.GenericType()
-	uk := usageKey(conType.TypeMap(), conType.GenericType().TypeParams())
+	uk := usageKey(conType.TypeMap())
 	entry, found := tc[genType]
 	if !found {
 		entry = map[string]ConcreteType{}
@@ -39,7 +39,7 @@ func (tc typeCache) get(genType GenericType, typeMap map[string]Type) ConcreteTy
 	if !found {
 		return nil
 	}
-	uk := usageKey(typeMap, genType.TypeParams())
+	uk := usageKey(typeMap)
 	// fmt.Printf("found cached type for %s: %s %T\n", uk, entry[uk], entry[uk])
 	return entry[uk]
 }
@@ -51,10 +51,56 @@ type typeArg struct {
 	typ  Type
 }
 
+type GenericDecl struct {
+	Name   string
+	Type   GenericType
+	Usages map[string]ConcreteType
+}
+
+func addGenericDecl(obj Object, typ GenericType) {
+	pkg := obj.Pkg()
+	if pkg.generics == nil {
+		pkg.generics = map[string]*GenericDecl{}
+	}
+	dk := declKey(typ)
+	pkg.generics[dk] = &GenericDecl{
+		Name: obj.Name(),
+		Type: typ,
+	}
+}
+
+func addGenericUsage(genObj Object, typ ConcreteType) {
+	pkg := genObj.Pkg()
+	if pkg.generics == nil {
+		pkg.generics = map[string]*GenericDecl{}
+	}
+	dk := declKey(genObj.Type().(GenericType))
+	genDecl, found := pkg.generics[dk]
+	if !found {
+		// TODO(albrow): can we avoid panicking here?
+		panic(fmt.Errorf("declaration not found for generic object %s (%s)", dk, genObj.Id()))
+	}
+	if genDecl.Usages == nil {
+		genDecl.Usages = map[string]ConcreteType{}
+	}
+	genDecl.Usages[usageKey(typ.TypeMap())] = typ
+}
+
+func declKey(typ GenericType) string {
+	key := ""
+	if sig, ok := typ.(*GenericSignature); ok {
+		if sig.recv != nil {
+			key += sig.recv.object.name + "."
+		}
+	}
+	key += typ.Object().Name()
+	return key
+}
+
 // usageKey returns a unique key for a particular usage which is based on its
 // type arguments. Another usage with the same type arguments will have the
 // same key.
-func usageKey(typeMap map[string]Type, typeParams []*TypeParam) string {
+func usageKey(typeMap map[string]Type) string {
 	typeArgs := []typeArg{}
 	for name, typ := range typeMap {
 		typeArgs = append(typeArgs, typeArg{
@@ -114,6 +160,7 @@ func (check *Checker) concreteType(expr *ast.TypeArgExpr, genType GenericType) T
 		}
 		newType.methods = replaceTypesInMethods(genType.methods, typeMap)
 		cache.add(newType)
+		addGenericUsage(genType.Object(), newType)
 		return newType
 
 	case *GenericSignature:
@@ -131,6 +178,7 @@ func (check *Checker) concreteType(expr *ast.TypeArgExpr, genType GenericType) T
 			typeMap:   typeMap,
 		}
 		cache.add(newType)
+		addGenericUsage(genType.Object(), newType)
 		return newType
 
 	case *PartialGenericSignature:
@@ -152,6 +200,7 @@ func (check *Checker) concreteType(expr *ast.TypeArgExpr, genType GenericType) T
 			typeMap:   newTypeMap,
 		}
 		cache.add(newType)
+		addGenericUsage(genType.Object(), newType)
 		return newType
 	}
 
@@ -356,6 +405,7 @@ func replaceTypesInGenericSignature(root *GenericSignature, typeMap map[string]T
 		typeMap:   typeMap,
 	}
 	cache.add(newType)
+	addGenericUsage(root.obj, newType)
 	return newType
 }
 
@@ -386,6 +436,7 @@ func replaceTypesInPartialGenericNamed(root *PartialGenericNamed, typeMap map[st
 	}
 	newType.methods = replaceTypesInMethods(root.methods, newTypeMap)
 	cache.add(newType)
+	addGenericUsage(root.obj, newType)
 	return newType
 }
 

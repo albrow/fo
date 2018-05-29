@@ -280,7 +280,7 @@ func (check *Checker) typeDecl(obj *TypeName, typ ast.Expr, def *Named, path []*
 			}
 			def.setUnderlying(genNamed)
 			obj.typ = genNamed
-			// TOOD(albrow): Add generic declarations somewhere.
+			addGenericDecl(obj, genNamed)
 		}
 
 		// determine underlying type of named
@@ -415,17 +415,7 @@ func (check *Checker) funcDecl(obj *Func, decl *declInfo) {
 				// ok to continue
 			}
 		}
-		// TODO(albrow): Add generic declarations somewhere.
-		// 	key := obj.Name()
-		// 	if sig.recv != nil {
-		// 		switch recvType := sig.recv.typ.(type) {
-		// 		case *Named:
-		// 			key = recvType.obj.name + "." + key
-		// 		case *ConcreteNamed:
-		// 			key = recvType.obj.name + "." + key
-		// 		}
-		// 	}
-		// 	addGenericDecl(key, obj, sig.typeParams)
+		addGenericDecl(obj, genSig)
 	} else {
 		check.funcType(sig, fdecl.Recv, fdecl.Type)
 	}

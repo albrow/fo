@@ -19,6 +19,7 @@ type Package struct {
 	complete bool
 	imports  []*Package
 	fake     bool // scope lookup errors are silently dropped if package is fake (internal use only)
+	generics map[string]*GenericDecl
 }
 
 // NewPackage returns a new Package for the given package path and name.
