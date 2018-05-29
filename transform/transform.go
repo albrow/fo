@@ -39,6 +39,7 @@ var safeSymbolMap = map[string]string{
 	".": "_",
 	"[": "_",
 	"]": "_",
+	"*": "_",
 }
 
 func replaceUnsafeSymbols(s string) string {
@@ -62,14 +63,17 @@ func formatTypeArgs(args []ast.Expr) string {
 }
 
 // TODO: this could be optimized
-func concreteTypeName(decl *types.GenericDecl, usg *types.GenericUsage) string {
+func concreteTypeName(decl *types.GenericDecl, usg types.ConcreteType) string {
 	stringParams := []string{}
-	for _, param := range decl.TypeParams() {
+	for _, param := range decl.Type.TypeParams() {
 		typeString := usg.TypeMap()[param.String()].String()
 		safeParam := replaceUnsafeSymbols(typeString)
 		stringParams = append(stringParams, safeParam)
 	}
-	return decl.Name() + "__" + strings.Join(stringParams, "__")
+	if len(stringParams) == 0 {
+		return decl.Name
+	}
+	return decl.Name + "__" + strings.Join(stringParams, "__")
 }
 
 func concreteTypeExpr(e *ast.TypeArgExpr) ast.Node {
@@ -87,20 +91,40 @@ func concreteTypeExpr(e *ast.TypeArgExpr) ast.Node {
 	}
 }
 
+func recvTypeParams(typeParams []*types.TypeParam, typeMap map[string]types.Type) []ast.Expr {
+	types := []ast.Expr{}
+	for argName := range typeMap {
+		found := false
+		for _, typeParam := range typeParams {
+			if argName == typeParam.String() {
+				continue
+			}
+		}
+		if !found {
+			types = append(types, ast.NewIdent(argName))
+		}
+	}
+	if len(types) > 0 {
+		return types
+	} else {
+		return nil
+	}
+}
+
 // expandReceiverType adds the appropriate type parameters to a receiver type
 // if they were not included in the original source code.
-func expandReceiverType(funcDecl *ast.FuncDecl, genDecl *types.GenericDecl, usg *types.GenericUsage) {
+func expandReceiverType(funcDecl *ast.FuncDecl, genDecl *types.GenericDecl, usg types.ConcreteType) {
 	astutil.Apply(funcDecl.Recv, func(c *astutil.Cursor) bool {
 		switch n := c.Node().(type) {
 		case *ast.TypeArgExpr:
 			// Don't change anything about existing type arguments
 			return false
 		case *ast.Ident:
-			if n.Name == genDecl.Name() {
+			if n.Name == genDecl.Name {
 				c.Replace(&ast.TypeArgExpr{
 					X:      ast.NewIdent(n.Name),
 					Lbrack: token.NoPos,
-					Types:  usg.TypeArgs(),
+					Types:  recvTypeParams(genDecl.Type.TypeParams(), usg.TypeMap()),
 					Rbrack: token.NoPos,
 				})
 			}
@@ -256,7 +280,7 @@ func (trans *Transformer) generateTypeSpecs(typeSpec *ast.TypeSpec) []ast.Spec {
 			}
 		}
 	}
-	for _, usg := range genericDecl.Usages() {
+	for _, usg := range genericDecl.Usages {
 		newTypeSpec := astclone.Clone(typeSpec).(*ast.TypeSpec)
 		newTypeSpec.Name = ast.NewIdent(concreteTypeName(genericDecl, usg))
 		newTypeSpec.TypeParams = nil
@@ -304,7 +328,7 @@ func (trans *Transformer) generateFuncDecls(funcDecl *ast.FuncDecl) (newFuncs []
 		panic(fmt.Errorf("could not find generic type declaration for %s", fkey))
 	}
 	if genFuncDecl != nil {
-		for _, usg := range genFuncDecl.Usages() {
+		for _, usg := range genFuncDecl.Usages {
 			newFunc := astclone.Clone(funcDecl).(*ast.FuncDecl)
 			expandReceiverType(newFunc, genRecvDecl, usg)
 			newFunc.Name = ast.NewIdent(concreteTypeName(genFuncDecl, usg))
@@ -313,7 +337,7 @@ func (trans *Transformer) generateFuncDecls(funcDecl *ast.FuncDecl) (newFuncs []
 			newFuncs = append(newFuncs, newFunc)
 		}
 	} else if genRecvDecl != nil {
-		for _, usg := range genRecvDecl.Usages() {
+		for _, usg := range genRecvDecl.Usages {
 			newFunc := astclone.Clone(funcDecl).(*ast.FuncDecl)
 			expandReceiverType(newFunc, genRecvDecl, usg)
 			replaceIdentsInScope(newFunc, usg.TypeMap())

@@ -90,7 +90,19 @@ func declKey(typ GenericType) string {
 	key := ""
 	if sig, ok := typ.(*GenericSignature); ok {
 		if sig.recv != nil {
-			key += sig.recv.object.name + "."
+			recvType, _ := deref(sig.recv.typ)
+			switch recvType := recvType.(type) {
+			case *Named:
+				key += recvType.Obj().Name() + "."
+			case *ConcreteNamed:
+				key += recvType.Obj().Name() + "."
+			case *GenericNamed:
+				key += recvType.Obj().Name() + "."
+			case *PartialGenericNamed:
+				key += recvType.Obj().Name() + "."
+			default:
+				panic(fmt.Errorf("unknown receiver type: %T", recvType))
+			}
 		}
 	}
 	key += typ.Object().Name()

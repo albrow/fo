@@ -62,6 +62,10 @@ func (pkg *Package) Imports() []*Package { return pkg.imports }
 // It is the caller's responsibility to make sure list elements are unique.
 func (pkg *Package) SetImports(list []*Package) { pkg.imports = list }
 
+func (pkg *Package) Generics() map[string]*GenericDecl {
+	return pkg.generics
+}
+
 func (pkg *Package) String() string {
 	return fmt.Sprintf("package %s (%q)", pkg.name, pkg.path)
 }
