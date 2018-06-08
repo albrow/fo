@@ -60,7 +60,7 @@ by square brackets. Multiple type parameters are separated by a comma (e.g.,
 Here's the syntax for a generic `Box` which can hold a value of any arbitrary
 type:
 
-```
+```go
 type Box[T] struct {
 	v T
 }
@@ -69,7 +69,7 @@ type Box[T] struct {
 Type parameters are scoped to the type definition and can be used in place of
 any type. The following are all examples of valid type declarations:
 
-```
+```go
 type A[T] []T
 
 type B[T, U] map[T]U
@@ -106,7 +106,7 @@ anywhere you would normally use a type.
 Here's how we would use the `Box` type we declared above to initialize a `Box`
 which holds a `string` value:
 
-```
+```go
 x := Box[string]{ v: "foo" }
 ```
 
@@ -132,7 +132,7 @@ parameters will be replaced with type arguments when the function is used.
 Here's how you would declare a `MapSlice` function which applies a given
 function `f` to each element of `list` and returns the results.
 
-```
+```go
 func MapSlice[T](f func(T) T, list []T) []T {
 	result := make([]T, len(list))
 	for i, val := range list {
@@ -156,7 +156,7 @@ TypeArgs = "[" Type { "," Type } "]" .
 
 Here's how you would call the `MapSlice` function we defined above:
 
-```
+```go
 func incr(n int) int {
 	return n+1
 }
@@ -188,7 +188,7 @@ TypeParams = "[" identifier { "," identifier } "]" .
 Here's how we would define a method on the `Box` type defined above which makes
 use of receiver type parameters:
 
-```
+```go
 type Box[T] struct {
   v T
 }
@@ -202,7 +202,7 @@ You can also omit the type parameters of the receiver type if they are not
 needed. For example, here's how we would define a `String` method which does not
 depend on the type parameters of the `Box`:
 
-```
+```go
 func (b Box) String() string {
   return fmt.Sprint(b.val)
 }
@@ -212,7 +212,7 @@ A method with a generic receiver can define additional type parameters, just
 like a function. Here's an example of a method on `Box` which requires
 additional type parameters.
 
-```
+```go
 func (b Box[T]) Map[U] (f func(T) U) Box[U] {
   return Box[U]{
     v: f(b.v),
@@ -226,7 +226,7 @@ When calling methods with a generic receiver type, you do not need to specify
 the type arguments of the receiver. Here's an example of calling the `Val`
 method we defined above:
 
-```
+```go
 x := Box[string]{ v: "foo" }
 x.Val()
 ```
@@ -235,7 +235,7 @@ However, if the method declaration includes additional type parameters, you
 still need to specify them. Here's how we would call the `Map` function
 defined above to convert a `Box[int]` to a `Box[string]`.
 
-```
+```go
 y := Box[int] { v: 42 }
 z := y.Map[string](strconv.Itoa)
 ```
