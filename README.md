@@ -55,7 +55,7 @@ TypeParams = "[" identifier { "," identifier } "]" .
 
 In other words, type parameters should follow the type name and are surrounded
 by square brackets. Multiple type parameters are separated by a comma (e.g.,
-`type A[T, U, V] ...`).
+`type A[T, U, V]`).
 
 Here's the syntax for a generic `Box` which can hold a value of any arbitrary
 type:
@@ -100,7 +100,7 @@ TypeArgs    = "[" Type { "," Type } "]" .
 
 Like type parameters, type arguments follow the type name and are surrounded by
 square brackets, and multiple type arguments are separated by a comma (e.g.
-`A[string, int, bool])`. In general, type argument expressions can be used
+`A[string, int, bool]`). In general, type argument expressions can be used
 anywhere you would normally use a type.
 
 Here's how we would use the `Box` type we declared above to initialize a `Box`
