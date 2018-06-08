@@ -93,16 +93,9 @@ func concreteTypeExpr(e *ast.TypeArgExpr) ast.Node {
 
 func recvTypeParams(typeParams []*types.TypeParam, typeMap map[string]types.Type) []ast.Expr {
 	types := []ast.Expr{}
-	for argName := range typeMap {
-		found := false
-		for _, typeParam := range typeParams {
-			if argName == typeParam.String() {
-				continue
-			}
-		}
-		if !found {
-			types = append(types, ast.NewIdent(argName))
-		}
+	for _, param := range typeParams {
+		typeString := typeMap[param.String()].String()
+		types = append(types, ast.NewIdent(typeString))
 	}
 	if len(types) > 0 {
 		return types
