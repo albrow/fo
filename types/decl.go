@@ -402,8 +402,9 @@ func (check *Checker) funcDecl(obj *Func, decl *declInfo) {
 	sig := new(Signature)
 	obj.typ = sig // guard against cycles
 
+	var genSig *GenericSignature
 	if typeParams != nil || isRecvGeneric(fdecl.Recv) {
-		genSig := &GenericSignature{
+		genSig = &GenericSignature{
 			Signature: sig,
 			obj:       obj,
 		}
@@ -430,7 +431,7 @@ func (check *Checker) funcDecl(obj *Func, decl *declInfo) {
 	// function body must be type-checked after global declarations
 	// (functions implemented elsewhere have no body)
 	if !check.conf.IgnoreFuncBodies && fdecl.Body != nil {
-		check.later(obj.name, decl, sig, fdecl.Body)
+		check.later(obj.name, decl, sig, genSig, fdecl.Body)
 	}
 }
 

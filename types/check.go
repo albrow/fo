@@ -42,10 +42,11 @@ type exprInfo struct {
 
 // funcInfo stores the information required for type-checking a function.
 type funcInfo struct {
-	name string    // for debugging/tracing only
-	decl *declInfo // for cycle detection
-	sig  *Signature
-	body *ast.BlockStmt
+	name   string    // for debugging/tracing only
+	decl   *declInfo // for cycle detection
+	sig    *Signature
+	genSig *GenericSignature
+	body   *ast.BlockStmt
 }
 
 // A context represents the context within which an object is type-checked.
@@ -56,6 +57,8 @@ type context struct {
 	sig           *Signature     // function signature if inside a function; nil otherwise
 	hasLabel      bool           // set if a function makes use of labels (only ~1% of functions); unused outside functions
 	hasCallOrRecv bool           // set if an expression contains a function call or channel receive operation
+	// TODO(albrow): We can never be parsing a sig and a gen sig at the same time. Combine these fields via a Signature interface?
+	genSig *GenericSignature // generic function signature if inside a generic function; nil otherwise
 }
 
 // An importKey identifies an imported package by import path and source directory
@@ -147,8 +150,8 @@ func (check *Checker) rememberUntyped(e ast.Expr, lhs bool, mode operandMode, ty
 	m[e] = exprInfo{lhs, mode, typ, val}
 }
 
-func (check *Checker) later(name string, decl *declInfo, sig *Signature, body *ast.BlockStmt) {
-	check.funcs = append(check.funcs, funcInfo{name, decl, sig, body})
+func (check *Checker) later(name string, decl *declInfo, sig *Signature, genSig *GenericSignature, body *ast.BlockStmt) {
+	check.funcs = append(check.funcs, funcInfo{name, decl, sig, genSig, body})
 }
 
 func (check *Checker) delay(f func()) {
@@ -240,6 +243,8 @@ func (check *Checker) checkFiles(files []*ast.File) (err error) {
 	check.packageObjects(check.resolveOrder())
 
 	check.functionBodies()
+
+	check.genericDependents()
 
 	check.initOrder()
 

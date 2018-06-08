@@ -138,3 +138,92 @@ func main() {
 		}
 	}
 }
+
+// TODO(albrow): Make this test pass.
+func TestGenericsUsageInheritedInBody(t *testing.T) {
+	src := `package genericstest
+
+type A[T] T
+
+func NewA[T]() {
+	var _ A[T]
+	F[T]()
+}
+
+func F[T]() T {
+	var x T
+	return x
+}
+
+func main() {
+	NewA[string]()
+}
+`
+
+	pkg := parseTestSource(t, src)
+	if pkg.generics == nil {
+		t.Fatal("pkg.generics was nil")
+	}
+	if len(pkg.generics) != 3 {
+		t.Fatalf("wrong number of generic declarations (expected 3 but got %d)", len(pkg.generics))
+	}
+	aDecl, found := pkg.generics["A"]
+	if !found {
+		t.Fatal("could not find generic declaration for A")
+	}
+	if len(aDecl.Type.TypeParams()) != 1 {
+		t.Errorf("wrong number of type arguments for A (expected 1 but got %d)", len(aDecl.Type.TypeParams()))
+	}
+	if len(aDecl.Usages) != 1 {
+		t.Fatalf("wrong number of usages for A (expected 1 but got %d)", len(aDecl.Usages))
+	}
+	expectedAUsages := map[string]struct{}{
+		"string": struct{}{},
+	}
+	for _, usage := range aDecl.Usages {
+		mappedType := usage.TypeMap()["T"].Underlying().String()
+		if _, found := expectedAUsages[mappedType]; !found {
+			t.Errorf("unexpected typeMap for A usage: T -> %s", mappedType)
+		}
+	}
+
+	newADecl, found := pkg.generics["NewA"]
+	if !found {
+		t.Fatal("could not find generic declaration for A")
+	}
+	if len(newADecl.Type.TypeParams()) != 1 {
+		t.Errorf("wrong number of type arguments for NewA (expected 1 but got %d)", len(newADecl.Type.TypeParams()))
+	}
+	if len(newADecl.Usages) != 1 {
+		t.Fatalf("wrong number of usages for NewA (expected 1 but got %d)", len(newADecl.Usages))
+	}
+	expectedNewAUsages := map[string]struct{}{
+		"string": struct{}{},
+	}
+	for _, usage := range newADecl.Usages {
+		mappedType := usage.TypeMap()["T"].Underlying().String()
+		if _, found := expectedNewAUsages[mappedType]; !found {
+			t.Errorf("unexpected typeMap for A usage: T -> %s", mappedType)
+		}
+	}
+
+	fDecl, found := pkg.generics["F"]
+	if !found {
+		t.Fatal("could not find generic declaration for A")
+	}
+	if len(fDecl.Type.TypeParams()) != 1 {
+		t.Errorf("wrong number of type arguments for F (expected 1 but got %d)", len(fDecl.Type.TypeParams()))
+	}
+	if len(fDecl.Usages) != 1 {
+		t.Fatalf("wrong number of usages for F (expected 1 but got %d)", len(fDecl.Usages))
+	}
+	expectedFUsages := map[string]struct{}{
+		"string": struct{}{},
+	}
+	for _, usage := range fDecl.Usages {
+		mappedType := usage.TypeMap()["T"].Underlying().String()
+		if _, found := expectedFUsages[mappedType]; !found {
+			t.Errorf("unexpected typeMap for A usage: T -> %s", mappedType)
+		}
+	}
+}

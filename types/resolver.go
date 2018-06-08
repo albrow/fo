@@ -485,7 +485,7 @@ func (check *Checker) packageObjects(objList []Object) {
 // functionBodies typechecks all function bodies.
 func (check *Checker) functionBodies() {
 	for _, f := range check.funcs {
-		check.funcBody(f.decl, f.name, f.sig, f.body)
+		check.funcBody(f.decl, f.name, f.sig, f.genSig, f.body)
 	}
 }
 

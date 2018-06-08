@@ -298,6 +298,9 @@ type GenericSignature struct {
 	typeParams     []*TypeParam // generic type parameters (if any)
 	recvTypeParams []*TypeParam // type parameters of the receiver type (if any)
 	obj            *Func        // obj points to the corresponding declaration
+	// dependents are generic usages inside the function body which inherit
+	// type parameters from the function declaration.
+	dependents []PartialGenericType
 }
 
 func NewGenericSignature(recv *Var, params, results *Tuple, variadic bool, typeParams, recvTypeParams []*TypeParam) *GenericSignature {

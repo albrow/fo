@@ -16,7 +16,7 @@ import (
 	"github.com/albrow/fo/token"
 )
 
-func (check *Checker) funcBody(decl *declInfo, name string, sig *Signature, body *ast.BlockStmt) {
+func (check *Checker) funcBody(decl *declInfo, name string, sig *Signature, genSig *GenericSignature, body *ast.BlockStmt) {
 	if trace {
 		if name == "" {
 			name = "<function literal>"
@@ -36,9 +36,10 @@ func (check *Checker) funcBody(decl *declInfo, name string, sig *Signature, body
 		check.indent = indent
 	}(check.context, check.indent)
 	check.context = context{
-		decl:  decl,
-		scope: sig.scope,
-		sig:   sig,
+		decl:   decl,
+		scope:  sig.scope,
+		sig:    sig,
+		genSig: genSig,
 	}
 	check.indent = 0
 

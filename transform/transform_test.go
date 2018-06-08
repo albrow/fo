@@ -458,6 +458,48 @@ func main() {
 	testParseFile(t, src, expected)
 }
 
+// TODO(albrow): Make this test pass.
+func TestTransformInerhitedInBody(t *testing.T) {
+	src := `package main
+	
+type A[T] T
+
+func NewA[T]() {
+	var _ A[T]
+	F[T]()
+}
+
+func F[T]() T {
+	var x T
+	return x
+}
+
+func main() {
+	NewA[string]()
+}
+	`
+
+	expected := `package main
+
+type A__string string
+
+func NewA__string() {
+	var _ A__string
+	F__string()
+}
+
+func F__string() string {
+	var x string
+	return x
+}
+
+func main() {
+	NewA__string()
+}
+`
+	testParseFile(t, src, expected)
+}
+
 func TestTransformMethods(t *testing.T) {
 	src := `package main
 

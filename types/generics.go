@@ -1,14 +1,12 @@
 package types
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/albrow/fo/ast"
-	"github.com/albrow/fo/printer"
 	"github.com/albrow/fo/token"
 )
 
@@ -142,10 +140,10 @@ func checkIsPartial(typeMap map[string]Type) bool {
 // concreteType returns a new type with the concrete type arguments of e
 // applied.
 func (check *Checker) concreteType(expr *ast.TypeArgExpr, genType GenericType) Type {
-	buf := &bytes.Buffer{}
-	if err := printer.Fprint(buf, token.NewFileSet(), expr); err != nil {
-		panic(err)
-	}
+	// buf := &bytes.Buffer{}
+	// if err := printer.Fprint(buf, token.NewFileSet(), expr); err != nil {
+	// 	panic(err)
+	// }
 	// fmt.Printf("concreteType(%s, %+v)\n", buf.String(), genType)
 	typeMap := check.createTypeMap(expr, genType.TypeParams())
 	if typeMap == nil {
@@ -158,19 +156,23 @@ func (check *Checker) concreteType(expr *ast.TypeArgExpr, genType GenericType) T
 	switch genType := genType.(type) {
 	case *GenericNamed:
 		if isPartial {
-			return &PartialGenericNamed{
+			partial := &PartialGenericNamed{
 				Named:   genType.Named,
 				genType: genType,
 				typeMap: typeMap,
 			}
+			if check.genSig != nil {
+				check.genSig.dependents = append(check.genSig.dependents, partial)
+			}
+			return partial
 		}
-		newNamed := replaceTypesInNamed(genType.Named, typeMap)
+		newNamed := check.replaceTypesInNamed(genType.Named, typeMap)
 		newType := &ConcreteNamed{
 			Named:   newNamed,
 			genType: genType,
 			typeMap: typeMap,
 		}
-		newType.methods = replaceTypesInMethods(genType.methods, typeMap)
+		newType.methods = check.replaceTypesInMethods(genType.methods, typeMap)
 		cache.add(newType)
 		addGenericUsage(genType.Object(), newType)
 		return newType
@@ -180,33 +182,41 @@ func (check *Checker) concreteType(expr *ast.TypeArgExpr, genType GenericType) T
 			return cachedType
 		}
 		if isPartial {
-			return &PartialGenericNamed{
+			partial := &PartialGenericNamed{
 				Named:   genType.Named,
 				genType: genType.genType,
 				typeMap: typeMap,
 			}
+			if check.genSig != nil {
+				check.genSig.dependents = append(check.genSig.dependents, partial)
+			}
+			return partial
 		}
 		newTypeMap := mergeTypeMap(genType.typeMap, typeMap)
-		newNamed := replaceTypesInNamed(genType.Named, newTypeMap)
+		newNamed := check.replaceTypesInNamed(genType.Named, newTypeMap)
 		newType := &ConcreteNamed{
 			Named:   newNamed,
 			genType: genType.genType,
 			typeMap: newTypeMap,
 		}
-		newType.methods = replaceTypesInMethods(genType.methods, typeMap)
+		newType.methods = check.replaceTypesInMethods(genType.methods, typeMap)
 		cache.add(newType)
 		addGenericUsage(genType.Object(), newType)
 		return newType
 
 	case *GenericSignature:
 		if isPartial {
-			return &PartialGenericSignature{
+			partial := &PartialGenericSignature{
 				Signature: genType.Signature,
 				genType:   genType,
 				typeMap:   typeMap,
 			}
+			if check.genSig != nil {
+				check.genSig.dependents = append(check.genSig.dependents, partial)
+			}
+			return partial
 		}
-		newSig := replaceTypesInSignature(genType.Signature, typeMap)
+		newSig := check.replaceTypesInSignature(genType.Signature, typeMap)
 		newType := &ConcreteSignature{
 			Signature: newSig,
 			genType:   genType,
@@ -221,14 +231,18 @@ func (check *Checker) concreteType(expr *ast.TypeArgExpr, genType GenericType) T
 			return cachedType
 		}
 		if isPartial {
-			return &PartialGenericSignature{
+			partial := &PartialGenericSignature{
 				Signature: genType.Signature,
 				genType:   genType.genType,
 				typeMap:   typeMap,
 			}
+			if check.genSig != nil {
+				check.genSig.dependents = append(check.genSig.dependents, partial)
+			}
+			return partial
 		}
 		newTypeMap := mergeTypeMap(genType.typeMap, typeMap)
-		newSig := replaceTypesInSignature(genType.Signature, newTypeMap)
+		newSig := check.replaceTypesInSignature(genType.Signature, newTypeMap)
 		newType := &ConcreteSignature{
 			Signature: newSig,
 			genType:   genType.genType,
@@ -320,7 +334,7 @@ func createMethodTypeMap(recvType Type, typeMap map[string]Type) map[string]Type
 // is part of the type. For example, root can be a []T and replaceTypes will
 // correctly replace T with the corresponding concrete type (assuming it is
 // included in typeMap).
-func replaceTypes(root Type, typeMap map[string]Type) Type {
+func (check *Checker) replaceTypes(root Type, typeMap map[string]Type) Type {
 	switch t := root.(type) {
 	case *TypeParam:
 		if newType, found := typeMap[t.String()]; found {
@@ -337,54 +351,54 @@ func replaceTypes(root Type, typeMap map[string]Type) Type {
 		return root
 	case *Pointer:
 		newPointer := *t
-		newPointer.base = replaceTypes(t.base, typeMap)
+		newPointer.base = check.replaceTypes(t.base, typeMap)
 		return &newPointer
 	case *Slice:
 		newSlice := *t
-		newSlice.elem = replaceTypes(t.elem, typeMap)
+		newSlice.elem = check.replaceTypes(t.elem, typeMap)
 		return &newSlice
 	case *Map:
 		newMap := *t
-		newMap.key = replaceTypes(t.key, typeMap)
-		newMap.elem = replaceTypes(t.elem, typeMap)
+		newMap.key = check.replaceTypes(t.key, typeMap)
+		newMap.elem = check.replaceTypes(t.elem, typeMap)
 		return &newMap
 	case *Array:
 		newArray := *t
-		newArray.elem = replaceTypes(t.elem, typeMap)
+		newArray.elem = check.replaceTypes(t.elem, typeMap)
 		return &newArray
 	case *Chan:
 		newChan := *t
-		newChan.elem = replaceTypes(t.elem, typeMap)
+		newChan.elem = check.replaceTypes(t.elem, typeMap)
 		return &newChan
 	case *Struct:
-		return replaceTypesInStruct(t, typeMap)
+		return check.replaceTypesInStruct(t, typeMap)
 	case *Signature:
-		return replaceTypesInSignature(t, typeMap)
+		return check.replaceTypesInSignature(t, typeMap)
 	case *Named:
-		return replaceTypesInNamed(t, typeMap)
+		return check.replaceTypesInNamed(t, typeMap)
 	case *ConcreteNamed:
 		panic(errors.New("case *ConcreteNamed not implemented"))
 	case *ConcreteSignature:
 		panic(errors.New("case *ConcreteSignature not implemened"))
 	case *PartialGenericNamed:
-		return replaceTypesInPartialGenericNamed(t, typeMap)
+		return check.replaceTypesInPartialGenericNamed(t, typeMap)
 	case *PartialGenericSignature:
-		panic(errors.New("case *PartialGenericSignature not implemened"))
+		return check.replaceTypesInPartialGenericSignature(t, typeMap)
 	}
 	return root
 }
 
-func replaceTypesInStruct(root *Struct, typeMap map[string]Type) *Struct {
+func (check *Checker) replaceTypesInStruct(root *Struct, typeMap map[string]Type) *Struct {
 	var fields []*Var
 	for _, field := range root.fields {
 		newField := *field
-		newField.typ = replaceTypes(field.Type(), typeMap)
+		newField.typ = check.replaceTypes(field.Type(), typeMap)
 		fields = append(fields, &newField)
 	}
 	return NewStruct(fields, root.tags)
 }
 
-func replaceTypesInSignature(root *Signature, typeMap map[string]Type) *Signature {
+func (check *Checker) replaceTypesInSignature(root *Signature, typeMap map[string]Type) *Signature {
 	var newRecv *Var
 	if root.recv != nil {
 		recvType, _ := deref(root.recv.typ)
@@ -393,7 +407,7 @@ func replaceTypesInSignature(root *Signature, typeMap map[string]Type) *Signatur
 		} else {
 			newRecv = new(Var)
 			(*newRecv) = *root.recv
-			newRecvType := replaceTypes(root.recv.typ, typeMap)
+			newRecvType := check.replaceTypes(root.recv.typ, typeMap)
 			newRecv.typ = newRecvType
 		}
 	}
@@ -403,7 +417,7 @@ func replaceTypesInSignature(root *Signature, typeMap map[string]Type) *Signatur
 		newParams = &Tuple{}
 		for _, param := range root.params.vars {
 			newParam := *param
-			newParam.typ = replaceTypes(param.typ, typeMap)
+			newParam.typ = check.replaceTypes(param.typ, typeMap)
 			newParams.vars = append(newParams.vars, &newParam)
 		}
 	}
@@ -413,7 +427,7 @@ func replaceTypesInSignature(root *Signature, typeMap map[string]Type) *Signatur
 		newResults = &Tuple{}
 		for _, result := range root.results.vars {
 			newResult := *result
-			newResult.typ = replaceTypes(result.typ, typeMap)
+			newResult.typ = check.replaceTypes(result.typ, typeMap)
 			newResults.vars = append(newResults.vars, &newResult)
 		}
 	}
@@ -422,18 +436,22 @@ func replaceTypesInSignature(root *Signature, typeMap map[string]Type) *Signatur
 	return newSig
 }
 
-func replaceTypesInGenericSignature(root *GenericSignature, typeMap map[string]Type) Type {
+func (check *Checker) replaceTypesInGenericSignature(root *GenericSignature, typeMap map[string]Type) Type {
 	if cachedType := cache.get(root, typeMap); cachedType != nil {
 		return cachedType
 	}
 	if checkIsPartial(typeMap) {
-		return &PartialGenericSignature{
+		partial := &PartialGenericSignature{
 			Signature: root.Signature,
 			genType:   root,
 			typeMap:   typeMap,
 		}
+		if check.genSig != nil {
+			check.genSig.dependents = append(check.genSig.dependents, partial)
+		}
+		return partial
 	}
-	newSig := replaceTypesInSignature(root.Signature, typeMap)
+	newSig := check.replaceTypesInSignature(root.Signature, typeMap)
 	newType := &ConcreteSignature{
 		Signature: newSig,
 		genType:   root,
@@ -444,34 +462,65 @@ func replaceTypesInGenericSignature(root *GenericSignature, typeMap map[string]T
 	return newType
 }
 
-func replaceTypesInNamed(root *Named, typeMap map[string]Type) *Named {
-	newUnderlying := replaceTypes(root.underlying, typeMap)
+func (check *Checker) replaceTypesInNamed(root *Named, typeMap map[string]Type) *Named {
+	newUnderlying := check.replaceTypes(root.underlying, typeMap)
 	newNamed := *root
 	newNamed.underlying = newUnderlying
 	return &newNamed
 }
 
-func replaceTypesInPartialGenericNamed(root *PartialGenericNamed, typeMap map[string]Type) Type {
+func (check *Checker) replaceTypesInPartialGenericNamed(root *PartialGenericNamed, typeMap map[string]Type) Type {
 	if cachedType := cache.get(root.genType, typeMap); cachedType != nil {
 		return cachedType
 	}
 	newTypeMap := remapTypes(root.typeMap, typeMap)
 	if checkIsPartial(newTypeMap) {
-		return &PartialGenericNamed{
+		partial := &PartialGenericNamed{
 			Named:   root.Named,
 			genType: root.genType,
 			typeMap: newTypeMap,
 		}
+		if check.genSig != nil {
+			check.genSig.dependents = append(check.genSig.dependents, partial)
+		}
+		return partial
 	}
-	newNamed := replaceTypesInNamed(root.Named, newTypeMap)
+	newNamed := check.replaceTypesInNamed(root.Named, newTypeMap)
 	newType := &ConcreteNamed{
 		Named:   newNamed,
 		genType: root.genType,
 		typeMap: newTypeMap,
 	}
-	newType.methods = replaceTypesInMethods(root.methods, newTypeMap)
+	newType.methods = check.replaceTypesInMethods(root.methods, newTypeMap)
 	cache.add(newType)
 	addGenericUsage(root.obj, newType)
+	return newType
+}
+
+func (check *Checker) replaceTypesInPartialGenericSignature(root *PartialGenericSignature, typeMap map[string]Type) Type {
+	if cachedType := cache.get(root.genType, typeMap); cachedType != nil {
+		return cachedType
+	}
+	newTypeMap := remapTypes(root.typeMap, typeMap)
+	if checkIsPartial(newTypeMap) {
+		partial := &PartialGenericSignature{
+			Signature: root.Signature,
+			genType:   root.genType,
+			typeMap:   newTypeMap,
+		}
+		if check.genSig != nil {
+			check.genSig.dependents = append(check.genSig.dependents, partial)
+		}
+		return partial
+	}
+	newSig := check.replaceTypesInSignature(root.Signature, newTypeMap)
+	newType := &ConcreteSignature{
+		Signature: newSig,
+		genType:   root.genType,
+		typeMap:   newTypeMap,
+	}
+	cache.add(newType)
+	addGenericUsage(root.genType.obj, newType)
 	return newType
 }
 
@@ -486,13 +535,13 @@ func addPartialSigTypeParams(sig *GenericSignature, typeMap map[string]Type) map
 	return result
 }
 
-func replaceTypesInMethods(methods []*Func, typeMap map[string]Type) []*Func {
+func (check *Checker) replaceTypesInMethods(methods []*Func, typeMap map[string]Type) []*Func {
 	newMethods := make([]*Func, len(methods))
 	for i, m := range methods {
 		switch meth := m.typ.(type) {
 		case *Signature:
 			newTypeMap := createMethodTypeMap(meth.recv.typ, typeMap)
-			newSig := replaceTypesInSignature(meth, newTypeMap)
+			newSig := check.replaceTypesInSignature(meth, newTypeMap)
 			newMethods[i] = replaceFuncType(m, newSig)
 		case *GenericSignature:
 			// Here we need to add both the implicit type args of the receiver type
@@ -501,7 +550,7 @@ func replaceTypesInMethods(methods []*Func, typeMap map[string]Type) []*Func {
 				meth,
 				createMethodTypeMap(meth.recv.typ, typeMap),
 			)
-			newSig := replaceTypesInGenericSignature(meth, newTypeMap)
+			newSig := check.replaceTypesInGenericSignature(meth, newTypeMap)
 			newMethods[i] = replaceFuncType(m, newSig)
 		default:
 			panic(fmt.Errorf("unexpected meth.typ: %T", m.typ))
@@ -543,5 +592,24 @@ func (check *Checker) typeArgsRequired(pos token.Pos, typ Type) {
 		}
 	case GenericType:
 		check.errorf(pos, "missing type arguments for type %s", typ.String())
+	}
+}
+
+// genericDependents adds usage for each dependent of all declared generic
+// signatures.
+func (check *Checker) genericDependents() {
+	for _, genDecl := range check.pkg.generics {
+		if genSig, ok := genDecl.Type.(*GenericSignature); ok {
+			for _, usage := range genDecl.Usages {
+				for _, dep := range genSig.dependents {
+					switch partialType := dep.(type) {
+					case *PartialGenericNamed:
+						check.replaceTypesInPartialGenericNamed(partialType, usage.TypeMap())
+					case *PartialGenericSignature:
+						check.replaceTypesInPartialGenericSignature(partialType, usage.TypeMap())
+					}
+				}
+			}
+		}
 	}
 }
