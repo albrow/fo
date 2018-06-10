@@ -1,0 +1,39 @@
+package main
+
+import "fmt"
+
+// keys returns an unordered slice containing the keys of m.
+func keys[T, U](m map[T]U) []T {
+	result := make([]T, len(m))
+	i := 0
+	for key := range m {
+		result[i] = key
+		i++
+	}
+	return result
+}
+
+// values returns an unordered slice containing the values of m.
+func values[T, U](m map[T]U) []U {
+	result := make([]U, len(m))
+	i := 0
+	for _, val := range m {
+		result[i] = val
+		i++
+	}
+	return result
+}
+
+func main() {
+	m := map[string]int{
+		"one": 1,
+		"two": 2,
+		"three": 3,
+	}
+
+	fmt.Println(keys[string, int](m))
+	// Output: [one two three]
+
+	fmt.Println(values[string, int](m))
+	// Output: [1, 2, 3]
+}

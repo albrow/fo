@@ -1,0 +1,77 @@
+package main
+
+import (
+  "fmt"
+  "strconv"
+)
+
+// pipe3 performs left-to-right function composition of three functions. If any
+// of the functions return an error it bails early and returns that error.
+func pipe3[P0, P1, P2, R](
+  f0 func(P0) (P1, error),
+  f1 func(P1) (P2, error),
+  f2 func(P2) (R, error),
+) func(P0) (R, error) {
+  return func(p0 P0) (R, error) {
+    p1, err := f0(p0)
+    if err != nil {
+      var r R
+      return r, err
+    }
+    p2, err := f1(p1)
+    if err != nil {
+      var r R
+      return r, err
+    }
+    return f2(p2)
+  }
+}
+
+// neverError accepts a function f(T) U and returns a new function
+// f(T) (U, error). The second return value (the error) is always nil and
+// otherwise the new function behaves identically.
+func neverError[T, U](f func(T) U) func(T) (U, error) {
+  return func(t T) (U, error) {
+    return f(t), nil
+  }
+}
+
+// decr decrements n but returns an error if n <= 0.
+func decr(n int) (int, error) {
+  if n <= 0 {
+    return 0, fmt.Errorf("cannot decrement %d", n)
+  }
+  return n-1, nil
+}
+
+// decrString converts the given string to an int, decrements it, and converts
+// it back to a string. It returns an error if the given string cannot be
+// converted to an int or if the given string is <= 0 when converted. Note that
+// in the implementation of this function, we don't need to explicitly handle
+// the error return value at each step.
+var decrString = pipe3[string, int, int, string](
+  strconv.Atoi,
+  decr,
+  // strconv.Itoa only has one return value. We use neverError to convert
+  // strconv.Itoa to a function which returns (string, error) so that the
+  // signature is compatible with pipe3.
+  neverError[int, string](strconv.Itoa),
+)
+
+func main() {
+  fmt.Printf("decrString has type: %T\n", decrString)
+  // Output: decrString has type: func(string) (string, error)
+
+  var err error
+  result, err := decrString("5")
+  fmt.Println(result, err)
+  // Output: 4 <nil>
+
+  _, err = decrString("apple")
+  fmt.Println(err)
+  // Output: strconv.Atoi: parsing "apple": invalid syntax
+
+  _, err = decrString("0")
+  fmt.Println(err)
+  // Output: cannot decrement 0
+}

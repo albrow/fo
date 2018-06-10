@@ -1,0 +1,39 @@
+package main
+
+import (
+  "fmt"
+  "strconv"
+)
+
+// Box holds a value of arbitrary type T.
+type Box[T] struct {
+  v T
+}
+
+func (b Box[T]) Val() T {
+  return b.v
+}
+
+// Map takes the value of the box, applies the given function to it, and returns
+// a new box which holds the result.
+func (b Box[T]) Map[U] (f func(T) U) Box[U] {
+  return Box[U]{
+    v: f(b.v),
+  }
+}
+
+func main() {
+  // We can create boxes which hold different types.
+  x := Box[string] { v: "foo" }
+  fmt.Printf("x is of type Box[%T] and has value: %q\n", x.Val(), x.Val())
+  // Output: x is of type Box[string] and has value: "foo"
+
+  y := Box[int] { v: 42 }
+  fmt.Printf("y is of type Box[%T] and has value: %v\n", y.Val(), y.Val())
+  // Output: y is of type Box[int] and has value: 42
+
+  // We can use Map to convert the value of a box to a new type.
+  z := y.Map[string](strconv.Itoa)
+  fmt.Printf("z is of type Box[%T] and has value: %q\n", z.Val(), z.Val())
+  // Output: z is of type Box[string] and has value: "42"
+}

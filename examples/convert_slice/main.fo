@@ -1,0 +1,22 @@
+package main
+
+import "fmt"
+
+// convertSlice accepts a slice of type []T, converts each element to type U and
+// returns a new slice of type []U.
+func convertSlice[T, U](s []T) []U {
+	result := make([]U, len(s))
+	for i, v := range s {
+		result[i] = U(v)
+	}
+	return result
+}
+
+func main() {
+	ints := []int{1, 2, 3}
+	uints := convertSlice[int, uint](ints)
+	fmt.Printf("slice was converted from %T to %T\n", ints, uints)
+	// Output: slice was converted from []int to []uint
+	fmt.Println(uints)
+	// Output: [1, 2, 3]
+}

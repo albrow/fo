@@ -1,0 +1,38 @@
+package main
+
+import "fmt"
+
+// curry2 is a higher-order function which  takes a function with two arguments
+// and one return value and returns the curried version of that function.
+// https://en.wikipedia.org/wiki/Currying
+func curry2[P1, P2, R](f func(P1, P2) R) func(P1) func(P2) R {
+  return func(p1 P1) func(P2) R {
+    return func(p2 P2) R {
+      return f(p1, p2)
+    }
+  }
+}
+
+// add is a curried function which adds two ints, a and b.
+var add = curry2[int, int, int](
+  func(a, b int) int {
+    return a + b
+  },
+)
+
+func main() {
+  // We can use our curried add function to create an incr function. incr is a
+  // function which accepts an int and adds 1 to it.
+  incr := add(1)
+  fmt.Println(incr(1))
+  // Output: 2
+  fmt.Println(incr(10))
+  // Output: 11
+
+  // Similarly, we can create a decr function by calling add(-1).
+  decr := add(-1)
+  fmt.Println(decr(1))
+  // Output: 0
+  fmt.Println(decr(10))
+  // Output: 9
+}

@@ -1,0 +1,29 @@
+package main
+
+import (
+  "strconv"
+  "fmt"
+)
+
+// flip takes a function and returns a new function with the order of the
+// parameters flipped.
+func flip[P0, P1, R](f func(P0, P1) R) func(P1, P0) R {
+  return func(p1 P1, p0 P0) R {
+    return f(p0, p1)
+  }
+}
+
+var appendQuote = flip[[]byte, string, []byte](strconv.AppendQuote)
+
+func main() {
+  fmt.Printf("original: %T\n", strconv.AppendQuote)
+  // Output: original: func([]uint8, string) []uint8
+  fmt.Printf("flipped: %T\n", appendQuote)
+  // Output: flipped: func(string, []uint8) []uint8
+
+  buf := []byte("quote: ")
+  quote := `"Hello!"`
+  result := appendQuote(quote, buf)
+  fmt.Println(string(result))
+  // Output: quote: "\"Hello!\""
+}

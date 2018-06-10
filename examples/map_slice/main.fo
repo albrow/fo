@@ -1,0 +1,39 @@
+package main
+
+import (
+	"fmt"
+	"strings"
+)
+
+// mapSlice takes a function and a slice, applies the function to each element
+// in the slice, and returns a new slice where each element is the corresponding
+// result.
+func mapSlice[T, U](f func(T) U, list []T) []U {
+	result := make([]U, len(list))
+	for i, val := range list {
+		result[i] = f(val)
+	}
+	return result
+}
+
+func incr(n int) int {
+	return n+1
+}
+
+func main() {
+	// We can map over a slice of numbers and increment each one.
+	numbers := []int{1, 2, 3}
+	fmt.Println(mapSlice[int, int](incr, numbers))
+	// Output: [2, 3, 4]
+
+	// Or we can convert each int to a uint.
+	uints := mapSlice[int, uint](func(n int) uint {return uint(n)}, numbers)
+	fmt.Printf("uints has type %T\n", uints)
+	// Output: uints has type []uint
+
+	// As another example, we can map over a slice of strings and convert each
+	// one to uppercase.
+	strns := []string{"apple", "banana", "carrot"}
+	fmt.Println(mapSlice[string, string](strings.ToUpper, strns))
+	// Output: [APPLE BANANA CARROT]
+}
