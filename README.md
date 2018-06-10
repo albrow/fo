@@ -3,11 +3,25 @@
 Fo is an experimental language which adds functional programming features to Go.
 The name is short for "Functional Go".
 
-At this time, Fo should be thought of primarily as an experiment. It shows what
-Go looks like and feels like with some new language features and allows us to
-explore how those features interact and what you can build with them. The syntax
-and implementation are not finalized. The language is far from appropriate for
-use in real applications, though that will hopefully change in the future.
+## Background
+
+Go already supports many features that functional programmers might want:
+closures, first-class functions, errors as values, etc. The main feature
+(and in fact only feature for now) that Fo adds is type polymorphism via
+generics. Generics encourage functional programming techniques by making it
+possible to write flexible higher-order functions and type-agnostic data
+structures. You can see some example programs in the
+[examples directory](https://github.com/albrow/fo/tree/master/examples) of this
+repository.
+
+At this time, Fo should be thought of primarily as an experiment or proof of
+concept. It shows what Go looks like and feels like with some new language
+features and allows us to explore how those features interact and what you can
+build with them. The syntax and implementation are not finalized. The language
+is far from appropriate for use in real applications, though that will hopefully
+change in the future.
+
+## Playground
 
 If you want to give Fo a try without installing anything, you can visit
 [The Fo Playground](https://play.folang.org/).
@@ -21,9 +35,10 @@ program:
 go get -u github.com/albrow/fo
 ```
 
+## Usage
+
 For now, the CLI for Fo is extremely simple and only works on one file at a
-time. There is only a `run` command,
-and it works like this:
+time. There is only one command, `run`, and it works like this:
 
 ```
 fo run <filename>
