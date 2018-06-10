@@ -1,3 +1,6 @@
+// You can run this example yourself on the Fo Playground:
+// https://play.folang.org/p/Ez8_dWlOYsp
+
 package main
 
 import "fmt"
