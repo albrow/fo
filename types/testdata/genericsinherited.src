@@ -34,7 +34,16 @@ type C[T, U] map[T]U
 
 type Cpart[T] struct {
   c C[T, struct{}]
-} 
+}
+
+// See https://github.com/albrow/fo/issues/3
+type D[T] struct {
+  d *D[T]
+}
+
+func (d *D) initD() {
+  d.d = d
+}
 
 func main() {
   // Variable assignment and initialization

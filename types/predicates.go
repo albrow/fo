@@ -337,10 +337,15 @@ func identical(x, y Type, cmpTags bool, p *ifacePair) bool {
 		}
 
 	case *GenericNamed:
+		switch y := y.(type) {
 		// Two generic named types are identical if their type names originate in
 		// in the same type declaration.
-		if y, ok := y.(*GenericNamed); ok {
+		case *GenericNamed:
 			return x.obj == y.obj
+		// A generic named type is also considered identical to a partial generic
+		// named type if x == y.genType.
+		case *PartialGenericNamed:
+			return identical(x, y.genType, cmpTags, p)
 		}
 
 	case *ConcreteNamed:
@@ -366,10 +371,11 @@ func identical(x, y Type, cmpTags bool, p *ifacePair) bool {
 		}
 
 	case *PartialGenericNamed:
+		switch y := y.(type) {
 		// Two partial generic named types are identical if their type names
 		// originate in the same type declaration and they have the same type
 		// arguments.
-		if y, ok := y.(*ConcreteNamed); ok {
+		case *PartialGenericNamed:
 			if x.obj != y.obj {
 				return false
 			}
@@ -385,6 +391,10 @@ func identical(x, y Type, cmpTags bool, p *ifacePair) bool {
 				}
 			}
 			return true
+		// A partial generic named type is also considered identical to a generic
+		// named type if x.genType == y.
+		case *GenericNamed:
+			return identical(x.genType, y, cmpTags, p)
 		}
 
 	case *TypeParam:
