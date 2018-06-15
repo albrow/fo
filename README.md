@@ -207,7 +207,7 @@ MapSlice[int](incr, []int{1, 2, 3})
 #### Declaration
 
 Fo supports a special syntax for methods with a generic receiver type. You can
-optionally include the type parmaters of the receiver type and those type
+optionally include the type parameters of the receiver type and those type
 parameters can be used in the function signature and body. Whenever a generic
 method of this form is called, the type arguments of the receiver type are
 passed through to the method definition.
