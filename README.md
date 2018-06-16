@@ -157,7 +157,7 @@ The syntax for declaring a generic function is similar to named types. The
 grammar looks like this:
 
 ```
-FunctionDecl = "func" FunctionName [ TypeParams ] Signature [ FunctionBody ] .
+FunctionDecl = "func" FunctionName TypeParams Signature [ FunctionBody ] .
 TypeParams   = "[" identifier { "," identifier } "]"
 ```
 
@@ -216,8 +216,8 @@ The grammar for methods with generic receiver types looks like this (some
 definitions omitted/simplified):
 
 ```
-MethodDecl = "func" Receiver MethodName [ TypeParams ] Signature [ FunctionBody ] .
-Receiver   = "(" [ ReceiverName ] Type [ TypeParams ] ")" .
+MethodDecl = "func" Receiver MethodName TypeParams Signature [ FunctionBody ] .
+Receiver   = "(" [ ReceiverName ] Type TypeParams ")" .
 TypeParams = "[" identifier { "," identifier } "]" .
 ```
 
