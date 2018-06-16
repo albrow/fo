@@ -85,7 +85,7 @@ placeholders for arbitrary types to be specified later.
 The extended grammar looks like this (some definitions omitted/simplified):
 
 ```
-TypeDecl   = "type" identifier [ TypeParams ] Type .
+TypeDecl   = "type" identifier TypeParams Type .
 TypeParams = "[" identifier { "," identifier } "]" .
 ```
 
