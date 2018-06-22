@@ -40,6 +40,7 @@ var safeSymbolMap = map[string]string{
 	"[": "_",
 	"]": "_",
 	"*": "_",
+	"/": "_",
 }
 
 func replaceUnsafeSymbols(s string) string {
@@ -49,9 +50,26 @@ func replaceUnsafeSymbols(s string) string {
 	return s
 }
 
-func formatTypeArgs(args []ast.Expr) string {
+func (trans *Transformer) formatTypeArgs(args []ast.Expr) string {
 	result := ""
 	for i, arg := range args {
+		// Check if the type argument is a type alias.
+		if ident, ok := arg.(*ast.Ident); ok {
+			if obj, found := trans.Info.Uses[ident]; found {
+				if typeName, ok := obj.(*types.TypeName); ok {
+					if typeName.IsAlias() {
+						// If it is, use the underling type as the type argument string.
+						// (e.g. "string" in `type S = string`)
+						if i != 0 {
+							result += "__"
+						}
+						result += replaceUnsafeSymbols(typeName.Type().Underlying().String())
+						continue
+					}
+				}
+			}
+		}
+		// Otherwise format the type as a string normally.
 		buf := bytes.Buffer{}
 		format.Node(&buf, token.NewFileSet(), arg)
 		if i != 0 {
@@ -62,12 +80,33 @@ func formatTypeArgs(args []ast.Expr) string {
 	return result
 }
 
-// TODO: this could be optimized
-func concreteTypeName(decl *types.GenericDecl, usg types.ConcreteType) string {
+// dequalifyTypeName removes the package path prefix from the given type string
+// if it is equal to the current package path.
+// TODO(albrow): this could be optimized
+func (trans *Transformer) dequalifyTypeName(typ string) string {
+	split := strings.Split(typ, ".")
+	if len(split) == 1 {
+		return typ
+	}
+	qualifier := split[0]
+	// Sometimes the type string contains the ".fo" extension and sometimes it
+	// doesn't. It depends on how the program is run.
+	if len(split) >= 2 && split[1] == "fo" {
+		qualifier += ".fo"
+	}
+	if qualifier == trans.Pkg.Path() {
+		return strings.Replace(typ, qualifier+".", "", 1)
+	}
+	return typ
+}
+
+// TODO(albrow): this could be optimized
+func (trans *Transformer) concreteTypeName(decl *types.GenericDecl, usg types.ConcreteType) string {
 	stringParams := []string{}
 	for _, param := range decl.Type.TypeParams() {
 		typeString := usg.TypeMap()[param.String()].String()
-		safeParam := replaceUnsafeSymbols(typeString)
+		unqualifiedTypeString := trans.dequalifyTypeName(typeString)
+		safeParam := replaceUnsafeSymbols(unqualifiedTypeString)
 		stringParams = append(stringParams, safeParam)
 	}
 	if len(stringParams) == 0 {
@@ -76,15 +115,15 @@ func concreteTypeName(decl *types.GenericDecl, usg types.ConcreteType) string {
 	return decl.Name + "__" + strings.Join(stringParams, "__")
 }
 
-func concreteTypeExpr(e *ast.TypeArgExpr) ast.Node {
+func (trans *Transformer) concreteTypeExpr(e *ast.TypeArgExpr) ast.Node {
 	switch x := e.X.(type) {
 	case *ast.Ident:
 		newIdent := astclone.Clone(x).(*ast.Ident)
-		newIdent.Name = newIdent.Name + "__" + formatTypeArgs(e.Types)
+		newIdent.Name = newIdent.Name + "__" + trans.formatTypeArgs(e.Types)
 		return newIdent
 	case *ast.SelectorExpr:
 		newSel := astclone.Clone(x).(*ast.SelectorExpr)
-		newSel.Sel = ast.NewIdent(newSel.Sel.Name + "__" + formatTypeArgs(e.Types))
+		newSel.Sel = ast.NewIdent(newSel.Sel.Name + "__" + trans.formatTypeArgs(e.Types))
 		return newSel
 	default:
 		panic(fmt.Errorf("type arguments for expr %v of type %T are not yet supported", e.X, e.X))
@@ -202,7 +241,7 @@ func (trans *Transformer) replaceGenericIdents() func(c *astutil.Cursor) bool {
 	return func(c *astutil.Cursor) bool {
 		switch n := c.Node().(type) {
 		case *ast.TypeArgExpr:
-			c.Replace(concreteTypeExpr(n))
+			c.Replace(trans.concreteTypeExpr(n))
 		case *ast.IndexExpr:
 			// Check if we are dealing with an ambiguous IndexExpr from the parser. In
 			// some cases we need to disambiguate this by upgrading to a
@@ -216,7 +255,7 @@ func (trans *Transformer) replaceGenericIdents() func(c *astutil.Cursor) bool {
 						Types:  []ast.Expr{n.Index},
 						Rbrack: n.Rbrack,
 					}
-					c.Replace(concreteTypeExpr(typeArgExpr))
+					c.Replace(trans.concreteTypeExpr(typeArgExpr))
 				}
 			case *ast.SelectorExpr:
 				selection, found := trans.Info.Selections[x]
@@ -240,7 +279,7 @@ func (trans *Transformer) replaceGenericIdents() func(c *astutil.Cursor) bool {
 							Types:  []ast.Expr{n.Index},
 							Rbrack: n.Rbrack,
 						}
-						c.Replace(concreteTypeExpr(typeArgExpr))
+						c.Replace(trans.concreteTypeExpr(typeArgExpr))
 						return false
 					}
 				}
@@ -275,9 +314,9 @@ func (trans *Transformer) generateTypeSpecs(typeSpec *ast.TypeSpec) []ast.Spec {
 	}
 	for _, usg := range genericDecl.Usages {
 		newTypeSpec := astclone.Clone(typeSpec).(*ast.TypeSpec)
-		newTypeSpec.Name = ast.NewIdent(concreteTypeName(genericDecl, usg))
+		newTypeSpec.Name = ast.NewIdent(trans.concreteTypeName(genericDecl, usg))
 		newTypeSpec.TypeParams = nil
-		replaceIdentsInScope(newTypeSpec, usg.TypeMap())
+		trans.replaceIdentsInScope(newTypeSpec, usg.TypeMap())
 		results = append(results, newTypeSpec)
 	}
 	return results
@@ -324,27 +363,28 @@ func (trans *Transformer) generateFuncDecls(funcDecl *ast.FuncDecl) (newFuncs []
 		for _, usg := range genFuncDecl.Usages {
 			newFunc := astclone.Clone(funcDecl).(*ast.FuncDecl)
 			expandReceiverType(newFunc, genRecvDecl, usg)
-			newFunc.Name = ast.NewIdent(concreteTypeName(genFuncDecl, usg))
+			newFunc.Name = ast.NewIdent(trans.concreteTypeName(genFuncDecl, usg))
 			newFunc.TypeParams = nil
-			replaceIdentsInScope(newFunc, usg.TypeMap())
+			trans.replaceIdentsInScope(newFunc, usg.TypeMap())
 			newFuncs = append(newFuncs, newFunc)
 		}
 	} else if genRecvDecl != nil {
 		for _, usg := range genRecvDecl.Usages {
 			newFunc := astclone.Clone(funcDecl).(*ast.FuncDecl)
 			expandReceiverType(newFunc, genRecvDecl, usg)
-			replaceIdentsInScope(newFunc, usg.TypeMap())
+			trans.replaceIdentsInScope(newFunc, usg.TypeMap())
 			newFuncs = append(newFuncs, newFunc)
 		}
 	}
 	return newFuncs, recvIsGeneric
 }
 
-func replaceIdentsInScope(n ast.Node, typeMap map[string]types.Type) ast.Node {
+func (trans *Transformer) replaceIdentsInScope(n ast.Node, typeMap map[string]types.Type) ast.Node {
 	return astutil.Apply(n, nil, func(c *astutil.Cursor) bool {
 		if ident, ok := c.Node().(*ast.Ident); ok {
 			if typ, found := typeMap[ident.Name]; found {
-				c.Replace(ast.NewIdent(typ.String()))
+				unqualifiedTypeString := trans.dequalifyTypeName(typ.String())
+				c.Replace(ast.NewIdent(unqualifiedTypeString))
 			}
 		}
 		return true

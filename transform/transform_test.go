@@ -667,6 +667,95 @@ func main() {
 	testParseFile(t, src, expected)
 }
 
+// Note: In this case, we expect *two* generated concrete types, one for S and
+// one for string
+func TestTransformCustomTypes(t *testing.T) {
+	src := `package main
+
+type Box[T] struct {
+	v T
+}
+
+type S string
+
+func main() {
+	var _ = Box[S]{
+		v: "",
+	}
+	var _ = Box[string]{
+		v: "",
+	}
+}
+`
+
+	expected := `package main
+
+type (
+	Box__S struct {
+		v S
+	}
+	Box__string struct {
+		v string
+	}
+)
+
+type S string
+
+func main() {
+	var _ = Box__S{
+		v: "",
+	}
+	var _ = Box__string{
+		v: "",
+	}
+}
+`
+
+	testParseFile(t, src, expected)
+}
+
+// Note: In this case, we expect *one* generated concrete type, because S is
+// defined as exactly equivalent to string.
+func TestTransformTypeAlias(t *testing.T) {
+	src := `package main
+
+type Box[T] struct {
+	v T
+}
+
+type S = string
+
+func main() {
+	var _ = Box[S]{
+		v: "",
+	}
+	var _ = Box[string]{
+		v: "",
+	}
+}
+`
+
+	expected := `package main
+
+type Box__string struct {
+	v string
+}
+
+type S = string
+
+func main() {
+	var _ = Box__string{
+		v: "",
+	}
+	var _ = Box__string{
+		v: "",
+	}
+}
+`
+
+	testParseFile(t, src, expected)
+}
+
 func testParseFile(t *testing.T, src string, expected string) {
 	t.Helper()
 	fset := token.NewFileSet()
@@ -678,6 +767,7 @@ func testParseFile(t *testing.T, src string, expected string) {
 	conf.Importer = importer.Default()
 	info := &types.Info{
 		Selections: map[*ast.SelectorExpr]*types.Selection{},
+		Uses:       map[*ast.Ident]types.Object{},
 	}
 	pkg, err := conf.Check("transformtest", fset, []*ast.File{orig}, info)
 	if err != nil {
