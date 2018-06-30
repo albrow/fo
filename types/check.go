@@ -244,6 +244,10 @@ func (check *Checker) checkFiles(files []*ast.File) (err error) {
 
 	check.functionBodies()
 
+	// HACK(albrow): The order in which we iterate through generic declarations
+	// sometimes means we can miss dependent usages. If we iterate through twice,
+	// it's obviously less effecient but should work.
+	check.genericDependents()
 	check.genericDependents()
 
 	check.initOrder()
