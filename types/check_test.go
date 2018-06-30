@@ -98,6 +98,7 @@ var tests = [][]string{
 	{"testdata/genericmethodsinherited.src"},
 	{"testdata/genericstructs.src"},
 	{"testdata/genericsinherited.src"},
+	{"testdata/genericsrecursive.src"},
 }
 
 var fset = token.NewFileSet()

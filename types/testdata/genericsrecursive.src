@@ -1,0 +1,91 @@
+// Copyright 2018 Alex Browne. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+package genericsrecursive
+
+// See https://github.com/albrow/fo/issues/3 and
+// https://github.com/albrow/fo/issues/15
+type A[T] struct {
+  a *A[T]
+  v T
+}
+
+func (a *A) init() {
+  a.a = a
+}
+
+type B[T, U] struct {
+  b *B[U, T]
+  t T
+  u U
+}
+
+// TODO(albrow): Fix this error
+// func (b *B[T, U]) init() {
+//   t := b.t
+//   u := b.u
+//   b.b = &B[U, T]{
+//     b: b,
+//     u: t,
+//     t: u,
+//   }
+// }
+
+type C[T] struct {
+  d *D[T]
+  v T
+}
+
+type D[T] struct {
+  c *C[T]
+  v T
+}
+
+func E[T]() T {
+  return E[T]()
+}
+
+func F[T, U]() (T, U) {
+  return F[T, U]()
+}
+
+func G[T]() T {
+  return H[T]()
+}
+
+func H[T]() T {
+  return G[T]()
+}
+
+func main() {
+  a := A[string]{
+    v: "foo",
+  }
+  a.init()
+  var _ string = a.a.a.a.a.a.a.a.a.v
+
+  var _ = B[string, int]{
+    t: "foo",
+    u: 42,
+  }
+  c := C[bool]{
+    v: true,
+  }
+  d := D[bool]{
+    c: &c,
+    v: false,
+  }
+  c.d = &d
+  var _ bool = c.d.c.d.c.d.c.d.c.d.c.d.v
+
+  var _ uint8 = E[uint8]()
+  var f0 float64
+  var f1 complex64
+  f0, f1 = F[float64, complex64]()
+  print(f0)
+  print(f1)
+
+  var _ string = H[string]()
+  var _ []int = G[[]int]()
+}

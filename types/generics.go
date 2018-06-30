@@ -485,14 +485,14 @@ func (check *Checker) replaceTypesInPartialGenericNamed(root *PartialGenericName
 		}
 		return partial
 	}
-	newNamed := check.replaceTypesInNamed(root.Named, newTypeMap)
 	newType := &ConcreteNamed{
-		Named:   newNamed,
 		genType: root.genType,
 		typeMap: newTypeMap,
 	}
-	newType.methods = check.replaceTypesInMethods(root.methods, newTypeMap)
 	cache.add(newType)
+	newNamed := check.replaceTypesInNamed(root.Named, newTypeMap)
+	newType.Named = newNamed
+	newType.methods = check.replaceTypesInMethods(root.methods, newTypeMap)
 	addGenericUsage(root.obj, newType)
 	return newType
 }
@@ -513,13 +513,13 @@ func (check *Checker) replaceTypesInPartialGenericSignature(root *PartialGeneric
 		}
 		return partial
 	}
-	newSig := check.replaceTypesInSignature(root.Signature, newTypeMap)
 	newType := &ConcreteSignature{
-		Signature: newSig,
-		genType:   root.genType,
-		typeMap:   newTypeMap,
+		genType: root.genType,
+		typeMap: newTypeMap,
 	}
 	cache.add(newType)
+	newSig := check.replaceTypesInSignature(root.Signature, newTypeMap)
+	newType.Signature = newSig
 	addGenericUsage(root.genType.obj, newType)
 	return newType
 }

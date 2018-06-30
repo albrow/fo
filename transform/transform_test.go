@@ -756,6 +756,177 @@ func main() {
 	testParseFile(t, src, expected)
 }
 
+// See https://github.com/albrow/fo/issues/3 and
+// https://github.com/albrow/fo/issues/15
+func TestTransformRecursive(t *testing.T) {
+	src := `package main
+
+type A[T] struct {
+	a *A[T]
+	v T
+}
+
+func (a *A) init() {
+	a.a = a
+}
+
+type B[T, U] struct {
+	b *B[U, T]
+	t T
+	u U
+}
+
+type C[T] struct {
+	d *D[T]
+	v T
+}
+
+type D[T] struct {
+	c *C[T]
+	v T
+}
+
+func E[T]() T {
+	return E[T]()
+}
+
+func F[T, U]() (T, U) {
+	return F[T, U]()
+}
+
+func G[T]() T {
+	return H[T]()
+}
+
+func H[T]() T {
+	return G[T]()
+}
+
+func main() {
+	a := A[string]{
+		v: "foo",
+	}
+	a.init()
+	var _ string = a.a.a.a.a.a.a.a.a.v
+
+	var _ = B[string, int]{
+		t: "foo",
+		u: 42,
+	}
+	c := C[bool]{
+		v: true,
+	}
+	d := D[bool]{
+		c: &c,
+		v: false,
+	}
+	c.d = &d
+	var _ bool = c.d.c.d.c.d.c.d.c.d.c.d.v
+
+	var _ uint8 = E[uint8]()
+	var f0 float64
+	var f1 complex64
+	f0, f1 = F[float64, complex64]()
+	print(f0)
+	print(f1)
+
+	var _ string = H[string]()
+	var _ []int = G[[]int]()
+}
+`
+
+	expected := `package main
+
+type A__string struct {
+	a *A__string
+	v string
+}
+
+func (a *A__string) init() {
+	a.a = a
+}
+
+type (
+	B__int__string struct {
+		b *B__string__int
+		t int
+		u string
+	}
+	B__string__int struct {
+		b *B__int__string
+		t string
+		u int
+	}
+)
+
+type C__bool struct {
+	d *D__bool
+	v bool
+}
+
+type D__bool struct {
+	c *C__bool
+	v bool
+}
+
+func E__uint8() uint8 {
+	return E__uint8()
+}
+
+func F__float64__complex64() (float64, complex64) {
+	return F__float64__complex64()
+}
+
+func G____int() []int {
+	return H____int()
+}
+func G__string() string {
+	return H__string()
+}
+
+func H____int() []int {
+	return G____int()
+}
+func H__string() string {
+	return G__string()
+}
+
+func main() {
+	a := A__string{
+		v: "foo",
+	}
+	a.init()
+	var _ string = a.a.a.a.a.a.a.a.a.v
+
+	var _ = B__string__int{
+		t: "foo",
+		u: 42,
+	}
+	c := C__bool{
+		v: true,
+	}
+	d := D__bool{
+		c: &c,
+		v: false,
+	}
+	c.d = &d
+	var _ bool = c.d.c.d.c.d.c.d.c.d.c.d.v
+
+	var _ uint8 = E__uint8()
+	var f0 float64
+	var f1 complex64
+	f0, f1 = F__float64__complex64()
+	print(f0)
+	print(f1)
+
+	var _ string = H__string()
+	var _ []int = G____int()
+}
+`
+
+	testParseFile(t, src, expected)
+}
+
 func testParseFile(t *testing.T, src string, expected string) {
 	t.Helper()
 	fset := token.NewFileSet()
