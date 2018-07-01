@@ -9,7 +9,6 @@ import (
 	"github.com/albrow/fo/ast"
 	"github.com/albrow/fo/astclone"
 	"github.com/albrow/fo/astutil"
-	"github.com/albrow/fo/format"
 	"github.com/albrow/fo/printer"
 	"github.com/albrow/fo/token"
 	"github.com/albrow/fo/types"
@@ -35,21 +34,6 @@ func (trans *Transformer) File(f *ast.File) (*ast.File, error) {
 	return resultFile, nil
 }
 
-var safeSymbolMap = map[string]string{
-	".": "_",
-	"[": "_",
-	"]": "_",
-	"*": "_",
-	"/": "_",
-}
-
-func replaceUnsafeSymbols(s string) string {
-	for unsafe, safe := range safeSymbolMap {
-		s = strings.Replace(s, unsafe, safe, -1)
-	}
-	return s
-}
-
 func (trans *Transformer) formatTypeArgs(args []ast.Expr) string {
 	result := ""
 	for i, arg := range args {
@@ -63,51 +47,27 @@ func (trans *Transformer) formatTypeArgs(args []ast.Expr) string {
 						if i != 0 {
 							result += "__"
 						}
-						result += replaceUnsafeSymbols(typeName.Type().Underlying().String())
+						result += typeToSafeString(typeName.Type().Underlying())
 						continue
 					}
 				}
 			}
 		}
 		// Otherwise format the type as a string normally.
-		buf := bytes.Buffer{}
-		format.Node(&buf, token.NewFileSet(), arg)
 		if i != 0 {
 			result += "__"
 		}
-		result += replaceUnsafeSymbols(buf.String())
+		result += exprToSafeString(arg)
 	}
 	return result
-}
-
-// dequalifyTypeName removes the package path prefix from the given type string
-// if it is equal to the current package path.
-// TODO(albrow): this could be optimized
-func (trans *Transformer) dequalifyTypeName(typ string) string {
-	split := strings.Split(typ, ".")
-	if len(split) == 1 {
-		return typ
-	}
-	qualifier := split[0]
-	// Sometimes the type string contains the ".fo" extension and sometimes it
-	// doesn't. It depends on how the program is run.
-	if len(split) >= 2 && split[1] == "fo" {
-		qualifier += ".fo"
-	}
-	if qualifier == trans.Pkg.Path() {
-		return strings.Replace(typ, qualifier+".", "", 1)
-	}
-	return typ
 }
 
 // TODO(albrow): this could be optimized
 func (trans *Transformer) concreteTypeName(decl *types.GenericDecl, usg types.ConcreteType) string {
 	stringParams := []string{}
 	for _, param := range decl.Type.TypeParams() {
-		typeString := usg.TypeMap()[param.String()].String()
-		unqualifiedTypeString := trans.dequalifyTypeName(typeString)
-		safeParam := replaceUnsafeSymbols(unqualifiedTypeString)
-		stringParams = append(stringParams, safeParam)
+		typ := usg.TypeMap()[param.String()]
+		stringParams = append(stringParams, typeToSafeString(typ))
 	}
 	if len(stringParams) == 0 {
 		return decl.Name
@@ -130,11 +90,10 @@ func (trans *Transformer) concreteTypeExpr(e *ast.TypeArgExpr) ast.Node {
 	}
 }
 
-func recvTypeParams(typeParams []*types.TypeParam, typeMap map[string]types.Type) []ast.Expr {
+func (trans *Transformer) recvTypeParams(typeParams []*types.TypeParam, typeMap map[string]types.Type) []ast.Expr {
 	types := []ast.Expr{}
 	for _, param := range typeParams {
-		typeString := typeMap[param.String()].String()
-		types = append(types, ast.NewIdent(typeString))
+		types = append(types, typeToExpr(typeMap[param.String()]))
 	}
 	if len(types) > 0 {
 		return types
@@ -145,7 +104,7 @@ func recvTypeParams(typeParams []*types.TypeParam, typeMap map[string]types.Type
 
 // expandReceiverType adds the appropriate type parameters to a receiver type
 // if they were not included in the original source code.
-func expandReceiverType(funcDecl *ast.FuncDecl, genDecl *types.GenericDecl, usg types.ConcreteType) {
+func (trans *Transformer) expandReceiverType(funcDecl *ast.FuncDecl, genDecl *types.GenericDecl, usg types.ConcreteType) {
 	astutil.Apply(funcDecl.Recv, func(c *astutil.Cursor) bool {
 		switch n := c.Node().(type) {
 		case *ast.TypeArgExpr:
@@ -156,7 +115,7 @@ func expandReceiverType(funcDecl *ast.FuncDecl, genDecl *types.GenericDecl, usg 
 				c.Replace(&ast.TypeArgExpr{
 					X:      ast.NewIdent(n.Name),
 					Lbrack: token.NoPos,
-					Types:  recvTypeParams(genDecl.Type.TypeParams(), usg.TypeMap()),
+					Types:  trans.recvTypeParams(genDecl.Type.TypeParams(), usg.TypeMap()),
 					Rbrack: token.NoPos,
 				})
 			}
@@ -362,7 +321,7 @@ func (trans *Transformer) generateFuncDecls(funcDecl *ast.FuncDecl) (newFuncs []
 	if genFuncDecl != nil {
 		for _, usg := range genFuncDecl.Usages {
 			newFunc := astclone.Clone(funcDecl).(*ast.FuncDecl)
-			expandReceiverType(newFunc, genRecvDecl, usg)
+			trans.expandReceiverType(newFunc, genRecvDecl, usg)
 			newFunc.Name = ast.NewIdent(trans.concreteTypeName(genFuncDecl, usg))
 			newFunc.TypeParams = nil
 			trans.replaceIdentsInScope(newFunc, usg.TypeMap())
@@ -371,7 +330,7 @@ func (trans *Transformer) generateFuncDecls(funcDecl *ast.FuncDecl) (newFuncs []
 	} else if genRecvDecl != nil {
 		for _, usg := range genRecvDecl.Usages {
 			newFunc := astclone.Clone(funcDecl).(*ast.FuncDecl)
-			expandReceiverType(newFunc, genRecvDecl, usg)
+			trans.expandReceiverType(newFunc, genRecvDecl, usg)
 			trans.replaceIdentsInScope(newFunc, usg.TypeMap())
 			newFuncs = append(newFuncs, newFunc)
 		}
@@ -383,8 +342,7 @@ func (trans *Transformer) replaceIdentsInScope(n ast.Node, typeMap map[string]ty
 	return astutil.Apply(n, nil, func(c *astutil.Cursor) bool {
 		if ident, ok := c.Node().(*ast.Ident); ok {
 			if typ, found := typeMap[ident.Name]; found {
-				unqualifiedTypeString := trans.dequalifyTypeName(typ.String())
-				c.Replace(ast.NewIdent(unqualifiedTypeString))
+				c.Replace(typeToExpr(typ))
 			}
 		}
 		return true

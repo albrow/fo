@@ -99,6 +99,7 @@ var tests = [][]string{
 	{"testdata/genericstructs.src"},
 	{"testdata/genericsinherited.src"},
 	{"testdata/genericsrecursive.src"},
+	{"testdata/importgo.src"},
 }
 
 var fset = token.NewFileSet()

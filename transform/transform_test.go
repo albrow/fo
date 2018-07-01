@@ -756,6 +756,152 @@ func main() {
 	testParseFile(t, src, expected)
 }
 
+func TestTransformImportGo(t *testing.T) {
+	src := `package main
+
+import (
+	"github.com/albrow/fo/ast"
+)
+
+type List[T] []T
+
+func NewList[T] () List[T] {
+	return List[T]{}
+}
+
+func (l List[T]) Head() T {
+	if len(l) > 0 {
+		return l[0]
+	}
+	var x T
+	return x
+}
+
+func (l List[T]) Append(v T) List[T] {
+	var result List[T] = make([]T, len(l))
+	result = append(result, v)
+	return result
+}
+
+func main() {
+	list := NewList[*ast.Ident]()
+	list = list.Append(ast.NewIdent(""))
+	var _ *ast.Ident = list.Head()
+
+	var _ = NewList[[]ast.Ident]()
+	var _ = NewList[[5]ast.Ident]()
+	var _ = NewList[map[string]ast.Ident]()
+	var _ = NewList[chan ast.Ident]()
+}
+`
+
+	expected := `package main
+
+import (
+	"github.com/albrow/fo/ast"
+)
+
+type (
+	List___5_ast_Ident         [][5]ast.Ident
+	List____ast_Ident          [][]ast.Ident
+	List___ast_Ident           []*ast.Ident
+	List__ast_Ident            []ast.Ident
+	List__map_string_ast_Ident []map[string]ast.Ident
+)
+
+func NewList___5_ast_Ident() List___5_ast_Ident {
+	return List___5_ast_Ident{}
+}
+func NewList____ast_Ident() List____ast_Ident {
+	return List____ast_Ident{}
+}
+func NewList___ast_Ident() List___ast_Ident {
+	return List___ast_Ident{}
+}
+func NewList__ast_Ident() List__ast_Ident {
+	return List__ast_Ident{}
+}
+func NewList__map_string_ast_Ident() List__map_string_ast_Ident {
+	return List__map_string_ast_Ident{}
+}
+
+func (l List__ast_Ident) Head() ast.Ident {
+	if len(l) > 0 {
+		return l[0]
+	}
+	var x ast.Ident
+	return x
+}
+func (l List___ast_Ident) Head() *ast.Ident {
+	if len(l) > 0 {
+		return l[0]
+	}
+	var x *ast.Ident
+	return x
+}
+func (l List___5_ast_Ident) Head() [5]ast.Ident {
+	if len(l) > 0 {
+		return l[0]
+	}
+	var x [5]ast.Ident
+	return x
+}
+func (l List____ast_Ident) Head() []ast.Ident {
+	if len(l) > 0 {
+		return l[0]
+	}
+	var x []ast.Ident
+	return x
+}
+func (l List__map_string_ast_Ident) Head() map[string]ast.Ident {
+	if len(l) > 0 {
+		return l[0]
+	}
+	var x map[string]ast.Ident
+	return x
+}
+
+func (l List__ast_Ident) Append(v ast.Ident) List__ast_Ident {
+	var result List__ast_Ident = make([]ast.Ident, len(l))
+	result = append(result, v)
+	return result
+}
+func (l List___ast_Ident) Append(v *ast.Ident) List___ast_Ident {
+	var result List___ast_Ident = make([]*ast.Ident, len(l))
+	result = append(result, v)
+	return result
+}
+func (l List___5_ast_Ident) Append(v [5]ast.Ident) List___5_ast_Ident {
+	var result List___5_ast_Ident = make([][5]ast.Ident, len(l))
+	result = append(result, v)
+	return result
+}
+func (l List____ast_Ident) Append(v []ast.Ident) List____ast_Ident {
+	var result List____ast_Ident = make([][]ast.Ident, len(l))
+	result = append(result, v)
+	return result
+}
+func (l List__map_string_ast_Ident) Append(v map[string]ast.Ident) List__map_string_ast_Ident {
+	var result List__map_string_ast_Ident = make([]map[string]ast.Ident, len(l))
+	result = append(result, v)
+	return result
+}
+
+func main() {
+	list := NewList___ast_Ident()
+	list = list.Append(ast.NewIdent(""))
+	var _ *ast.Ident = list.Head()
+
+	var _ = NewList____ast_Ident()
+	var _ = NewList___5_ast_Ident()
+	var _ = NewList__map_string_ast_Ident()
+	var _ = NewList__chan_ast_Ident()
+}
+`
+
+	testParseFile(t, src, expected)
+}
+
 // See https://github.com/albrow/fo/issues/3 and
 // https://github.com/albrow/fo/issues/15
 func TestTransformRecursive(t *testing.T) {
