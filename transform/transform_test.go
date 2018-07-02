@@ -1073,6 +1073,58 @@ func main() {
 	testParseFile(t, src, expected)
 }
 
+func TestTransformSafeStringCollisions(t *testing.T) {
+	src := `package main
+
+type Box[T] struct{
+	val T
+}
+
+func main() {
+	var _ = Box[**string]{}
+	var _ = Box[[]string]{}
+	var _ = Box[****string]{}
+	var _ = Box[[]**string]{}
+	var _ = Box[**[]string]{}
+	var _ = Box[[][]string]{}
+}
+`
+
+	expected := `package main
+
+type (
+	Box______string struct {
+		val ****string
+	}
+	Box______string_0 struct {
+		val []**string
+	}
+	Box______string_1 struct {
+		val **[]string
+	}
+	Box______string_2 struct {
+		val [][]string
+	}
+	Box____string struct {
+		val []string
+	}
+	Box____string_0 struct {
+		val **string
+	}
+)
+
+func main() {
+	var _ = Box____string_0{}
+	var _ = Box____string{}
+	var _ = Box______string{}
+	var _ = Box______string_0{}
+	var _ = Box______string_1{}
+	var _ = Box______string_2{}
+}
+`
+	testParseFile(t, src, expected)
+}
+
 func testParseFile(t *testing.T, src string, expected string) {
 	t.Helper()
 	fset := token.NewFileSet()

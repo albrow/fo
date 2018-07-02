@@ -24,9 +24,11 @@ var safeSymbolMap = map[string]string{
 	" ": "_",
 }
 
-// safeStringCache is a mapping of unsafe type strings to safe type strings. It
-// reduces duplicate work and prevents safe string collissions.
-var safeStringCache map[string]string = map[string]string{}
+// unsafeToSafe is a mapping of unsafe type strings to safe type strings.
+var unsafeToSafe map[string]string = map[string]string{}
+
+// safeToUnsafe is a mapping of safe type strings to unsafe type strings.
+var safeToUnsafe map[string]string = map[string]string{}
 
 func typeToSafeString(typ types.Type) string {
 	return exprToSafeString(typeToExpr(typ))
@@ -35,19 +37,20 @@ func typeToSafeString(typ types.Type) string {
 // TODO(albrow): This could be optimized.
 func replaceUnsafeSymbols(unsafe string) string {
 	unsafe = strings.TrimSpace(unsafe)
-	if safe, found := safeStringCache[unsafe]; found {
+	if safe, found := unsafeToSafe[unsafe]; found {
 		return safe
 	}
 	safe := unsafe
 	for unsafeSymbol, safeSymbol := range safeSymbolMap {
 		safe = strings.Replace(safe, unsafeSymbol, safeSymbol, -1)
 	}
-	if _, found := safeStringCache[safe]; found {
+	if _, found := safeToUnsafe[safe]; found {
 		// The safe string collides with another safe string that we have generated.
 		// We need to append a counter to make it unique.
 		safe = appendSafeStringCounter(safe)
 	}
-	safeStringCache[unsafe] = safe
+	unsafeToSafe[unsafe] = safe
+	safeToUnsafe[safe] = unsafe
 	return safe
 }
 
@@ -55,7 +58,7 @@ func replaceUnsafeSymbols(unsafe string) string {
 func appendSafeStringCounter(s string) string {
 	for i := 0; i < 100; i++ {
 		stringWithCounter := fmt.Sprintf("%s_%d", s, i)
-		if _, found := safeStringCache[stringWithCounter]; !found {
+		if _, found := safeToUnsafe[stringWithCounter]; !found {
 			return stringWithCounter
 		}
 	}

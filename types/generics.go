@@ -50,9 +50,10 @@ type typeArg struct {
 }
 
 type GenericDecl struct {
-	Name   string
-	Type   GenericType
-	Usages map[string]ConcreteType
+	Name       string
+	Type       GenericType
+	Usages     []ConcreteType
+	seenUsages map[string]struct{}
 }
 
 func addGenericDecl(obj Object, typ GenericType) {
@@ -78,10 +79,14 @@ func addGenericUsage(genObj Object, typ ConcreteType) {
 		// TODO(albrow): can we avoid panicking here?
 		panic(fmt.Errorf("declaration not found for generic object %s (%s)", dk, genObj.Id()))
 	}
-	if genDecl.Usages == nil {
-		genDecl.Usages = map[string]ConcreteType{}
+	if genDecl.seenUsages == nil {
+		genDecl.seenUsages = map[string]struct{}{}
 	}
-	genDecl.Usages[usageKey(typ.TypeMap())] = typ
+	uk := usageKey(typ.TypeMap())
+	if _, seen := genDecl.seenUsages[uk]; !seen {
+		genDecl.Usages = append(genDecl.Usages, typ)
+		genDecl.seenUsages[uk] = struct{}{}
+	}
 }
 
 func declKey(typ GenericType) string {
