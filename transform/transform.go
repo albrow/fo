@@ -132,17 +132,73 @@ func (trans *Transformer) eraseGenerics() func(c *astutil.Cursor) bool {
 func (trans *Transformer) insertTypeConversions() func(c *astutil.Cursor) bool {
 	return func(c *astutil.Cursor) bool {
 		switch n := c.Node().(type) {
+		// TODO(albrow): Continue by checking each relevant ast.Node type and
+		// inserting type conversions as needed.
+		case *ast.ValueSpec:
+			newNode := trans.createTypeConversionForValueSpec(n)
+			if newNode != nil {
+				c.Replace(newNode)
+			}
 		case *ast.SelectorExpr:
 			newNode := trans.createTypeConversionsForSelectorExpr(n)
-			c.Replace(newNode)
-			// TODO(albrow): Continue by checking each relevant ast.Node type and
-			// inserting type conversions as needed.
+			if newNode != nil {
+				c.Replace(newNode)
+			}
+		case *ast.IndexExpr:
+		case *ast.SliceExpr:
+		case *ast.CallExpr:
+		case *ast.BinaryExpr:
+		case *ast.KeyValueExpr:
+		case *ast.DeclStmt:
+		case *ast.SendStmt:
+		case *ast.IncDecStmt:
+		case *ast.AssignStmt:
+		case *ast.ReturnStmt:
+		case *ast.IfStmt:
+		case *ast.ForStmt:
+		case *ast.RangeStmt:
+
 		}
 		return true
 	}
 }
 
-func (trans *Transformer) createTypeConversionsForSelectorExpr(n *ast.SelectorExpr) ast.Node {
+func (trans *Transformer) createTypeConversionForValueSpec(n *ast.ValueSpec) ast.Node {
+	needsConversion := false
+	for i, value := range n.Values {
+		newValue := trans.createTypeConversionForValue(value)
+		if newValue != nil {
+			n.Values[i] = newValue
+			needsConversion = true
+		}
+	}
+	if !needsConversion {
+		return nil
+	}
+	return n
+}
+
+func (trans *Transformer) createTypeConversionForValue(n ast.Expr) ast.Expr {
+	switch n := n.(type) {
+	case *ast.Ident:
+		return trans.createTypeConversionForIdent(n)
+	}
+	return nil
+}
+
+func (trans *Transformer) createTypeConversionForIdent(n *ast.Ident) ast.Expr {
+	typ := trans.Info.TypeOf(n)
+	if typ == nil {
+		panic(fmt.Errorf("could not find type for *ast.Ident: %s", n.Name))
+	}
+	switch typ := typ.(type) {
+	case *types.ConcreteNamed:
+		return wrapIfTypeParam(n, typ, typ.GenericType().Underlying())
+	}
+	return nil
+}
+
+func (trans *Transformer) createTypeConversionsForSelectorExpr(n *ast.SelectorExpr) ast.Expr {
 	xType := trans.Info.TypeOf(n.X)
 	if xType == nil {
 		panic(fmt.Errorf("could not find type for *ast.SelectorExpr: %+v", n))
@@ -152,10 +208,10 @@ func (trans *Transformer) createTypeConversionsForSelectorExpr(n *ast.SelectorEx
 		// We are accessing a field of a generic struct type.
 		return trans.createTypeConversionsForStructFieldAccess(n, xType)
 	}
-	return n
+	return nil
 }
 
-func (trans *Transformer) createTypeConversionsForStructFieldAccess(n *ast.SelectorExpr, concreteNamed *types.ConcreteNamed) ast.Node {
+func (trans *Transformer) createTypeConversionsForStructFieldAccess(n *ast.SelectorExpr, concreteNamed *types.ConcreteNamed) ast.Expr {
 	// Determine if the field we are accessing is type parameterized or a normal
 	// field type. (e.g. is field x defined as in `struct{x T}` or
 	// `struct{x string}`).
@@ -168,16 +224,21 @@ func (trans *Transformer) createTypeConversionsForStructFieldAccess(n *ast.Selec
 	if field == nil {
 		panic(fmt.Errorf("could not find field named %q in struct type %s", fieldName, concreteNamed.Obj().Name()))
 	}
-	typeParam, fieldIsTypeParam := field.Type().(*types.TypeParam)
-	if !fieldIsTypeParam {
-		// If the type of the field is not parameterized, return the node
-		// unaltered.
-		return n
+	return wrapIfTypeParam(n, concreteNamed, field.Type())
+}
+
+// If typ is a *types.TypeParam, finds the corresponding actual type by looking
+// in concreteType.TypeMap and returns a new *ast.TypeAssertion which converts n
+// to that type.
+func wrapIfTypeParam(n ast.Expr, concreteType types.ConcreteType, typ types.Type) ast.Expr {
+	typeParam, isTypeParam := typ.(*types.TypeParam)
+	if !isTypeParam {
+		return nil
 	}
-	// If the type of the field is parameterized, insert a type assertion to
-	// convert the field to the appropriate type.
-	concreteFieldType := concreteNamed.TypeMap()[typeParam.String()]
-	return wrapInTypeAssert(n, concreteFieldType)
+	// If the type is a TypeParameter, insert a type assertion to convert the
+	// expression to the concrete type.
+	actualType := concreteType.TypeMap()[typeParam.String()]
+	return wrapInTypeAssert(n, actualType)
 }
 
 func findStructField(structType *types.Struct, fieldName string) *types.Var {
@@ -192,7 +253,7 @@ func findStructField(structType *types.Struct, fieldName string) *types.Var {
 
 // wrapInTypeAssert returns n wrapped in a type assert expression (e.g., x
 // becomes x.(type)).
-func wrapInTypeAssert(n ast.Expr, typ types.Type) ast.Node {
+func wrapInTypeAssert(n ast.Expr, typ types.Type) ast.Expr {
 	return &ast.TypeAssertExpr{
 		X:    n,
 		Type: typeToExpr(typ),

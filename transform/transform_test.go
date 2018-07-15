@@ -24,10 +24,10 @@ var testCases = []struct {
 	srcFilename      string
 	expectedFilename string
 }{
-	// {
-	// 	srcFilename:      "testdata/basic_types/main.src",
-	// 	expectedFilename: "testdata/basic_types/main.expected",
-	// },
+	{
+		srcFilename:      "testdata/value_spec/main.src",
+		expectedFilename: "testdata/value_spec/main.expected",
+	},
 	{
 		srcFilename:      "testdata/struct_fields/main.src",
 		expectedFilename: "testdata/struct_fields/main.expected",
