@@ -1,0 +1,33 @@
+package main
+
+type A struct {
+	x interface{}
+}
+
+type B struct {
+	x interface{}
+	y interface{}
+}
+
+func main() {
+	var a0 A = A{
+		x: "foo",
+	}
+	var _ string = a0.x.(string)
+	a1 := A{
+		x: "foo",
+	}
+	print(a1)
+
+	var b0 B = B{
+		x: "bar",
+		y: 42,
+	}
+	var _ string = b0.x.(string)
+	var _ int = b0.y.(int)
+	b1 := B{
+		x: "bar",
+		y: 42,
+	}
+	print(b1)
+}

@@ -1,0 +1,33 @@
+package main
+
+type A[T] struct{
+	x T
+}
+
+type B[T, U] struct{
+	x T
+	y U
+}
+
+func main() {
+	var a0 A[string] = A[string]{
+		x: "foo",
+	}
+	var _ string = a0.x
+	a1 := A[string]{
+		x: "foo",
+	}
+	print(a1)
+
+	var b0 B[string, int] = B[string, int]{
+		x: "bar",
+		y: 42,
+	}
+	var _ string = b0.x
+	var _ int = b0.y
+	b1 := B[string, int]{
+		x: "bar",
+		y: 42,
+	}
+	print(b1)
+}

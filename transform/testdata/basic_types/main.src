@@ -1,0 +1,18 @@
+package main
+
+type A[T] T
+
+func main() {
+	var a0 A[string] = "foo"
+	var _ string = a0
+	var a1 A[int] = 42
+	var _ int = a1
+	a2 := A[string]("foo")
+	print(a2)
+	var a3 A[[]int] = []int{1, 2, 3}
+	var _ int = a3[0]
+	var a4 A[map[string]int] = map[string]int{
+		"bar": 42,
+	}
+	var _ int = a4["bar"]
+}
