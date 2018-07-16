@@ -1,0 +1,12 @@
+package main
+
+type A[T] T
+
+func main() {
+	var a0 A[string] = "foo"
+	print(a0)
+	var a1 A[int] = 42
+	print(a1)
+	a2 := A[bool](true)
+	func(b bool) {}(a2)
+}

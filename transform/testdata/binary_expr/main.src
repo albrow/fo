@@ -1,0 +1,37 @@
+package main
+
+type A[T] T
+
+func main() {
+	a0 := A[string]("foo")
+	print(a0 + "bar")
+	print(a0 == "bar")
+	print(a0 < "bar")
+	print(a0 > "bar")
+	print(a0 != "bar")
+	print(a0 <= "bar")
+	print(a0 >= "bar")
+
+	a1 := A[int](123)
+	print(a1 + 456)
+	print(a1 - 456)
+	print(a1 * 456)
+	print(a1 / 456)
+	print(a1 % 456)
+	print(a1 & 456)
+	print(a1 | 456)
+	print(a1 ^ 456)
+	print(a1 << 456)
+	print(a1 >> 456)
+	print(a1 &^ 456)
+	print(a1 == 456)
+	print(a1 < 456)
+	print(a1 > 456)
+	print(a1 != 456)
+	print(a1 <= 456)
+	print(a1 >= 456)
+
+	a2 := A[bool](true)
+	print(a2 && false)
+	print(a2 || false)
+}

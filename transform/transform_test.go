@@ -32,6 +32,14 @@ var testCases = []struct {
 		srcFilename:      "testdata/struct_fields/main.src",
 		expectedFilename: "testdata/struct_fields/main.expected",
 	},
+	{
+		srcFilename:      "testdata/call_expr/main.src",
+		expectedFilename: "testdata/call_expr/main.expected",
+	},
+	{
+		srcFilename:      "testdata/binary_expr/main.src",
+		expectedFilename: "testdata/binary_expr/main.expected",
+	},
 }
 
 func TestTransform(t *testing.T) {
@@ -50,7 +58,8 @@ func testTransformFile(t *testing.T, srcFilename string, expectedFilename string
 	fset := token.NewFileSet()
 	orig, err := parser.ParseFile(fset, srcFile.Name(), srcFile, 0)
 	if err != nil {
-		t.Fatalf("ParseFile returned error: %s", err.Error())
+		t.Errorf("%s: Fo parser returned error: %s", srcFilename, err.Error())
+		return
 	}
 	conf := types.Config{}
 	conf.Importer = importer.Default()
@@ -62,7 +71,8 @@ func testTransformFile(t *testing.T, srcFilename string, expectedFilename string
 	}
 	pkg, err := conf.Check(srcFile.Name(), fset, []*ast.File{orig}, info)
 	if err != nil {
-		t.Fatalf("conf.Check returned error: %s", err.Error())
+		t.Errorf("%s: Fo type-checker returned error: %s", srcFilename, err.Error())
+		return
 	}
 	trans := &Transformer{
 		Fset: fset,
@@ -71,11 +81,13 @@ func testTransformFile(t *testing.T, srcFilename string, expectedFilename string
 	}
 	transformed, err := trans.File(orig)
 	if err != nil {
-		t.Fatalf("Transform returned error: %s", err.Error())
+		t.Errorf("%s: Fo transformer returned error: %s", srcFilename, err.Error())
+		return
 	}
 	output := bytes.NewBuffer(nil)
 	if err := format.Node(output, fset, transformed); err != nil {
-		t.Fatalf("format.Node returned error: %s", err.Error())
+		t.Errorf("%s: Fo formatter returned error: %s", srcFilename, err.Error())
+		return
 	}
 
 	expectedFile, err := os.Open(expectedFilename)
@@ -93,10 +105,12 @@ func testTransformFile(t *testing.T, srcFilename string, expectedFilename string
 		for _, d := range diff {
 			diffStrings += d.String() + "\n"
 		}
-		t.Fatalf(
-			"output of Transform did not match expected\n\n%s",
+		t.Errorf(
+			"%s: transformer output did not match expected\n\n%s",
+			srcFilename,
 			diffStrings,
 		)
+		return
 	}
 
 	typeCheckPureGo(t, expectedFilename, output)
@@ -106,12 +120,14 @@ func typeCheckPureGo(t *testing.T, filename string, src *bytes.Buffer) {
 	fset := gotoken.NewFileSet()
 	parsed, err := goparser.ParseFile(fset, filename, src, 0)
 	if err != nil {
-		t.Fatalf("resulting Go code did not parse: %s", err.Error())
+		t.Errorf("%s: Go parser returned error: %s", filename, err.Error())
+		return
 	}
 	conf := gotypes.Config{}
 	info := &gotypes.Info{}
 	_, err = conf.Check(filename, fset, []*goast.File{parsed}, info)
 	if err != nil {
-		t.Fatalf("resulting Go code did not pass type-checking: %s", err.Error())
+		t.Errorf("%s: Go type-checker returned error: %s", filename, err.Error())
+		return
 	}
 }

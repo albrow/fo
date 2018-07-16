@@ -1,0 +1,12 @@
+package main
+
+type A interface{}
+
+func main() {
+	var a0 A = "foo"
+	print(a0.(string))
+	var a1 A = 42
+	print(a1.(int))
+	a2 := A(true)
+	func(b bool) {}(a2.(bool))
+}

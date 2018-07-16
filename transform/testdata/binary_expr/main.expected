@@ -1,0 +1,37 @@
+package main
+
+type A interface{}
+
+func main() {
+	a0 := A("foo")
+	print(a0.(string) + "bar")
+	print(a0.(string) == "bar")
+	print(a0.(string) < "bar")
+	print(a0.(string) > "bar")
+	print(a0.(string) != "bar")
+	print(a0.(string) <= "bar")
+	print(a0.(string) >= "bar")
+
+	a1 := A(123)
+	print(a1.(int) + 456)
+	print(a1.(int) - 456)
+	print(a1.(int) * 456)
+	print(a1.(int) / 456)
+	print(a1.(int) % 456)
+	print(a1.(int) & 456)
+	print(a1.(int) | 456)
+	print(a1.(int) ^ 456)
+	print(a1.(int) << 456)
+	print(a1.(int) >> 456)
+	print(a1.(int) &^ 456)
+	print(a1.(int) == 456)
+	print(a1.(int) < 456)
+	print(a1.(int) > 456)
+	print(a1.(int) != 456)
+	print(a1.(int) <= 456)
+	print(a1.(int) >= 456)
+
+	a2 := A(true)
+	print(a2.(bool) && false)
+	print(a2.(bool) || false)
+}

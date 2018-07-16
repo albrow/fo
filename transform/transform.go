@@ -144,10 +144,18 @@ func (trans *Transformer) insertTypeConversions() func(c *astutil.Cursor) bool {
 			if newNode != nil {
 				c.Replace(newNode)
 			}
+		case *ast.CallExpr:
+			newNode := trans.createTypeConversionForCallExpr(n)
+			if newNode != nil {
+				c.Replace(newNode)
+			}
+		case *ast.BinaryExpr:
+			newNode := trans.createTypeConversionForBinaryExpr(n)
+			if newNode != nil {
+				c.Replace(newNode)
+			}
 		case *ast.IndexExpr:
 		case *ast.SliceExpr:
-		case *ast.CallExpr:
-		case *ast.BinaryExpr:
 		case *ast.KeyValueExpr:
 		case *ast.DeclStmt:
 		case *ast.SendStmt:
@@ -157,7 +165,6 @@ func (trans *Transformer) insertTypeConversions() func(c *astutil.Cursor) bool {
 		case *ast.IfStmt:
 		case *ast.ForStmt:
 		case *ast.RangeStmt:
-
 		}
 		return true
 	}
@@ -166,19 +173,19 @@ func (trans *Transformer) insertTypeConversions() func(c *astutil.Cursor) bool {
 func (trans *Transformer) createTypeConversionForValueSpec(n *ast.ValueSpec) ast.Node {
 	needsConversion := false
 	for i, value := range n.Values {
-		newValue := trans.createTypeConversionForValue(value)
+		newValue := trans.createTypeConversionForExpr(value)
 		if newValue != nil {
 			n.Values[i] = newValue
 			needsConversion = true
 		}
 	}
-	if !needsConversion {
-		return nil
+	if needsConversion {
+		return n
 	}
-	return n
+	return nil
 }
 
-func (trans *Transformer) createTypeConversionForValue(n ast.Expr) ast.Expr {
+func (trans *Transformer) createTypeConversionForExpr(n ast.Expr) ast.Expr {
 	switch n := n.(type) {
 	case *ast.Ident:
 		return trans.createTypeConversionForIdent(n)
@@ -187,6 +194,11 @@ func (trans *Transformer) createTypeConversionForValue(n ast.Expr) ast.Expr {
 }
 
 func (trans *Transformer) createTypeConversionForIdent(n *ast.Ident) ast.Expr {
+	switch n.String() {
+	case "true", "false":
+		// Don't convert literal values.
+		return nil
+	}
 	typ := trans.Info.TypeOf(n)
 	if typ == nil {
 		panic(fmt.Errorf("could not find type for *ast.Ident: %s", n.Name))
@@ -225,6 +237,36 @@ func (trans *Transformer) createTypeConversionsForStructFieldAccess(n *ast.Selec
 		panic(fmt.Errorf("could not find field named %q in struct type %s", fieldName, concreteNamed.Obj().Name()))
 	}
 	return wrapIfTypeParam(n, concreteNamed, field.Type())
+}
+
+func (trans *Transformer) createTypeConversionForCallExpr(n *ast.CallExpr) ast.Node {
+	needsConversion := false
+	for i, arg := range n.Args {
+		newArg := trans.createTypeConversionForExpr(arg)
+		if newArg != nil {
+			n.Args[i] = newArg
+			needsConversion = true
+		}
+	}
+	if needsConversion {
+		return n
+	}
+	return nil
+}
+
+func (trans *Transformer) createTypeConversionForBinaryExpr(n *ast.BinaryExpr) ast.Node {
+	newX := trans.createTypeConversionForExpr(n.X)
+	if newX != nil {
+		n.X = newX
+	}
+	newY := trans.createTypeConversionForExpr(n.Y)
+	if newY != nil {
+		n.Y = newY
+	}
+	if newX != nil || newY != nil {
+		return n
+	}
+	return nil
 }
 
 // If typ is a *types.TypeParam, finds the corresponding actual type by looking
