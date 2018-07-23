@@ -1,0 +1,43 @@
+package main
+
+type A[T] []T
+
+type B[T] [3]T
+
+type C[T, U] map[T]U
+
+type D[T] struct {
+	x []T
+	y [3]T
+}
+
+type E[T, U] struct {
+	x map[T]U
+}
+
+func main() {
+	a0 := A[string]{"a", "b", "c"}
+	var _ string = a0[0]
+	a1 := A[bool]{true, false}
+	var _ bool = a1[0]
+
+	b0 := B[string]{"a", "b", "c"}
+	var _ string = b0[0]
+	b1 := A[int]{0, 1, 2}
+	var _ int = b1[0]
+
+	c0 := C[string, int]{
+		"one": 1,
+		"two": 2,
+	}
+	var _ int = c0["one"]
+
+	// TODO(albrow): This should be allowed.
+	// d0 := D[string]{
+	// 	x: []string{"a", "b", "c"},
+	// 	y: [3]string{"1", "2", "3"},
+	// }
+	d0 := D[string]{}
+	var _ string = d0.x[0]
+	var _ string = d0.y[0]
+}

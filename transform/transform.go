@@ -155,6 +155,10 @@ func (trans *Transformer) insertTypeConversions() func(c *astutil.Cursor) bool {
 				c.Replace(newNode)
 			}
 		case *ast.IndexExpr:
+			newNode := trans.createTypeConversionForIndexExpr(n)
+			if newNode != nil {
+				c.Replace(newNode)
+			}
 		case *ast.SliceExpr:
 		case *ast.KeyValueExpr:
 		case *ast.DeclStmt:
@@ -251,6 +255,7 @@ func (trans *Transformer) createTypeConversionForCallExpr(n *ast.CallExpr) ast.N
 	if needsConversion {
 		return n
 	}
+	// TODO(albrow): type assert return values
 	return nil
 }
 
@@ -265,6 +270,54 @@ func (trans *Transformer) createTypeConversionForBinaryExpr(n *ast.BinaryExpr) a
 	}
 	if newX != nil || newY != nil {
 		return n
+	}
+	return nil
+}
+
+func (trans *Transformer) createTypeConversionForIndexExpr(n *ast.IndexExpr) ast.Node {
+	switch x := n.X.(type) {
+	case *ast.SelectorExpr:
+		xxType := trans.Info.TypeOf(x.X)
+		if xxType == nil {
+			panic(fmt.Errorf("could not find type for *ast.IndexExpr: %+v", n))
+		}
+		concreteNamed, ok := xxType.(*types.ConcreteNamed)
+		if !ok {
+			return nil
+		}
+		genStructType, ok := concreteNamed.GenericType().Underlying().(*types.Struct)
+		if !ok {
+			panic(fmt.Errorf("selector used on unexpected *GenericNamed type: %T", concreteNamed.Underlying()))
+		}
+		fieldName := x.Sel.String()
+		field := findStructField(genStructType, fieldName)
+		if field == nil {
+			panic(fmt.Errorf("could not find field named %q in struct type %s", fieldName, concreteNamed.Obj().Name()))
+		}
+		switch fieldType := field.Type().(type) {
+		case *types.Slice:
+			return wrapIfTypeParam(n, concreteNamed, fieldType.Elem())
+		case *types.Array:
+			return wrapIfTypeParam(n, concreteNamed, fieldType.Elem())
+		case *types.Map:
+			return wrapIfTypeParam(n, concreteNamed, fieldType.Elem())
+		}
+	default:
+		xType := trans.Info.TypeOf(n.X)
+		if xType == nil {
+			panic(fmt.Errorf("could not find type for *ast.IndexExpr: %+v", n))
+		}
+		switch typ := xType.(type) {
+		case *types.ConcreteNamed:
+			switch underlying := typ.GenericType().Underlying().(type) {
+			case *types.Slice:
+				return wrapIfTypeParam(n, typ, underlying.Elem())
+			case *types.Array:
+				return wrapIfTypeParam(n, typ, underlying.Elem())
+			case *types.Map:
+				return wrapIfTypeParam(n, typ, underlying.Elem())
+			}
+		}
 	}
 	return nil
 }

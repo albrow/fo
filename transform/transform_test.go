@@ -24,21 +24,25 @@ var testCases = []struct {
 	srcFilename      string
 	expectedFilename string
 }{
+	// {
+	// 	srcFilename:      "testdata/value_spec/main.src",
+	// 	expectedFilename: "testdata/value_spec/main.expected",
+	// },
+	// {
+	// 	srcFilename:      "testdata/struct_fields/main.src",
+	// 	expectedFilename: "testdata/struct_fields/main.expected",
+	// },
+	// {
+	// 	srcFilename:      "testdata/call_expr/main.src",
+	// 	expectedFilename: "testdata/call_expr/main.expected",
+	// },
+	// {
+	// 	srcFilename:      "testdata/binary_expr/main.src",
+	// 	expectedFilename: "testdata/binary_expr/main.expected",
+	// },
 	{
-		srcFilename:      "testdata/value_spec/main.src",
-		expectedFilename: "testdata/value_spec/main.expected",
-	},
-	{
-		srcFilename:      "testdata/struct_fields/main.src",
-		expectedFilename: "testdata/struct_fields/main.expected",
-	},
-	{
-		srcFilename:      "testdata/call_expr/main.src",
-		expectedFilename: "testdata/call_expr/main.expected",
-	},
-	{
-		srcFilename:      "testdata/binary_expr/main.src",
-		expectedFilename: "testdata/binary_expr/main.expected",
+		srcFilename:      "testdata/index_expr/main.src",
+		expectedFilename: "testdata/index_expr/main.expected",
 	},
 }
 

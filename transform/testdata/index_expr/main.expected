@@ -1,0 +1,38 @@
+package main
+
+type A []interface{}
+
+type B [3]interface{}
+
+type C map[interface{}]interface{}
+
+type D struct {
+	x []interface{}
+	y [3]interface{}
+}
+
+type E struct {
+	x map[interface{}]interface{}
+}
+
+func main() {
+	a0 := A{"a", "b", "c"}
+	var _ string = a0[0].(string)
+	a1 := A{true, false}
+	var _ bool = a1[0].(bool)
+
+	b0 := B{"a", "b", "c"}
+	var _ string = b0[0].(string)
+	b1 := A{0, 1, 2}
+	var _ int = b1[0].(int)
+
+	c0 := C{
+		"one": 1,
+		"two": 2,
+	}
+	var _ int = c0["one"].(int)
+
+	d0 := D{}
+	var _ string = d0.x[0].(string)
+	var _ string = d0.y[0].(string)
+}
