@@ -2,9 +2,14 @@ package main
 
 type A interface{}
 
+type B interface{}
+
 func main() {
 	var a0 A = "foo"
 	var _ string = a0.(string)
 	var a1 A = 42
 	var _ int = a1.(int)
+
+	var b0 B = []string{"a", "b"}
+	var _ []string = b0.([]string)
 }

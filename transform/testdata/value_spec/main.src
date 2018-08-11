@@ -2,9 +2,14 @@ package main
 
 type A[T] T
 
+type B[T] []T
+
 func main() {
 	var a0 A[string] = "foo"
 	var _ string = a0
 	var a1 A[int] = 42
 	var _ int = a1
+
+	var b0 B[string] = []string{"a", "b"}
+	var _ []string = b0
 }

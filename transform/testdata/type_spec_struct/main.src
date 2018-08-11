@@ -1,0 +1,31 @@
+package main
+
+type A[T] struct {
+	a T
+	b []T
+	c [3]T
+	d map[T]T
+	e map[T]string
+	f map[string]T
+	g *T
+	h ***T
+	i chan T
+	j []map[T]chan T
+	k func(T)
+}
+
+type B[T, U] struct {
+	a map[T]U
+	b func(T) U
+}
+
+type C[T, U] struct {
+	nested struct {
+		a T
+		b U
+	}
+}
+
+func main() {
+
+}

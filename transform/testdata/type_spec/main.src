@@ -1,0 +1,19 @@
+package main
+
+type A[T] T
+type B[T] []T
+type C[T] [3]T
+type D[T] map[T]T
+type E[T] map[T]string
+type F[T] map[string]T
+type G[T] *T
+type H[T] ***T
+type I[T] chan T
+type J[T] []map[T]chan T
+type K[T, U] map[T]U
+type L[T] func(T)
+type M[T, U] func(T) U
+
+func main() {
+
+}

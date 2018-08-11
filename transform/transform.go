@@ -36,6 +36,8 @@ func (trans *Transformer) File(f *ast.File) (*ast.File, error) {
 func (trans *Transformer) eraseGenerics() func(c *astutil.Cursor) bool {
 	return func(c *astutil.Cursor) bool {
 		switch n := c.Node().(type) {
+		// TODO(albrow): Erase generics from function declarations
+		// TODO(albrow): Figure out how to handle nested generic types
 		case *ast.TypeArgExpr:
 			// Remove type arguments.
 			c.Replace(n.X)
@@ -70,20 +72,6 @@ func (trans *Transformer) eraseGenerics() func(c *astutil.Cursor) bool {
 					}
 				}
 			}
-		case *ast.FuncDecl:
-			// Remove type parameters from function declarations.
-			if n.TypeParams != nil {
-				newFuncDecl := astclone.Clone(n).(*ast.FuncDecl)
-				newBody := astutil.Apply(n.Body, trans.eraseGenerics(), nil).(*ast.BlockStmt)
-				newReceiver := astutil.Apply(n.Recv, trans.eraseGenerics(), nil).(*ast.FieldList)
-				newType := astutil.Apply(n.Type, trans.eraseGenerics(), nil).(*ast.FuncType)
-				newFuncDecl.TypeParams = nil
-				newFuncDecl.Body = newBody
-				newFuncDecl.Recv = newReceiver
-				newFuncDecl.Type = newType
-				c.Replace(newFuncDecl)
-				return false
-			}
 		case *ast.TypeSpec:
 			// We need to disambiguate to see if what the parser thinks is an
 			// ArrayType is actually a parameterized type with a TypeParmDecl. If so,
@@ -94,37 +82,105 @@ func (trans *Transformer) eraseGenerics() func(c *astutil.Cursor) bool {
 					panic(fmt.Errorf("could not find definition for type %s", n.Name))
 				}
 				if _, isGeneric := def.Type().(*types.GenericNamed); isGeneric {
-					newTypeSpec := astclone.Clone(n).(*ast.TypeSpec)
-					newType := astutil.Apply(arrayType.Elt, trans.eraseGenerics(), nil).(ast.Expr)
-					newTypeSpec.TypeParams = nil
-					newTypeSpec.Type = newType
-					c.Replace(newTypeSpec)
-					return false
-				}
-			}
-			// If the typespec is an unambiguous generic type, we remove the type
-			// parameters.
-			newTypeSpec := astclone.Clone(n).(*ast.TypeSpec)
-			newType := astutil.Apply(n.Type, trans.eraseGenerics(), nil).(ast.Expr)
-			newTypeSpec.TypeParams = nil
-			newTypeSpec.Type = newType
-			c.Replace(newTypeSpec)
-			return false
-		case ast.Expr:
-			if typAndValue, found := trans.Info.Types[n]; found {
-				switch typAndValue.Type.(type) {
-				case *types.TypeParam:
-					// Change type parameters to the empty interface.
-					emptyInterface := &ast.CompositeLit{
-						Type: ast.NewIdent("interface"),
+					newTypeSpec := trans.eraseGenericsFromTypeSpec(n, arrayType.Elt)
+					if newTypeSpec != nil {
+						c.Replace(newTypeSpec)
 					}
-					c.Replace(emptyInterface)
 					return false
 				}
 			}
+			newTypeSpec := trans.eraseGenericsFromTypeSpec(n, n.Type)
+			if newTypeSpec != nil {
+				c.Replace(newTypeSpec)
+			}
+			return false
 		}
 		return true
 	}
+}
+
+func isTypeNestedGeneric(typ types.Type) bool {
+	switch typ := typ.(type) {
+	case *types.TypeParam:
+		return true
+	case *types.Slice:
+		return isTypeNestedGeneric(typ.Elem())
+	case *types.Array:
+		return isTypeNestedGeneric(typ.Elem())
+	case *types.Map:
+		return isTypeNestedGeneric(typ.Key()) || isTypeNestedGeneric(typ.Elem())
+	case *types.Pointer:
+		return isTypeNestedGeneric(typ.Elem())
+	case *types.Chan:
+		return isTypeNestedGeneric(typ.Elem())
+	case *types.Tuple:
+		for i := 0; i < typ.Len(); i++ {
+			if isVarNestedGeneric(typ.At(i)) {
+				return true
+			}
+		}
+	case *types.Signature:
+		return isTypeNestedGeneric(typ.Params()) || isTypeNestedGeneric(typ.Results()) || isVarNestedGeneric(typ.Recv())
+	}
+	return false
+}
+
+func isVarNestedGeneric(v *types.Var) bool {
+	return isTypeNestedGeneric(v.Type())
+}
+
+func (trans *Transformer) eraseGenericsFromTypeSpec(n *ast.TypeSpec, typ ast.Expr) *ast.TypeSpec {
+	newType := trans.eraseGenericsFromType(typ)
+	if newType != nil {
+		newTypeSpec := astclone.Clone(n).(*ast.TypeSpec)
+		newTypeSpec.TypeParams = nil
+		newTypeSpec.Type = newType
+		return newTypeSpec
+	}
+	return nil
+}
+
+func (trans *Transformer) eraseGenericsFromType(typ ast.Expr) ast.Expr {
+	// Structs are treated specially.
+	if structType, ok := typ.(*ast.StructType); ok {
+		return trans.eraseGenericsFromStructType(structType)
+	}
+
+	typeAndValue, found := trans.Info.Types[typ]
+	if !found {
+		return nil
+	}
+	if isTypeNestedGeneric(typeAndValue.Type) {
+		return newEmptyInterface()
+	}
+	return nil
+}
+
+func (trans *Transformer) eraseGenericsFromStructType(typ *ast.StructType) ast.Expr {
+	if typ.Fields == nil {
+		return nil
+	}
+	needsReplacement := false
+	newFields := make([]*ast.Field, len(typ.Fields.List))
+	for i, field := range typ.Fields.List {
+		newFieldType := trans.eraseGenericsFromType(field.Type)
+		if newFieldType != nil {
+			newField := astclone.Clone(field).(*ast.Field)
+			newField.Type = newFieldType
+			newFields[i] = newField
+			needsReplacement = true
+		} else {
+			newFields[i] = field
+		}
+	}
+	if needsReplacement {
+		newStructType := astclone.Clone(typ).(*ast.StructType)
+		newStructType.Fields = &ast.FieldList{
+			List: newFields,
+		}
+		return newStructType
+	}
+	return nil
 }
 
 // insertTypeConversions inserts type casts and conversions so that any usage
@@ -174,6 +230,8 @@ func (trans *Transformer) insertTypeConversions() func(c *astutil.Cursor) bool {
 	}
 }
 
+// TODO(albrow): Update the code below to work with the new generics erasure
+// strategy above.
 func (trans *Transformer) createTypeConversionForValueSpec(n *ast.ValueSpec) ast.Node {
 	needsConversion := false
 	for i, value := range n.Values {
@@ -352,5 +410,11 @@ func wrapInTypeAssert(n ast.Expr, typ types.Type) ast.Expr {
 	return &ast.TypeAssertExpr{
 		X:    n,
 		Type: typeToExpr(typ),
+	}
+}
+
+func newEmptyInterface() ast.Expr {
+	return &ast.CompositeLit{
+		Type: ast.NewIdent("interface"),
 	}
 }

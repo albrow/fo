@@ -1,0 +1,19 @@
+package main
+
+type A interface{}
+type B interface{}
+type C interface{}
+type D interface{}
+type E interface{}
+type F interface{}
+type G interface{}
+type H interface{}
+type I interface{}
+type J interface{}
+type K interface{}
+type L interface{}
+type M interface{}
+
+func main() {
+
+}
