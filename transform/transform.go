@@ -1,6 +1,7 @@
 package transform
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/albrow/fo/ast"
@@ -195,26 +196,22 @@ func (trans *Transformer) insertTypeConversions() func(c *astutil.Cursor) bool {
 			if newNode != nil {
 				c.Replace(newNode)
 			}
-		case *ast.SelectorExpr:
-			newNode := trans.createTypeConversionsForSelectorExpr(n)
-			if newNode != nil {
-				c.Replace(newNode)
-			}
-		case *ast.CallExpr:
-			newNode := trans.createTypeConversionForCallExpr(n)
-			if newNode != nil {
-				c.Replace(newNode)
-			}
-		case *ast.BinaryExpr:
-			newNode := trans.createTypeConversionForBinaryExpr(n)
-			if newNode != nil {
-				c.Replace(newNode)
-			}
 		case *ast.IndexExpr:
 			newNode := trans.createTypeConversionForIndexExpr(n)
 			if newNode != nil {
 				c.Replace(newNode)
 			}
+		case *ast.CallExpr:
+			// newNode := trans.createTypeConversionForCallExpr(n)
+			// if newNode != nil {
+			// 	c.Replace(newNode)
+			// }
+		case *ast.BinaryExpr:
+			// newNode := trans.createTypeConversionForBinaryExpr(n)
+			// if newNode != nil {
+			// 	c.Replace(newNode)
+			// }
+
 		case *ast.SliceExpr:
 		case *ast.KeyValueExpr:
 		case *ast.DeclStmt:
@@ -230,154 +227,99 @@ func (trans *Transformer) insertTypeConversions() func(c *astutil.Cursor) bool {
 	}
 }
 
-// TODO(albrow): Update the code below to work with the new generics erasure
-// strategy above.
 func (trans *Transformer) createTypeConversionForValueSpec(n *ast.ValueSpec) ast.Node {
-	needsConversion := false
+	var newValueSpec *ast.ValueSpec
 	for i, value := range n.Values {
+		// First look at the type on the left-hand side of the value spec.
+		name := n.Names[i]
+		def, found := trans.Info.Defs[name]
+		if !found {
+			panic(fmt.Errorf("could not find definition for expression: %s %T", name, name))
+		}
+		if _, ok := def.Type().(*types.ConcreteNamed); ok {
+			// If the left-hand side is already a concrete named type, we don't need
+			// to do any conversions.
+			continue
+		}
+		// Next look at the value on the right-hand side of the value spec. We need
+		// to insert a type assertion if value is a concrete named type.
 		newValue := trans.createTypeConversionForExpr(value)
 		if newValue != nil {
-			n.Values[i] = newValue
-			needsConversion = true
+			if newValueSpec == nil {
+				newValueSpec = astclone.Clone(n).(*ast.ValueSpec)
+			}
+			newValueSpec.Values[i] = newValue
 		}
 	}
-	if needsConversion {
-		return n
+	// This check is necessary because nil interface != nil value.
+	if newValueSpec == nil {
+		return nil
 	}
-	return nil
+	return newValueSpec
+}
+
+func (trans *Transformer) createTypeConversionForIndexExpr(n *ast.IndexExpr) ast.Expr {
+	underlyingType := trans.getUnderlyingTypeForExpr(n.X)
+	if underlyingType == nil {
+		return nil
+	}
+	newIndexExpr := astclone.Clone(n).(*ast.IndexExpr)
+	newIndexExpr.X = wrapInTypeAssert(newIndexExpr.X, underlyingType)
+	return newIndexExpr
 }
 
 func (trans *Transformer) createTypeConversionForExpr(n ast.Expr) ast.Expr {
-	switch n := n.(type) {
-	case *ast.Ident:
-		return trans.createTypeConversionForIdent(n)
-	}
-	return nil
-}
-
-func (trans *Transformer) createTypeConversionForIdent(n *ast.Ident) ast.Expr {
-	switch n.String() {
-	case "true", "false":
-		// Don't convert literal values.
+	underlyingType := trans.getUnderlyingTypeForExpr(n)
+	if underlyingType == nil {
 		return nil
 	}
-	typ := trans.Info.TypeOf(n)
-	if typ == nil {
-		panic(fmt.Errorf("could not find type for *ast.Ident: %s", n.Name))
-	}
-	switch typ := typ.(type) {
-	case *types.ConcreteNamed:
-		return wrapIfTypeParam(n, typ, typ.GenericType().Underlying())
-	}
-	return nil
+	return wrapInTypeAssert(n, underlyingType)
 }
 
-func (trans *Transformer) createTypeConversionsForSelectorExpr(n *ast.SelectorExpr) ast.Expr {
-	xType := trans.Info.TypeOf(n.X)
-	if xType == nil {
-		panic(fmt.Errorf("could not find type for *ast.SelectorExpr: %+v", n))
-	}
-	switch xType := xType.(type) {
-	case *types.ConcreteNamed:
-		// We are accessing a field of a generic struct type.
-		return trans.createTypeConversionsForStructFieldAccess(n, xType)
-	}
-	return nil
-}
-
-func (trans *Transformer) createTypeConversionsForStructFieldAccess(n *ast.SelectorExpr, concreteNamed *types.ConcreteNamed) ast.Expr {
-	// Determine if the field we are accessing is type parameterized or a normal
-	// field type. (e.g. is field x defined as in `struct{x T}` or
-	// `struct{x string}`).
-	genStructType, ok := concreteNamed.GenericType().Underlying().(*types.Struct)
-	if !ok {
-		panic(fmt.Errorf("selector used on unexpected *GenericNamed type: %T", concreteNamed.Underlying()))
-	}
-	fieldName := n.Sel.String()
-	field := findStructField(genStructType, fieldName)
-	if field == nil {
-		panic(fmt.Errorf("could not find field named %q in struct type %s", fieldName, concreteNamed.Obj().Name()))
-	}
-	return wrapIfTypeParam(n, concreteNamed, field.Type())
-}
-
-func (trans *Transformer) createTypeConversionForCallExpr(n *ast.CallExpr) ast.Node {
-	needsConversion := false
-	for i, arg := range n.Args {
-		newArg := trans.createTypeConversionForExpr(arg)
-		if newArg != nil {
-			n.Args[i] = newArg
-			needsConversion = true
-		}
-	}
-	if needsConversion {
-		return n
-	}
-	// TODO(albrow): type assert return values
-	return nil
-}
-
-func (trans *Transformer) createTypeConversionForBinaryExpr(n *ast.BinaryExpr) ast.Node {
-	newX := trans.createTypeConversionForExpr(n.X)
-	if newX != nil {
-		n.X = newX
-	}
-	newY := trans.createTypeConversionForExpr(n.Y)
-	if newY != nil {
-		n.Y = newY
-	}
-	if newX != nil || newY != nil {
-		return n
-	}
-	return nil
-}
-
-func (trans *Transformer) createTypeConversionForIndexExpr(n *ast.IndexExpr) ast.Node {
-	switch x := n.X.(type) {
+func (trans *Transformer) getUnderlyingTypeForExpr(n ast.Expr) types.Type {
+	switch n := n.(type) {
+	case *ast.Ident:
+		return trans.getUnderlyingTypeForIdent(n)
 	case *ast.SelectorExpr:
-		xxType := trans.Info.TypeOf(x.X)
-		if xxType == nil {
-			panic(fmt.Errorf("could not find type for *ast.IndexExpr: %+v", n))
-		}
-		concreteNamed, ok := xxType.(*types.ConcreteNamed)
-		if !ok {
-			return nil
-		}
-		genStructType, ok := concreteNamed.GenericType().Underlying().(*types.Struct)
-		if !ok {
-			panic(fmt.Errorf("selector used on unexpected *GenericNamed type: %T", concreteNamed.Underlying()))
-		}
-		fieldName := x.Sel.String()
-		field := findStructField(genStructType, fieldName)
-		if field == nil {
-			panic(fmt.Errorf("could not find field named %q in struct type %s", fieldName, concreteNamed.Obj().Name()))
-		}
-		switch fieldType := field.Type().(type) {
-		case *types.Slice:
-			return wrapIfTypeParam(n, concreteNamed, fieldType.Elem())
-		case *types.Array:
-			return wrapIfTypeParam(n, concreteNamed, fieldType.Elem())
-		case *types.Map:
-			return wrapIfTypeParam(n, concreteNamed, fieldType.Elem())
-		}
-	default:
-		xType := trans.Info.TypeOf(n.X)
-		if xType == nil {
-			panic(fmt.Errorf("could not find type for *ast.IndexExpr: %+v", n))
-		}
-		switch typ := xType.(type) {
-		case *types.ConcreteNamed:
-			switch underlying := typ.GenericType().Underlying().(type) {
-			case *types.Slice:
-				return wrapIfTypeParam(n, typ, underlying.Elem())
-			case *types.Array:
-				return wrapIfTypeParam(n, typ, underlying.Elem())
-			case *types.Map:
-				return wrapIfTypeParam(n, typ, underlying.Elem())
-			}
-		}
+		return trans.getUnderlyingTypeForSelectorExpr(n)
 	}
 	return nil
+}
+
+func (trans *Transformer) getUnderlyingTypeForIdent(n *ast.Ident) types.Type {
+	typeAndValue, found := trans.Info.Types[n]
+	if !found {
+		return nil
+	}
+	concreteNamed, ok := typeAndValue.Type.(*types.ConcreteNamed)
+	if !ok {
+		return nil
+	}
+	return concreteNamed.Underlying()
+}
+
+func (trans *Transformer) getUnderlyingTypeForSelectorExpr(n *ast.SelectorExpr) types.Type {
+	selection, found := trans.Info.Selections[n]
+	if !found {
+		return nil
+	}
+	switch selection.Kind() {
+	case types.FieldVal:
+		return trans.getUnderlyingTypeForFieldSelection(selection)
+	case types.MethodVal:
+		panic(errors.New("MethodVal selection not yet supported"))
+	case types.MethodExpr:
+		panic(errors.New("MethodExpr selection not yet supported"))
+	}
+	return nil
+}
+
+func (trans *Transformer) getUnderlyingTypeForFieldSelection(selection *types.Selection) types.Type {
+	_, ok := selection.Recv().(*types.ConcreteNamed)
+	if !ok {
+		return nil
+	}
+	return selection.Type()
 }
 
 // If typ is a *types.TypeParam, finds the corresponding actual type by looking

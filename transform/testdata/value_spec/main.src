@@ -1,15 +1,118 @@
 package main
 
 type A[T] T
-
 type B[T] []T
+type C[T] [3]T
+type D[T] map[T]T
+type E[T] map[T]string
+type F[T] map[string]T
+type G[T] *T
+type H[T] ***T
+type I[T] chan T
+type J[T] []map[T]chan T
+type K[T, U] map[T]U
+type L[T] func(T)
+type M[T, U] func(T) U
 
 func main() {
+	str0, str1 := "foo", "bar"
+	int0 := 42
+	strs0 := []string{"a", "b", "c"}
+	pstr0 := &str0
+	ppstr0 := &pstr0
+	pint0 := &int0
+	ppint0 := &pint0
+	pstrs0 := &strs0
+	ppstrs0 := &pstrs0
+
 	var a0 A[string] = "foo"
 	var _ string = a0
 	var a1 A[int] = 42
 	var _ int = a1
+	var a2 A[[]string] = []string{"a", "b", "c"}
+	var _ []string = a2
 
-	var b0 B[string] = []string{"a", "b"}
+	var b0 B[string] = []string{"foo"}
 	var _ []string = b0
+	var b1 B[int] = []int{42}
+	var _ []int = b1
+	var b2 B[[]string] = [][]string{[]string{"a", "b", "c"}}
+	var _ [][]string = b2
+
+	var c0 C[string] = [3]string{"a", "b", "c"}
+	var _ [3]string = c0
+	var c1 C[int] = [3]int{1, 2, 3}
+	var _ [3]int = c1
+	var c2 C[[]string] = [3][]string{[]string{"a"}, []string{"b"}, []string{"c"}}
+	var _ [3][]string = c2
+
+	var d0 D[string] = map[string]string{"foo": "bar"}
+	var _ map[string]string = d0
+	var d1 D[int] = map[int]int{0: 42}
+	var _ map[int]int = d1
+	var d2 D[*string] = map[*string]*string{&str0: &str1}
+	var _ map[*string]*string = d2
+
+	var e0 E[string] = map[string]string{"foo": "bar"}
+	var _ map[string]string = e0
+	var e1 E[int] = map[int]string{42: "foo"}
+	var _ map[int]string = e1
+	var e2 E[*string] = map[*string]string{&str0: "bar"}
+	var _ map[*string]string = e2
+
+	var f0 F[string] = map[string]string{"foo": "bar"}
+	var _ map[string]string = f0
+	var f1 F[int] = map[string]int{"foo": 42}
+	var _ map[string]int = f1
+	var f2 F[*string] = map[string]*string{"foo": &str1}
+	var _ map[string]*string = f2
+
+	var g0 G[string] = &str0
+	var _ *string = g0
+	var g1 G[int] = &int0
+	var _ *int = g1
+	var g2 G[[]string] = &strs0
+	var _ *[]string = g2
+
+	var h0 H[string] = &ppstr0
+	var _ ***string = h0
+	var h1 H[int] = &ppint0
+	var _ ***int = h1
+	var h2 H[[]string] = &ppstrs0
+	var _ ***[]string = h2
+
+	var i0 I[string] = make(chan string)
+	var _ chan string = i0
+	var i1 I[int] = make(chan int)
+	var _ chan int = i1
+	var i2 I[[]string] = make(chan []string)
+	var _ chan []string = i2
+
+	var j0 J[string] = []map[string]chan string{map[string]chan string{"foo": make(chan string)}}
+	var _ []map[string]chan string = j0
+	var j1 J[int] = []map[int]chan int{map[int]chan int{42: make(chan int)}}
+	var _ []map[int]chan int = j1
+	var j2 J[*string] = []map[*string]chan *string{map[*string]chan *string{&str0: make(chan *string)}}
+	var _ []map[*string]chan *string = j2
+
+	var k0 K[string, int] = map[string]int{}
+	var _ map[string]int = k0
+	var k1 K[uint, float64] = map[uint]float64{}
+	var _ map[uint]float64 = k1
+	var k2 K[*string, *int] = map[*string]*int{}
+	var _ map[*string]*int = k2
+
+	var l0 L[string] = func(string) {}
+	var _ func(string) = l0
+	var l1 L[int] = func(int) {}
+	var _ func(int) = l1
+	var l2 L[[]string] = func([]string) {}
+	var _ func([]string) = l2
+
+	var m0 M[string, int] = func(string) int { return 42 }
+	var _ func(string) int = m0
+	var m1 M[uint, float64] = func(uint) float64 { return 42 }
+	var _ func(uint) float64 = m1
+	var m2 M[[]string, []int] = func([]string) []int { return []int{} }
+	var _ func([]string) []int = m2
 }

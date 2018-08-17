@@ -16,20 +16,20 @@ type E[T, U] struct {
 }
 
 func main() {
-	a0 := A[string]{"a", "b", "c"}
+	a0 := A[string]([]string{"a", "b", "c"})
 	var _ string = a0[0]
-	a1 := A[bool]{true, false}
+	a1 := A[bool]([]bool{true, false})
 	var _ bool = a1[0]
 
-	b0 := B[string]{"a", "b", "c"}
+	b0 := B[string]([3]string{"a", "b", "c"})
 	var _ string = b0[0]
-	b1 := A[int]{0, 1, 2}
+	b1 := A[int]([]int{0, 1, 2})
 	var _ int = b1[0]
 
-	c0 := C[string, int]{
+	c0 := C[string, int](map[string]int{
 		"one": 1,
 		"two": 2,
-	}
+	})
 	var _ int = c0["one"]
 
 	// TODO(albrow): This should be allowed.

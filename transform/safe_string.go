@@ -127,7 +127,7 @@ func chanTypeToExpr(ch *types.Chan) ast.Expr {
 	var chanDir ast.ChanDir
 	switch ch.Dir() {
 	case types.SendRecv:
-		chanDir = ast.SEND & ast.RECV
+		chanDir = ast.SEND | ast.RECV
 	case types.SendOnly:
 		chanDir = ast.SEND
 	case types.RecvOnly:

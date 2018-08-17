@@ -1,15 +1,118 @@
 package main
 
 type A interface{}
-
 type B interface{}
+type C interface{}
+type D interface{}
+type E interface{}
+type F interface{}
+type G interface{}
+type H interface{}
+type I interface{}
+type J interface{}
+type K interface{}
+type L interface{}
+type M interface{}
 
 func main() {
+	str0, str1 := "foo", "bar"
+	int0 := 42
+	strs0 := []string{"a", "b", "c"}
+	pstr0 := &str0
+	ppstr0 := &pstr0
+	pint0 := &int0
+	ppint0 := &pint0
+	pstrs0 := &strs0
+	ppstrs0 := &pstrs0
+
 	var a0 A = "foo"
 	var _ string = a0.(string)
 	var a1 A = 42
 	var _ int = a1.(int)
+	var a2 A = []string{"a", "b", "c"}
+	var _ []string = a2.([]string)
 
-	var b0 B = []string{"a", "b"}
+	var b0 B = []string{"foo"}
 	var _ []string = b0.([]string)
+	var b1 B = []int{42}
+	var _ []int = b1.([]int)
+	var b2 B = [][]string{[]string{"a", "b", "c"}}
+	var _ [][]string = b2.([][]string)
+
+	var c0 C = [3]string{"a", "b", "c"}
+	var _ [3]string = c0.([3]string)
+	var c1 C = [3]int{1, 2, 3}
+	var _ [3]int = c1.([3]int)
+	var c2 C = [3][]string{[]string{"a"}, []string{"b"}, []string{"c"}}
+	var _ [3][]string = c2.([3][]string)
+
+	var d0 D = map[string]string{"foo": "bar"}
+	var _ map[string]string = d0.(map[string]string)
+	var d1 D = map[int]int{0: 42}
+	var _ map[int]int = d1.(map[int]int)
+	var d2 D = map[*string]*string{&str0: &str1}
+	var _ map[*string]*string = d2.(map[*string]*string)
+
+	var e0 E = map[string]string{"foo": "bar"}
+	var _ map[string]string = e0.(map[string]string)
+	var e1 E = map[int]string{42: "foo"}
+	var _ map[int]string = e1.(map[int]string)
+	var e2 E = map[*string]string{&str0: "bar"}
+	var _ map[*string]string = e2.(map[*string]string)
+
+	var f0 F = map[string]string{"foo": "bar"}
+	var _ map[string]string = f0.(map[string]string)
+	var f1 F = map[string]int{"foo": 42}
+	var _ map[string]int = f1.(map[string]int)
+	var f2 F = map[string]*string{"foo": &str1}
+	var _ map[string]*string = f2.(map[string]*string)
+
+	var g0 G = &str0
+	var _ *string = g0.(*string)
+	var g1 G = &int0
+	var _ *int = g1.(*int)
+	var g2 G = &strs0
+	var _ *[]string = g2.(*[]string)
+
+	var h0 H = &ppstr0
+	var _ ***string = h0.(***string)
+	var h1 H = &ppint0
+	var _ ***int = h1.(***int)
+	var h2 H = &ppstrs0
+	var _ ***[]string = h2.(***[]string)
+
+	var i0 I = make(chan string)
+	var _ chan string = i0.(chan string)
+	var i1 I = make(chan int)
+	var _ chan int = i1.(chan int)
+	var i2 I = make(chan []string)
+	var _ chan []string = i2.(chan []string)
+
+	var j0 J = []map[string]chan string{map[string]chan string{"foo": make(chan string)}}
+	var _ []map[string]chan string = j0.([]map[string]chan string)
+	var j1 J = []map[int]chan int{map[int]chan int{42: make(chan int)}}
+	var _ []map[int]chan int = j1.([]map[int]chan int)
+	var j2 J = []map[*string]chan *string{map[*string]chan *string{&str0: make(chan *string)}}
+	var _ []map[*string]chan *string = j2.([]map[*string]chan *string)
+
+	var k0 K = map[string]int{}
+	var _ map[string]int = k0.(map[string]int)
+	var k1 K = map[uint]float64{}
+	var _ map[uint]float64 = k1.(map[uint]float64)
+	var k2 K = map[*string]*int{}
+	var _ map[*string]*int = k2.(map[*string]*int)
+
+	var l0 L = func(string) {}
+	var _ func(string) = l0.(func( string))
+	var l1 L = func(int) {}
+	var _ func(int) = l1.(func( int))
+	var l2 L = func([]string) {}
+	var _ func([]string) = l2.(func( []string))
+
+	var m0 M = func(string) int { return 42 }
+	var _ func(string) int = m0.(func( string) ( int))
+	var m1 M = func(uint) float64 { return 42 }
+	var _ func(uint) float64 = m1.(func( uint) ( float64))
+	var m2 M = func([]string) []int { return []int{} }
+	var _ func([]string) []int = m2.(func( []string) ( []int))
 }
