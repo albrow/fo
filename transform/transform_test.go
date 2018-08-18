@@ -33,6 +33,10 @@ var testCases = []struct {
 		expectedFilename: "testdata/type_spec_struct/main.expected",
 	},
 	{
+		srcFilename:      "testdata/func_decl/main.src",
+		expectedFilename: "testdata/func_decl/main.expected",
+	},
+	{
 		srcFilename:      "testdata/value_spec/main.src",
 		expectedFilename: "testdata/value_spec/main.expected",
 	},
@@ -44,14 +48,14 @@ var testCases = []struct {
 		srcFilename:      "testdata/index_expr/main.src",
 		expectedFilename: "testdata/index_expr/main.expected",
 	},
-	// {
-	// 	srcFilename:      "testdata/call_expr/main.src",
-	// 	expectedFilename: "testdata/call_expr/main.expected",
-	// },
-	// {
-	// 	srcFilename:      "testdata/binary_expr/main.src",
-	// 	expectedFilename: "testdata/binary_expr/main.expected",
-	// },
+	{
+		srcFilename:      "testdata/call_expr/main.src",
+		expectedFilename: "testdata/call_expr/main.expected",
+	},
+	{
+		srcFilename:      "testdata/binary_expr/main.src",
+		expectedFilename: "testdata/binary_expr/main.expected",
+	},
 }
 
 func TestTransform(t *testing.T) {

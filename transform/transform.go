@@ -1,7 +1,6 @@
 package transform
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/albrow/fo/ast"
@@ -38,6 +37,7 @@ func (trans *Transformer) eraseGenerics() func(c *astutil.Cursor) bool {
 	return func(c *astutil.Cursor) bool {
 		switch n := c.Node().(type) {
 		// TODO(albrow): Erase generics from function declarations
+		// TODO(albrow): Erase generics from function bodies
 		// TODO(albrow): Figure out how to handle nested generic types
 		case *ast.TypeArgExpr:
 			// Remove type arguments.
@@ -95,6 +95,18 @@ func (trans *Transformer) eraseGenerics() func(c *astutil.Cursor) bool {
 				c.Replace(newTypeSpec)
 			}
 			return false
+		case *ast.FuncDecl:
+			newFuncDecl := trans.eraseGenericsFromFuncDecl(n)
+			if newFuncDecl != nil {
+				c.Replace(newFuncDecl)
+			}
+		case *ast.ValueSpec:
+			newType := trans.eraseGenericsFromType(n.Type)
+			if newType != nil {
+				newValueSpec := astclone.Clone(n).(*ast.ValueSpec)
+				newValueSpec.Type = newType
+				c.Replace(newValueSpec)
+			}
 		}
 		return true
 	}
@@ -127,6 +139,9 @@ func isTypeNestedGeneric(typ types.Type) bool {
 }
 
 func isVarNestedGeneric(v *types.Var) bool {
+	if v == nil {
+		return false
+	}
 	return isTypeNestedGeneric(v.Type())
 }
 
@@ -161,9 +176,47 @@ func (trans *Transformer) eraseGenericsFromStructType(typ *ast.StructType) ast.E
 	if typ.Fields == nil {
 		return nil
 	}
+	newFieldList := trans.eraseGenericsFromFieldList(typ.Fields)
+	if newFieldList == nil {
+		return nil
+	}
+	newStructType := astclone.Clone(typ).(*ast.StructType)
+	newStructType.Fields = newFieldList
+	return newStructType
+}
+
+func (trans *Transformer) eraseGenericsFromFuncDecl(funcDecl *ast.FuncDecl) ast.Node {
+	if funcDecl.TypeParams == nil || len(funcDecl.TypeParams.Names) == 0 {
+		return nil
+	}
+	newFuncDecl := astclone.Clone(funcDecl).(*ast.FuncDecl)
+	newFuncDecl.TypeParams = nil
+	if funcDecl.Recv != nil {
+		// TODO(albrow): Remove  receiver type params
+	}
+	if funcDecl.Type.Params != nil {
+		newParams := trans.eraseGenericsFromFieldList(funcDecl.Type.Params)
+		if newParams != nil {
+			newFuncDecl.Type.Params = newParams
+		}
+	}
+	if funcDecl.Type.Results != nil {
+		newResults := trans.eraseGenericsFromFieldList(funcDecl.Type.Results)
+		if newResults != nil {
+			newFuncDecl.Type.Results = newResults
+		}
+	}
+	if funcDecl.Body != nil {
+		newBody := astutil.Apply(funcDecl.Body, trans.eraseGenerics(), nil).(*ast.BlockStmt)
+		newFuncDecl.Body = newBody
+	}
+	return newFuncDecl
+}
+
+func (trans *Transformer) eraseGenericsFromFieldList(params *ast.FieldList) *ast.FieldList {
 	needsReplacement := false
-	newFields := make([]*ast.Field, len(typ.Fields.List))
-	for i, field := range typ.Fields.List {
+	newFields := make([]*ast.Field, len(params.List))
+	for i, field := range params.List {
 		newFieldType := trans.eraseGenericsFromType(field.Type)
 		if newFieldType != nil {
 			newField := astclone.Clone(field).(*ast.Field)
@@ -175,11 +228,9 @@ func (trans *Transformer) eraseGenericsFromStructType(typ *ast.StructType) ast.E
 		}
 	}
 	if needsReplacement {
-		newStructType := astclone.Clone(typ).(*ast.StructType)
-		newStructType.Fields = &ast.FieldList{
-			List: newFields,
-		}
-		return newStructType
+		newParams := astclone.Clone(params).(*ast.FieldList)
+		newParams.List = newFields
+		return newParams
 	}
 	return nil
 }
@@ -189,161 +240,64 @@ func (trans *Transformer) eraseGenericsFromStructType(typ *ast.StructType) ast.E
 func (trans *Transformer) insertTypeConversions() func(c *astutil.Cursor) bool {
 	return func(c *astutil.Cursor) bool {
 		switch n := c.Node().(type) {
-		// TODO(albrow): Continue by checking each relevant ast.Node type and
-		// inserting type conversions as needed.
-		case *ast.ValueSpec:
-			newNode := trans.createTypeConversionForValueSpec(n)
+		case *ast.Ident:
+			newNode := trans.createTypeConversionForIdent(n)
 			if newNode != nil {
 				c.Replace(newNode)
 			}
-		case *ast.IndexExpr:
-			newNode := trans.createTypeConversionForIndexExpr(n)
+		case *ast.SelectorExpr:
+			newNode := trans.createTypeConversionForSelectorExpr(n)
 			if newNode != nil {
 				c.Replace(newNode)
+				return false
 			}
-		case *ast.CallExpr:
-			// newNode := trans.createTypeConversionForCallExpr(n)
-			// if newNode != nil {
-			// 	c.Replace(newNode)
-			// }
-		case *ast.BinaryExpr:
-			// newNode := trans.createTypeConversionForBinaryExpr(n)
-			// if newNode != nil {
-			// 	c.Replace(newNode)
-			// }
-
-		case *ast.SliceExpr:
-		case *ast.KeyValueExpr:
-		case *ast.DeclStmt:
-		case *ast.SendStmt:
-		case *ast.IncDecStmt:
-		case *ast.AssignStmt:
-		case *ast.ReturnStmt:
-		case *ast.IfStmt:
-		case *ast.ForStmt:
-		case *ast.RangeStmt:
 		}
 		return true
 	}
 }
 
-func (trans *Transformer) createTypeConversionForValueSpec(n *ast.ValueSpec) ast.Node {
-	var newValueSpec *ast.ValueSpec
-	for i, value := range n.Values {
-		// First look at the type on the left-hand side of the value spec.
-		name := n.Names[i]
-		def, found := trans.Info.Defs[name]
-		if !found {
-			panic(fmt.Errorf("could not find definition for expression: %s %T", name, name))
-		}
-		if _, ok := def.Type().(*types.ConcreteNamed); ok {
-			// If the left-hand side is already a concrete named type, we don't need
-			// to do any conversions.
-			continue
-		}
-		// Next look at the value on the right-hand side of the value spec. We need
-		// to insert a type assertion if value is a concrete named type.
-		newValue := trans.createTypeConversionForExpr(value)
-		if newValue != nil {
-			if newValueSpec == nil {
-				newValueSpec = astclone.Clone(n).(*ast.ValueSpec)
-			}
-			newValueSpec.Values[i] = newValue
-		}
-	}
-	// This check is necessary because nil interface != nil value.
-	if newValueSpec == nil {
+func (trans *Transformer) createTypeConversionForIdent(n *ast.Ident) ast.Expr {
+	if n.Name == "true" || n.Name == "false" {
 		return nil
 	}
-	return newValueSpec
-}
-
-func (trans *Transformer) createTypeConversionForIndexExpr(n *ast.IndexExpr) ast.Expr {
-	underlyingType := trans.getUnderlyingTypeForExpr(n.X)
-	if underlyingType == nil {
-		return nil
-	}
-	newIndexExpr := astclone.Clone(n).(*ast.IndexExpr)
-	newIndexExpr.X = wrapInTypeAssert(newIndexExpr.X, underlyingType)
-	return newIndexExpr
-}
-
-func (trans *Transformer) createTypeConversionForExpr(n ast.Expr) ast.Expr {
-	underlyingType := trans.getUnderlyingTypeForExpr(n)
-	if underlyingType == nil {
-		return nil
-	}
-	return wrapInTypeAssert(n, underlyingType)
-}
-
-func (trans *Transformer) getUnderlyingTypeForExpr(n ast.Expr) types.Type {
-	switch n := n.(type) {
-	case *ast.Ident:
-		return trans.getUnderlyingTypeForIdent(n)
-	case *ast.SelectorExpr:
-		return trans.getUnderlyingTypeForSelectorExpr(n)
-	}
-	return nil
-}
-
-func (trans *Transformer) getUnderlyingTypeForIdent(n *ast.Ident) types.Type {
 	typeAndValue, found := trans.Info.Types[n]
 	if !found {
 		return nil
 	}
-	concreteNamed, ok := typeAndValue.Type.(*types.ConcreteNamed)
+	concreteType, ok := typeAndValue.Type.(types.ConcreteType)
 	if !ok {
 		return nil
 	}
-	return concreteNamed.Underlying()
+	if _, ok := concreteType.Underlying().(*types.Struct); ok {
+		// Don't convert struct types. They are handled separately.
+		return nil
+	}
+	return wrapInTypeAssert(n, concreteType.Underlying())
 }
 
-func (trans *Transformer) getUnderlyingTypeForSelectorExpr(n *ast.SelectorExpr) types.Type {
+func (trans *Transformer) createTypeConversionForSelectorExpr(n *ast.SelectorExpr) ast.Expr {
 	selection, found := trans.Info.Selections[n]
 	if !found {
 		return nil
 	}
 	switch selection.Kind() {
 	case types.FieldVal:
-		return trans.getUnderlyingTypeForFieldSelection(selection)
+		return trans.createTypeConversionForFieldSelector(n, selection)
 	case types.MethodVal:
-		panic(errors.New("MethodVal selection not yet supported"))
+		// panic(errors.New("MethodVal not supported"))
+		return nil
 	case types.MethodExpr:
-		panic(errors.New("MethodExpr selection not yet supported"))
+		// panic(errors.New("MethodExpr not supported"))
+		return nil
 	}
 	return nil
 }
 
-func (trans *Transformer) getUnderlyingTypeForFieldSelection(selection *types.Selection) types.Type {
-	_, ok := selection.Recv().(*types.ConcreteNamed)
-	if !ok {
+func (trans *Transformer) createTypeConversionForFieldSelector(n *ast.SelectorExpr, selection *types.Selection) ast.Expr {
+	if _, ok := selection.Recv().(*types.ConcreteNamed); !ok {
 		return nil
 	}
-	return selection.Type()
-}
-
-// If typ is a *types.TypeParam, finds the corresponding actual type by looking
-// in concreteType.TypeMap and returns a new *ast.TypeAssertion which converts n
-// to that type.
-func wrapIfTypeParam(n ast.Expr, concreteType types.ConcreteType, typ types.Type) ast.Expr {
-	typeParam, isTypeParam := typ.(*types.TypeParam)
-	if !isTypeParam {
-		return nil
-	}
-	// If the type is a TypeParameter, insert a type assertion to convert the
-	// expression to the concrete type.
-	actualType := concreteType.TypeMap()[typeParam.String()]
-	return wrapInTypeAssert(n, actualType)
-}
-
-func findStructField(structType *types.Struct, fieldName string) *types.Var {
-	for i := 0; i < structType.NumFields(); i++ {
-		field := structType.Field(i)
-		if field.Name() == fieldName {
-			return field
-		}
-	}
-	return nil
+	return wrapInTypeAssert(n, selection.Type())
 }
 
 // wrapInTypeAssert returns n wrapped in a type assert expression (e.g., x

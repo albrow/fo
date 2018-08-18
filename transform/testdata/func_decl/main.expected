@@ -1,0 +1,25 @@
+package main
+
+func A(x interface{}) {}
+
+func B() interface{} {
+	var x interface{}
+	return x
+}
+
+func C(x interface{}) interface{} {
+	return x
+}
+
+func D(x interface{}) interface{} {
+	var y interface{}
+	return y
+}
+
+func E(x interface{}) interface{} {
+	var y interface{}
+	return y
+}
+
+func main() {
+}

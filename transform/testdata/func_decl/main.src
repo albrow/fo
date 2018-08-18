@@ -1,0 +1,25 @@
+package main
+
+func A[T](x T) {}
+
+func B[T]() T {
+	var x T
+	return x
+}
+
+func C[T](x T) T {
+	return x
+}
+
+func D[T, U](x T) U {
+	var y U
+	return y
+}
+
+func E[T](x []T) []T {
+	var y []T
+	return y
+}
+
+func main() {
+}

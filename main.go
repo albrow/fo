@@ -61,6 +61,8 @@ func run(c *cli.Context) error {
 	info := &types.Info{
 		Selections: map[*ast.SelectorExpr]*types.Selection{},
 		Uses:       map[*ast.Ident]types.Object{},
+		Types:      map[ast.Expr]types.TypeAndValue{},
+		Defs:       map[*ast.Ident]types.Object{},
 	}
 	pkg, err := conf.Check(f.Name(), fset, []*ast.File{nodes}, info)
 	if err != nil {
