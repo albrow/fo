@@ -37,6 +37,10 @@ var testCases = []struct {
 		expectedFilename: "testdata/func_decl/main.expected",
 	},
 	{
+		srcFilename:      "testdata/method_decl/main.src",
+		expectedFilename: "testdata/method_decl/main.expected",
+	},
+	{
 		srcFilename:      "testdata/value_spec/main.src",
 		expectedFilename: "testdata/value_spec/main.expected",
 	},

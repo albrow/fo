@@ -1,0 +1,37 @@
+package main
+
+type R0[T] struct {
+	x T
+}
+
+func (R0[T]) A(x T) {}
+
+func (R0[T]) B() T {
+	var x T
+	return x
+}
+
+func (R0[T]) C(x T) T {
+	return x
+}
+
+type R1[T, U] struct {
+	x map[T]U
+}
+
+func (R1[T, U]) D(x T) U {
+	var y U
+	return y
+}
+
+func (R0[T]) E(x []T) []T {
+	var y []T
+	return y
+}
+
+func (R0) F[T](x T) T {
+  return x
+}
+
+func main() {
+}

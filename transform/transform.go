@@ -186,13 +186,23 @@ func (trans *Transformer) eraseGenericsFromStructType(typ *ast.StructType) ast.E
 }
 
 func (trans *Transformer) eraseGenericsFromFuncDecl(funcDecl *ast.FuncDecl) ast.Node {
-	if funcDecl.TypeParams == nil || len(funcDecl.TypeParams.Names) == 0 {
+	// First check if the function is generic (either has type parameters or a
+	// generic receiver type).
+	def, found := trans.Info.Defs[funcDecl.Name]
+	if !found {
+		return nil
+	}
+	if _, ok := def.Type().(*types.GenericSignature); !ok {
+		// If the function is non-generic, we don't need to change anything.
 		return nil
 	}
 	newFuncDecl := astclone.Clone(funcDecl).(*ast.FuncDecl)
 	newFuncDecl.TypeParams = nil
 	if funcDecl.Recv != nil {
-		// TODO(albrow): Remove  receiver type params
+		newRecv := trans.eraseGenericsFromReceiver(funcDecl.Recv)
+		if newRecv != nil {
+			newFuncDecl.Recv = newRecv
+		}
 	}
 	if funcDecl.Type.Params != nil {
 		newParams := trans.eraseGenericsFromFieldList(funcDecl.Type.Params)
@@ -211,6 +221,22 @@ func (trans *Transformer) eraseGenericsFromFuncDecl(funcDecl *ast.FuncDecl) ast.
 		newFuncDecl.Body = newBody
 	}
 	return newFuncDecl
+}
+
+func (trans *Transformer) eraseGenericsFromReceiver(recv *ast.FieldList) *ast.FieldList {
+	if recv.List == nil || len(recv.List) == 0 {
+		return nil
+	}
+	recvField := recv.List[0]
+	typeArgExpr, ok := recvField.Type.(*ast.TypeArgExpr)
+	if !ok {
+		return nil
+	}
+	newRecvField := astclone.Clone(recvField).(*ast.Field)
+	newRecvField.Type = typeArgExpr.X
+	newRecv := astclone.Clone(recv).(*ast.FieldList)
+	newRecv.List[0] = newRecvField
+	return newRecv
 }
 
 func (trans *Transformer) eraseGenericsFromFieldList(params *ast.FieldList) *ast.FieldList {

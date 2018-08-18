@@ -1,0 +1,37 @@
+package main
+
+type R0 struct {
+	x interface{}
+}
+
+func (R0) A(x interface{}) {}
+
+func (R0) B() interface{} {
+	var x interface{}
+	return x
+}
+
+func (R0) C(x interface{}) interface{} {
+	return x
+}
+
+type R1 struct {
+	x interface{}
+}
+
+func (R1) D(x interface{}) interface{} {
+	var y interface{}
+	return y
+}
+
+func (R0) E(x interface{}) interface{} {
+	var y interface{}
+	return y
+}
+
+func (R0) F(x interface{}) interface{} {
+	return x
+}
+
+func main() {
+}
