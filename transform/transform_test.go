@@ -3,6 +3,7 @@ package transform
 import (
 	"bytes"
 	goast "go/ast"
+	goimporter "go/importer"
 	goparser "go/parser"
 	gotoken "go/token"
 	gotypes "go/types"
@@ -36,10 +37,10 @@ var testCases = []struct {
 		srcFilename:      "testdata/func_decl/main.src",
 		expectedFilename: "testdata/func_decl/main.expected",
 	},
-	{
-		srcFilename:      "testdata/method_decl/main.src",
-		expectedFilename: "testdata/method_decl/main.expected",
-	},
+	// {
+	// 	srcFilename:      "testdata/method_decl/main.src",
+	// 	expectedFilename: "testdata/method_decl/main.expected",
+	// },
 	{
 		srcFilename:      "testdata/value_spec/main.src",
 		expectedFilename: "testdata/value_spec/main.expected",
@@ -145,6 +146,7 @@ func typeCheckPureGo(t *testing.T, filename string, src *bytes.Buffer) {
 	}
 	conf := gotypes.Config{}
 	info := &gotypes.Info{}
+	conf.Importer = goimporter.Default()
 	_, err = conf.Check(filename, fset, []*goast.File{parsed}, info)
 	if err != nil {
 		t.Errorf("%s: Go type-checker returned error: %s", filename, err.Error())

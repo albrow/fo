@@ -1,23 +1,25 @@
 package main
 
-func A(x interface{}) {}
+import "reflect"
 
-func B() interface{} {
-	var x interface{}
+func A(T interface{}, x interface{}) {}
+
+func B(T interface{}) interface{} {
+	var x = reflect.Zero(reflect.TypeOf(T)).Interface()
 	return x
 }
 
-func C(x interface{}) interface{} {
+func C(T interface{}, x interface{}) interface{} {
 	return x
 }
 
-func D(x interface{}) interface{} {
-	var y interface{}
+func D(T interface{}, U interface{}, x interface{}) interface{} {
+	var y = reflect.Zero(reflect.TypeOf(U)).Interface()
 	return y
 }
 
-func E(x interface{}) interface{} {
-	var y interface{}
+func E(T interface{}, x interface{}) interface{} {
+	var y = reflect.Zero(reflect.SliceOf(reflect.TypeOf(T))).Interface()
 	return y
 }
 

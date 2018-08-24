@@ -14,20 +14,28 @@ import (
 // given package at once.
 
 type Transformer struct {
-	Fset *token.FileSet
-	Pkg  *types.Package
-	Info *types.Info
+	Fset        *token.FileSet
+	Pkg         *types.Package
+	Info        *types.Info
+	currentFile *fileRef
+}
+
+type fileRef struct {
+	file         *ast.File
+	needsReflect bool
 }
 
 func (trans *Transformer) File(f *ast.File) (*ast.File, error) {
-	withTypeConversions := astutil.Apply(f, trans.insertTypeConversions(), nil)
-	result := astutil.Apply(withTypeConversions, trans.eraseGenerics(), nil)
-	resultFile, ok := result.(*ast.File)
-	if !ok {
-		panic(fmt.Errorf("astutil.Apply returned a non-file type: %T", result))
+	trans.currentFile = &fileRef{
+		file:         f,
+		needsReflect: false,
 	}
-
-	return resultFile, nil
+	withTypeConversions := astutil.Apply(f, trans.insertTypeConversions(), nil)
+	result := astutil.Apply(withTypeConversions, trans.eraseGenerics(), nil).(*ast.File)
+	if trans.currentFile.needsReflect {
+		astutil.AddImport(trans.Fset, result, "reflect")
+	}
+	return result, nil
 }
 
 // eraseGenerics removes all type parameters and type arguments. If a type
@@ -36,7 +44,6 @@ func (trans *Transformer) File(f *ast.File) (*ast.File, error) {
 func (trans *Transformer) eraseGenerics() func(c *astutil.Cursor) bool {
 	return func(c *astutil.Cursor) bool {
 		switch n := c.Node().(type) {
-		// TODO(albrow): Erase generics from function declarations
 		// TODO(albrow): Erase generics from function bodies
 		// TODO(albrow): Figure out how to handle nested generic types
 		case *ast.TypeArgExpr:
@@ -96,7 +103,7 @@ func (trans *Transformer) eraseGenerics() func(c *astutil.Cursor) bool {
 			}
 			return false
 		case *ast.FuncDecl:
-			newFuncDecl := trans.eraseGenericsFromFuncDecl(n)
+			newFuncDecl := trans.makeNewFuncDecl(n)
 			if newFuncDecl != nil {
 				c.Replace(newFuncDecl)
 			}
@@ -185,7 +192,7 @@ func (trans *Transformer) eraseGenericsFromStructType(typ *ast.StructType) ast.E
 	return newStructType
 }
 
-func (trans *Transformer) eraseGenericsFromFuncDecl(funcDecl *ast.FuncDecl) ast.Node {
+func (trans *Transformer) makeNewFuncDecl(funcDecl *ast.FuncDecl) ast.Node {
 	// First check if the function is generic (either has type parameters or a
 	// generic receiver type).
 	def, found := trans.Info.Defs[funcDecl.Name]
@@ -209,6 +216,13 @@ func (trans *Transformer) eraseGenericsFromFuncDecl(funcDecl *ast.FuncDecl) ast.
 		if newParams != nil {
 			newFuncDecl.Type.Params = newParams
 		}
+	} else {
+		funcDecl.Type.Params = &ast.FieldList{
+			List: []*ast.Field{},
+		}
+	}
+	if funcDecl.TypeParams != nil && len(funcDecl.TypeParams.Names) > 0 {
+		newFuncDecl.Type.Params.List = append(getTypeParamsAsParams(funcDecl.TypeParams), newFuncDecl.Type.Params.List...)
 	}
 	if funcDecl.Type.Results != nil {
 		newResults := trans.eraseGenericsFromFieldList(funcDecl.Type.Results)
@@ -217,10 +231,23 @@ func (trans *Transformer) eraseGenericsFromFuncDecl(funcDecl *ast.FuncDecl) ast.
 		}
 	}
 	if funcDecl.Body != nil {
-		newBody := astutil.Apply(funcDecl.Body, trans.eraseGenerics(), nil).(*ast.BlockStmt)
-		newFuncDecl.Body = newBody
+		newBody := trans.functionBody(funcDecl)
+		if newBody != nil {
+			newFuncDecl.Body = newBody
+		}
 	}
 	return newFuncDecl
+}
+
+func getTypeParamsAsParams(typeParams *ast.TypeParamDecl) []*ast.Field {
+	fields := make([]*ast.Field, len(typeParams.Names))
+	for i, typeParam := range typeParams.Names {
+		fields[i] = &ast.Field{
+			Names: []*ast.Ident{ast.NewIdent(typeParam.Name)},
+			Type:  newEmptyInterface(),
+		}
+	}
+	return fields
 }
 
 func (trans *Transformer) eraseGenericsFromReceiver(recv *ast.FieldList) *ast.FieldList {
@@ -259,6 +286,46 @@ func (trans *Transformer) eraseGenericsFromFieldList(params *ast.FieldList) *ast
 		return newParams
 	}
 	return nil
+}
+
+func (trans *Transformer) functionBody(decl *ast.FuncDecl) *ast.BlockStmt {
+	applyFunc := func(c *astutil.Cursor) bool {
+		switch n := c.Node().(type) {
+		case *ast.ValueSpec:
+			// Look for ValueSpecs with a generic type but no value. We need to
+			// initialize these with reflect.
+			if n.Names != nil && len(n.Names) == 0 {
+				return true
+			}
+			if n.Values != nil && len(n.Values) > 0 {
+				return true
+			}
+			name := n.Names[0]
+			def, found := trans.Info.Defs[name]
+			if !found {
+				return true
+			}
+			if !isTypeNestedGeneric(def.Type()) {
+				return true
+			}
+			zeroVal := makeZeroValue(n.Type)
+			if zeroVal == nil {
+				return true
+			}
+			trans.currentFile.needsReflect = true
+			newSpec := astclone.Clone(n).(*ast.ValueSpec)
+			newSpec.Values = []ast.Expr{zeroVal}
+			newSpec.Type = nil
+			c.Replace(newSpec)
+			return false
+		}
+		return true
+	}
+	newBody := astutil.Apply(decl.Body, applyFunc, nil)
+	if newBody == nil {
+		return nil
+	}
+	return newBody.(*ast.BlockStmt)
 }
 
 // insertTypeConversions inserts type casts and conversions so that any usage
