@@ -16,10 +16,5 @@ func D[T, U](x T) U {
 	return y
 }
 
-func E[T](x []T) []T {
-	var y []T
-	return y
-}
-
 func main() {
 }

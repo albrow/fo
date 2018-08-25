@@ -1,0 +1,69 @@
+package main
+
+func A[T]() T {
+	var x T
+	return x
+}
+
+func B[T]() []T {
+  var x []T
+  return x
+}
+
+func C[T]() [3]T {
+  var x [3]T
+  return x
+}
+
+func D[T]() map[T]T {
+  var x map[T]T
+  return x
+}
+
+func E[T]() map[T]string {
+  var x map[T]string
+  return x
+}
+
+func F[T]() map[string]T {
+  var x map[string]T
+  return x
+}
+
+func G[T]() *T {
+  var x *T
+  return x
+}
+
+func H[T]() ***T {
+  var x ***T
+  return x
+}
+
+func I[T]() chan T {
+  var x chan T
+  return x
+}
+
+func J[T]() []map[T]chan T {
+  var x []map[T]chan T
+  return x
+}
+
+func K[T]() func(T) {
+  var x func(T)
+  return x
+}
+
+func L[T, U]() map[T]U {
+  var x map[T]U
+  return x
+}
+
+func M[T, U]() func(T) U {
+  var x func(T) U
+  return x
+}
+
+func main() {
+}

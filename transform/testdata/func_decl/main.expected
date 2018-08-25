@@ -18,10 +18,5 @@ func D(T interface{}, U interface{}, x interface{}) interface{} {
 	return y
 }
 
-func E(T interface{}, x interface{}) interface{} {
-	var y = reflect.Zero(reflect.SliceOf(reflect.TypeOf(T))).Interface()
-	return y
-}
-
 func main() {
 }
