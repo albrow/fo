@@ -292,32 +292,18 @@ func (trans *Transformer) functionBody(decl *ast.FuncDecl) *ast.BlockStmt {
 	applyFunc := func(c *astutil.Cursor) bool {
 		switch n := c.Node().(type) {
 		case *ast.ValueSpec:
-			// Look for ValueSpecs with a generic type but no value. We need to
-			// initialize these with reflect.
-			if n.Names != nil && len(n.Names) == 0 {
-				return true
+			newValueSpec := trans.funcBodyValueSpec(n)
+			if newValueSpec != nil {
+				c.Replace(newValueSpec)
+				return false
 			}
-			if n.Values != nil && len(n.Values) > 0 {
-				return true
+		case *ast.CallExpr:
+			newCallExpr := trans.funcBodyCallExpr(n)
+			if newCallExpr != nil {
+				trans.currentFile.needsReflect = true
+				c.Replace(newCallExpr)
+				return false
 			}
-			name := n.Names[0]
-			def, found := trans.Info.Defs[name]
-			if !found {
-				return true
-			}
-			if !isTypeNestedGeneric(def.Type()) {
-				return true
-			}
-			zeroVal := makeZeroValue(n.Type)
-			if zeroVal == nil {
-				return true
-			}
-			trans.currentFile.needsReflect = true
-			newSpec := astclone.Clone(n).(*ast.ValueSpec)
-			newSpec.Values = []ast.Expr{zeroVal}
-			newSpec.Type = nil
-			c.Replace(newSpec)
-			return false
 		}
 		return true
 	}
@@ -326,6 +312,58 @@ func (trans *Transformer) functionBody(decl *ast.FuncDecl) *ast.BlockStmt {
 		return nil
 	}
 	return newBody.(*ast.BlockStmt)
+}
+
+func (trans *Transformer) funcBodyValueSpec(n *ast.ValueSpec) ast.Node {
+	// Look for ValueSpecs with a generic type but no value. We need to
+	// initialize these with reflect.
+	if n.Names != nil && len(n.Names) == 0 {
+		return nil
+	}
+	if n.Values != nil && len(n.Values) > 0 {
+		return nil
+	}
+	name := n.Names[0]
+	def, found := trans.Info.Defs[name]
+	if !found {
+		return nil
+	}
+	if !isTypeNestedGeneric(def.Type()) {
+		return nil
+	}
+	zeroVal := makeZeroValue(n.Type)
+	if zeroVal == nil {
+		return nil
+	}
+	trans.currentFile.needsReflect = true
+	newSpec := astclone.Clone(n).(*ast.ValueSpec)
+	newSpec.Values = []ast.Expr{zeroVal}
+	newSpec.Type = nil
+	return newSpec
+}
+
+func (trans *Transformer) funcBodyCallExpr(n *ast.CallExpr) ast.Expr {
+	switch getFuncName(n) {
+	case "len":
+		return trans.funcBodyLenExpr(n)
+	default:
+		fmt.Println(getFuncName(n))
+	}
+	// TODO(albrow): Support non built-in functions.
+	return nil
+}
+
+// Returns empty string if func name is not an *ast.Ident
+func getFuncName(n *ast.CallExpr) string {
+	if ident, ok := n.Fun.(*ast.Ident); ok {
+		return ident.Name
+	}
+	return ""
+}
+
+func (trans *Transformer) funcBodyLenExpr(n *ast.CallExpr) ast.Expr {
+	arg := n.Args[0]
+	return makeLenExpr(arg)
 }
 
 // insertTypeConversions inserts type casts and conversions so that any usage

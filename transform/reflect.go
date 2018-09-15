@@ -10,15 +10,21 @@ import (
 // Returns an expression returning the zero value for the given type.
 // T => reflect.ZeroValue(reflect.TypeOf(T)).Interface{}
 func makeZeroValue(typ ast.Expr) ast.Expr {
+	return reflectValToInterface(
+		&ast.CallExpr{
+			Fun: &ast.SelectorExpr{
+				X:   ast.NewIdent("reflect"),
+				Sel: ast.NewIdent("Zero"),
+			},
+			Args: []ast.Expr{makeType(typ)},
+		},
+	)
+}
+
+func reflectValToInterface(val ast.Expr) ast.Expr {
 	return &ast.CallExpr{
 		Fun: &ast.SelectorExpr{
-			X: &ast.CallExpr{
-				Fun: &ast.SelectorExpr{
-					X:   ast.NewIdent("reflect"),
-					Sel: ast.NewIdent("Zero"),
-				},
-				Args: []ast.Expr{makeType(typ)},
-			},
+			X: val,
 			Sel: ast.NewIdent("Interface"),
 		},
 	}
@@ -228,6 +234,28 @@ func makePrimitiveType(typ *ast.Ident) ast.Expr {
 		},
 		Args: []ast.Expr{
 			makePrimitiveZeroVal(typ),
+		},
+	}
+}
+
+// n -> reflect.Len(reflect.ValueOf(n)).Interface()
+func makeLenExpr(n ast.Expr) ast.Expr {
+	return &ast.CallExpr{
+		Fun: &ast.SelectorExpr{
+			X:   makeValueOf(n),
+			Sel: ast.NewIdent("Len"),
+		},
+	}
+}
+
+func makeValueOf(n ast.Expr) ast.Expr {
+	return &ast.CallExpr{
+		Fun: &ast.SelectorExpr{
+			X:   ast.NewIdent("reflect"),
+			Sel: ast.NewIdent("ValueOf"),
+		},
+		Args: []ast.Expr{
+			n,
 		},
 	}
 }

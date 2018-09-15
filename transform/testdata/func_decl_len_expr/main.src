@@ -1,0 +1,15 @@
+package main
+
+func A[T] (x []T) int {
+	return len(x)
+}
+
+func B[T] (x [3]T) int {
+	return len(x)
+}
+
+func C[T, U] (x map[T]U) int {
+	return len(x)
+}
+
+func main() {}
