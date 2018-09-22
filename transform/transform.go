@@ -304,6 +304,13 @@ func (trans *Transformer) functionBody(decl *ast.FuncDecl) *ast.BlockStmt {
 				c.Replace(newCallExpr)
 				return false
 			}
+		case *ast.IndexExpr:
+			newIndexExpr := trans.funcBodyIndexExpr(n)
+			if newIndexExpr != nil {
+				trans.currentFile.needsReflect = true
+				c.Replace(newIndexExpr)
+				return false
+			}
 		}
 		return true
 	}
@@ -364,6 +371,19 @@ func getFuncName(n *ast.CallExpr) string {
 func (trans *Transformer) funcBodyLenExpr(n *ast.CallExpr) ast.Expr {
 	arg := n.Args[0]
 	return makeLenExpr(arg)
+}
+
+func (trans *Transformer) funcBodyIndexExpr(n *ast.IndexExpr) ast.Expr {
+	typeAndValue, found := trans.Info.Types[n]
+	if !found {
+		return nil
+	}
+	_, isTypeArgExpr := typeAndValue.Type.(types.ConcreteType)
+	if isTypeArgExpr {
+		// TOOD(albrow): Handle this
+		return nil
+	}
+	return makeIndexExpr(n.X, n.Index)
 }
 
 // insertTypeConversions inserts type casts and conversions so that any usage

@@ -259,3 +259,17 @@ func makeValueOf(n ast.Expr) ast.Expr {
 		},
 	}
 }
+
+func makeIndexExpr(val ast.Expr, index ast.Expr) ast.Expr {
+	return reflectValToInterface(
+		&ast.CallExpr{
+			Fun: &ast.SelectorExpr{
+				X:   makeValueOf(val),
+				Sel: ast.NewIdent("Index"),
+			},
+			Args: []ast.Expr{
+				index,
+			},
+		},
+	)
+}

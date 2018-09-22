@@ -1,0 +1,7 @@
+package main
+
+func A[T] (x []T) {
+	print(x[0])
+}
+
+func main() {}
