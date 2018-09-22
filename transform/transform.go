@@ -44,7 +44,6 @@ func (trans *Transformer) File(f *ast.File) (*ast.File, error) {
 func (trans *Transformer) eraseGenerics() func(c *astutil.Cursor) bool {
 	return func(c *astutil.Cursor) bool {
 		switch n := c.Node().(type) {
-		// TODO(albrow): Erase generics from function bodies
 		// TODO(albrow): Figure out how to handle nested generic types
 		case *ast.TypeArgExpr:
 			// Remove type arguments.
@@ -370,12 +369,23 @@ func getFuncName(n *ast.CallExpr) string {
 
 func (trans *Transformer) funcBodyLenExpr(n *ast.CallExpr) ast.Expr {
 	arg := n.Args[0]
+	typeAndValue, found := trans.Info.Types[arg]
+	if !found {
+		return nil
+	}
+	// Don't alter non-generic len expressions
+	if !isTypeNestedGeneric(typeAndValue.Type) {
+		return nil
+	}
 	return makeLenExpr(arg)
 }
 
 func (trans *Transformer) funcBodyIndexExpr(n *ast.IndexExpr) ast.Expr {
 	typeAndValue, found := trans.Info.Types[n]
 	if !found {
+		return nil
+	}
+	if !isTypeNestedGeneric(typeAndValue.Type) {
 		return nil
 	}
 	_, isTypeArgExpr := typeAndValue.Type.(types.ConcreteType)
