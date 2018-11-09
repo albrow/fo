@@ -2,8 +2,10 @@ package main
 
 import "reflect"
 
-func A(T interface{}, x interface{}) {
-	print(reflect.ValueOf(x).Index(0).Interface())
+func A(T interface{}) func(x interface{}) {
+	return func(x interface{}) {
+		print(reflect.ValueOf(x).Index(0).Interface())
+	}
 }
 
 func main() {}

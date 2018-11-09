@@ -2,20 +2,26 @@ package main
 
 import "reflect"
 
-func A(T interface{}, x interface{}) {}
+func A(T interface{}) func(x interface{}) { return func(x interface{}) {} }
 
-func B(T interface{}) interface{} {
-	var x = reflect.Zero(reflect.TypeOf(T)).Interface()
-	return x
+func B(T interface{}) func() interface{} {
+	return func() interface{} {
+		var x = reflect.Zero(reflect.TypeOf(T)).Interface()
+		return x
+	}
 }
 
-func C(T interface{}, x interface{}) interface{} {
-	return x
+func C(T interface{}) func(x interface{}) interface{} {
+	return func(x interface{}) interface{} {
+		return x
+	}
 }
 
-func D(T interface{}, U interface{}, x interface{}) interface{} {
-	var y = reflect.Zero(reflect.TypeOf(U)).Interface()
-	return y
+func D(T interface{}, U interface{}) func(x interface{}) interface{} {
+	return func(x interface{}) interface{} {
+		var y = reflect.Zero(reflect.TypeOf(U)).Interface()
+		return y
+	}
 }
 
 func main() {

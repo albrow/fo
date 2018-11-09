@@ -2,16 +2,22 @@ package main
 
 import "reflect"
 
-func A(T interface{}, x interface{}) int {
-	return reflect.ValueOf(x).Len()
+func A(T interface{}) func(x interface{}) int {
+	return func(x interface{}) int {
+		return reflect.ValueOf(x).Len()
+	}
 }
 
-func B(T interface{}, x interface{}) int {
-	return reflect.ValueOf(x).Len()
+func B(T interface{}) func(x interface{}) int {
+	return func(x interface{}) int {
+		return reflect.ValueOf(x).Len()
+	}
 }
 
-func C(T interface{}, U interface{}, x interface{}) int {
-	return reflect.ValueOf(x).Len()
+func C(T interface{}, U interface{}) func(x interface{}) int {
+	return func(x interface{}) int {
+		return reflect.ValueOf(x).Len()
+	}
 }
 
 func main() {}

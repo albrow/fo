@@ -2,69 +2,95 @@ package main
 
 import "reflect"
 
-func A(T interface{}) interface{} {
-	var x = reflect.Zero(reflect.TypeOf(T)).Interface()
-	return x
+func A(T interface{}) func() interface{} {
+	return func() interface{} {
+		var x = reflect.Zero(reflect.TypeOf(T)).Interface()
+		return x
+	}
 }
 
-func B(T interface{}) interface{} {
-	var x = reflect.Zero(reflect.SliceOf(reflect.TypeOf(T))).Interface()
-	return x
+func B(T interface{}) func() interface{} {
+	return func() interface{} {
+		var x = reflect.Zero(reflect.SliceOf(reflect.TypeOf(T))).Interface()
+		return x
+	}
 }
 
-func C(T interface{}) interface{} {
-	var x = reflect.Zero(reflect.ArrayOf(3, reflect.TypeOf(T))).Interface()
-	return x
+func C(T interface{}) func() interface{} {
+	return func() interface{} {
+		var x = reflect.Zero(reflect.ArrayOf(3, reflect.TypeOf(T))).Interface()
+		return x
+	}
 }
 
-func D(T interface{}) interface{} {
-	var x = reflect.Zero(reflect.MapOf(reflect.TypeOf(T), reflect.TypeOf(T))).Interface()
-	return x
+func D(T interface{}) func() interface{} {
+	return func() interface{} {
+		var x = reflect.Zero(reflect.MapOf(reflect.TypeOf(T), reflect.TypeOf(T))).Interface()
+		return x
+	}
 }
 
-func E(T interface{}) interface{} {
-	var x = reflect.Zero(reflect.MapOf(reflect.TypeOf(T), reflect.TypeOf(""))).Interface()
-	return x
+func E(T interface{}) func() interface{} {
+	return func() interface{} {
+		var x = reflect.Zero(reflect.MapOf(reflect.TypeOf(T), reflect.TypeOf(""))).Interface()
+		return x
+	}
 }
 
-func F(T interface{}) interface{} {
-	var x = reflect.Zero(reflect.MapOf(reflect.TypeOf(""), reflect.TypeOf(T))).Interface()
-	return x
+func F(T interface{}) func() interface{} {
+	return func() interface{} {
+		var x = reflect.Zero(reflect.MapOf(reflect.TypeOf(""), reflect.TypeOf(T))).Interface()
+		return x
+	}
 }
 
-func G(T interface{}) interface{} {
-	var x = reflect.Zero(reflect.PtrTo(reflect.TypeOf(T))).Interface()
-	return x
+func G(T interface{}) func() interface{} {
+	return func() interface{} {
+		var x = reflect.Zero(reflect.PtrTo(reflect.TypeOf(T))).Interface()
+		return x
+	}
 }
 
-func H(T interface{}) interface{} {
-	var x = reflect.Zero(reflect.PtrTo(reflect.PtrTo(reflect.PtrTo(reflect.TypeOf(T))))).Interface()
-	return x
+func H(T interface{}) func() interface{} {
+	return func() interface{} {
+		var x = reflect.Zero(reflect.PtrTo(reflect.PtrTo(reflect.PtrTo(reflect.TypeOf(T))))).Interface()
+		return x
+	}
 }
 
-func I(T interface{}) interface{} {
-	var x = reflect.Zero(reflect.ChanOf(reflect.BothDir, reflect.TypeOf(T))).Interface()
-	return x
+func I(T interface{}) func() interface{} {
+	return func() interface{} {
+		var x = reflect.Zero(reflect.ChanOf(reflect.BothDir, reflect.TypeOf(T))).Interface()
+		return x
+	}
 }
 
-func J(T interface{}) interface{} {
-	var x = reflect.Zero(reflect.SliceOf(reflect.MapOf(reflect.TypeOf(T), reflect.ChanOf(reflect.BothDir, reflect.TypeOf(T))))).Interface()
-	return x
+func J(T interface{}) func() interface{} {
+	return func() interface{} {
+		var x = reflect.Zero(reflect.SliceOf(reflect.MapOf(reflect.TypeOf(T), reflect.ChanOf(reflect.BothDir, reflect.TypeOf(T))))).Interface()
+		return x
+	}
 }
 
-func K(T interface{}) interface{} {
-	var x = reflect.Zero(reflect.FuncOf([]reflect.Type{reflect.TypeOf(T)}, []reflect.Type{}, false)).Interface()
-	return x
+func K(T interface{}) func() interface{} {
+	return func() interface{} {
+		var x = reflect.Zero(reflect.FuncOf([]reflect.Type{reflect.TypeOf(T)}, []reflect.Type{}, false)).Interface()
+		return x
+	}
 }
 
-func L(T interface{}, U interface{}) interface{} {
-	var x = reflect.Zero(reflect.MapOf(reflect.TypeOf(T), reflect.TypeOf(U))).Interface()
-	return x
+func L(T interface{}, U interface{}) func() interface{} {
+	return func() interface{} {
+		var x = reflect.Zero(reflect.MapOf(reflect.TypeOf(T), reflect.TypeOf(U))).Interface()
+		return x
+	}
 }
 
-func M(T interface{}, U interface{}) interface{} {
-	var x = reflect.Zero(reflect.FuncOf([]reflect.Type{reflect.TypeOf(T)}, []reflect.Type{reflect.TypeOf(U)}, false)).Interface()
-	return x
+func M(T interface{}, U interface{}) func() interface{} {
+	return func() interface{} {
+		var x = reflect.Zero(reflect.FuncOf([]reflect.Type{reflect.TypeOf(T)}, []reflect.Type{reflect.TypeOf(U)}, false)).Interface()
+		return x
+	}
 }
 
 func main() {

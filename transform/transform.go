@@ -210,29 +210,79 @@ func (trans *Transformer) makeNewFuncDecl(funcDecl *ast.FuncDecl) ast.Node {
 			newFuncDecl.Recv = newRecv
 		}
 	}
+	var paramsWithoutGenerics *ast.FieldList
 	if funcDecl.Type.Params != nil {
-		newParams := trans.eraseGenericsFromFieldList(funcDecl.Type.Params)
-		if newParams != nil {
-			newFuncDecl.Type.Params = newParams
+		paramsWithoutGenerics = trans.eraseGenericsFromFieldList(funcDecl.Type.Params)
+	}
+	var resultsWithoutGenerics *ast.FieldList
+	if funcDecl.Type.Results != nil {
+		resultsWithoutGenerics = trans.eraseGenericsFromFieldList(funcDecl.Type.Results)
+	}
+	// If the function has type params, we need to make changes to the parameters,
+	// body, and return type.
+	//
+	//    func ident[T](x T) T {
+	//        return x
+	//    }
+	//
+	// becomes:
+	//
+	//    func ident(T interface{}) func(x interface{}) interface{} {
+	//        return func(x interface{}) interface{} {
+	//            return x
+	//        }
+	//    }
+	//
+	var nestedFuncType *ast.FuncType
+	if funcDecl.TypeParams != nil && len(funcDecl.TypeParams.Names) > 0 {
+		// The new function's parameters are type representatives, one for each
+		// type parameter.
+		newFuncDecl.Type.Params.List = getTypeParamsAsParams(funcDecl.TypeParams)
+		nestedFuncType = &ast.FuncType{}
+		if paramsWithoutGenerics != nil {
+			nestedFuncType.Params = paramsWithoutGenerics
+		}
+		if resultsWithoutGenerics != nil {
+			nestedFuncType.Results = resultsWithoutGenerics
+		}
+		newFuncDecl.Type.Results = &ast.FieldList{
+			List: []*ast.Field{
+				{
+					Type: nestedFuncType,
+				},
+			},
 		}
 	} else {
-		funcDecl.Type.Params = &ast.FieldList{
-			List: []*ast.Field{},
+		// Otherwise just replace the params and results with the non-generic
+		// equivalent.
+		if paramsWithoutGenerics != nil {
+			newFuncDecl.Type.Params = paramsWithoutGenerics
+		} else {
+			funcDecl.Type.Params = &ast.FieldList{
+				List: []*ast.Field{},
+			}
 		}
-	}
-	if funcDecl.TypeParams != nil && len(funcDecl.TypeParams.Names) > 0 {
-		newFuncDecl.Type.Params.List = append(getTypeParamsAsParams(funcDecl.TypeParams), newFuncDecl.Type.Params.List...)
-	}
-	if funcDecl.Type.Results != nil {
-		newResults := trans.eraseGenericsFromFieldList(funcDecl.Type.Results)
-		if newResults != nil {
-			newFuncDecl.Type.Results = newResults
+		if resultsWithoutGenerics != nil {
+			newFuncDecl.Type.Results = resultsWithoutGenerics
 		}
 	}
 	if funcDecl.Body != nil {
 		newBody := trans.functionBody(funcDecl)
 		if newBody != nil {
 			newFuncDecl.Body = newBody
+		}
+	}
+	// Finally, insert the nested func type in the func body if needed.
+	if nestedFuncType != nil {
+		nestedFunc := &ast.FuncLit{}
+		nestedFunc.Type = nestedFuncType
+		nestedFunc.Body = newFuncDecl.Body
+		newFuncDecl.Body = &ast.BlockStmt{
+			List: []ast.Stmt{
+				&ast.ReturnStmt{
+					Results: []ast.Expr{nestedFunc},
+				},
+			},
 		}
 	}
 	return newFuncDecl
@@ -284,7 +334,7 @@ func (trans *Transformer) eraseGenericsFromFieldList(params *ast.FieldList) *ast
 		newParams.List = newFields
 		return newParams
 	}
-	return nil
+	return params
 }
 
 func (trans *Transformer) functionBody(decl *ast.FuncDecl) *ast.BlockStmt {
@@ -313,6 +363,7 @@ func (trans *Transformer) functionBody(decl *ast.FuncDecl) *ast.BlockStmt {
 		}
 		return true
 	}
+
 	newBody := astutil.Apply(decl.Body, applyFunc, nil)
 	if newBody == nil {
 		return nil
