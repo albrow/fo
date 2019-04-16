@@ -240,7 +240,7 @@ depend on the type parameters of the `Box`:
 
 ```go
 func (b Box) String() string {
-  return fmt.Sprint(b.val)
+  return fmt.Sprint(b.v)
 }
 ```
 
