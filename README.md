@@ -7,7 +7,7 @@ The name is short for "Functional Go".
 
 <!-- TOC depthFrom:2 depthTo:3 updateOnSave:false -->
 
-- [Background](#background)
+- [Current Status](#current-status)
 - [Playground](#playground)
 - [Installation](#installation)
 - [Command Line Usage](#command-line-usage)
@@ -19,21 +19,25 @@ The name is short for "Functional Go".
 
 <!-- /TOC -->
 
-## Background
+## Current Status
 
-Go already supports many features that functional programmers might want:
-closures, first-class functions, errors as values, etc. The main feature
-(and in fact only feature for now) that Fo adds is type polymorphism via
-generics. Generics encourage functional programming techniques by making it
-possible to write flexible higher-order functions and type-agnostic data
-structures.
+Fo is no longer being actively worked on or maintained.
 
-At this time, Fo should be thought of primarily as an experiment or proof of
-concept. It shows what Go looks like and feels like with some new language
-features and allows us to explore how those features interact and what you can
-build with them. The syntax and implementation are not finalized. The language
-is far from appropriate for use in real applications, though that will hopefully
-change in the future.
+When this project was first created, Go did not support generics. However,
+as of [Go version 1.18](https://go.dev/doc/go1.18), that has changed. For
+more information about how to use generics in the latest version of Go, see
+[this official tutorial](https://go.dev/doc/tutorial/generics).
+
+Since Go supports generics, there is much less reason to continue working on
+Fo. It is sort of true that Fo supports some things that Go does not (like generic
+methods or omitting the type parameters on a receiver type when it is not
+used). But overall Fo is still fairly unstable and has the major limitation of
+being restricted to compiling a single file. This likely makes it unsuitable for
+any real world applications.
+
+I have decided to leave this repository and [the playground](https://play.folang.org/)
+up for. It might be helpful for anyone who wants to hack on the Go compiler or work with
+ASTs.
 
 ## Playground
 
